@@ -1,0 +1,328 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ProximaTrax brand tokens (landing page / dark surfaces) */
+  --bg: #050505;
+  --bg-secondary: #0A0A0A;
+  --fg: #F4F4F5;
+  --fg-muted: #888888;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --accent-glow: rgba(255, 69, 0, 0.15);
+  --glass: rgba(5, 5, 5, 0.6);
+
+  /* ProximaTrax design system colors */
+  --navy-deep: #0F172A;
+  --navy: #1E293B;
+  --navy-soft: #334155;
+  --copper: #D97706;
+  --copper-hover: #B45309;
+  --copper-soft: rgba(217, 119, 6, 0.1);
+  --copper-muted: #FEF3C7;
+  --slate-white: #F8FAFC;
+  --surface-canvas: #F1F5F9;
+  --surface-card: #FFFFFF;
+  --surface-spotlight: #F8FAFC;
+  --cool-grey: #E2E8F0;
+  --ink: #1E293B;
+  --charcoal: #334155;
+  --muted-ink: #64748B;
+  --success: #10B981;
+  --success-soft: rgba(16, 185, 129, 0.1);
+  --error: #EF4444;
+  --error-soft: rgba(239, 68, 68, 0.08);
+  --warning: #F59E0B;
+  --warning-soft: rgba(245, 158, 11, 0.1);
+
+  /* Shadcn light theme (dashboard) — aligned to brand navy + copper */
+  --background: #F1F5F9;
+  --foreground: #334155;
+  --card: #FFFFFF;
+  --card-foreground: #334155;
+  --popover: #FFFFFF;
+  --popover-foreground: #1E293B;
+  --primary: #1E293B;
+  --primary-foreground: #F8FAFC;
+  --secondary: #F8FAFC;
+  --secondary-foreground: #334155;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #D97706;
+  --accent-foreground: #1E293B;
+  --destructive: #EF4444;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #1E293B;
+  --chart-1: #D97706;
+  --chart-2: #10B981;
+  --chart-3: #64748B;
+  --chart-4: #334155;
+  --chart-5: #1E293B;
+  --radius: 0.375rem;
+  --sidebar: #1E293B;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #D97706;
+  --sidebar-primary-foreground: #F8FAFC;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: #334155;
+  --sidebar-ring: #D97706;
+}
+
+@theme inline {
+  /* ProximaTrax brand palette */
+  --color-bg: var(--bg);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border-subtle: var(--border-subtle);
+  --color-accent-glow: var(--accent-glow);
+  --color-glass: var(--glass);
+  --color-navy-deep: var(--navy-deep);
+  --color-navy: var(--navy);
+  --color-navy-soft: var(--navy-soft);
+  --color-copper: var(--copper);
+  --color-copper-hover: var(--copper-hover);
+  --color-copper-soft: var(--copper-soft);
+  --color-copper-muted: var(--copper-muted);
+  --color-slate-white: var(--slate-white);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-card: var(--surface-card);
+  --color-surface-spotlight: var(--surface-spotlight);
+  --color-cool-grey: var(--cool-grey);
+  --color-ink: var(--ink);
+  --color-charcoal: var(--charcoal);
+  --color-muted-ink: var(--muted-ink);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  /* Shadcn semantic tokens */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-plus-jakarta);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+body {
+  font-family: var(--font-sans), sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--copper);
+  color: #000;
+}
+
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(circle at 50% 50%, black, transparent 80%);
+}
+
+.glass-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+}
+
+.btn-primary {
+  background-color: var(--fg);
+  color: var(--bg);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.btn-primary:hover {
+  background-color: var(--copper);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* App scrollbars — light dashboard default (not landing dark tokens) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cool-grey);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--copper);
+}
+
+/* PM dashboard — slightly slimmer scroll area */
+.pm-schedule-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cool-grey) transparent;
+}
+.pm-schedule-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+@keyframes milestone-stamp-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.milestone-stamp-pop {
+  animation: milestone-stamp-pop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.dark {
+  color-scheme: dark;
+  scrollbar-color: oklch(0.439 0 0) transparent;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.746 0.16 75);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.746 0.16 75);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.746 0.16 75);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.17 0.03 256);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.746 0.16 75);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.439 0 0);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--copper);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cool-grey) transparent;
+  }
+}
