@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
     display: "swap",
 });
 export const metadata: Metadata = {
-    title: "ProximaTrax — Project Tracking Workspace",
-    description: "A centralized workspace for interior design and construction teams with Kanban boards, Gantt timelines, file uploads, in-app communication, and client project visibility.",
+    title: "ProximaTrax",
+    description: "A Next.js project workspace for Project Management and real-time collaboration.",
 };
 export default function RootLayout({ children, }: Readonly<{
     children: React.ReactNode;
