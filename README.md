@@ -25,7 +25,6 @@ ProximaTrax is a **Next.js App Router** app with route groups for public auth (`
 - Next.js 16 (App Router)
 - Supabase (PostgreSQL, Auth, Realtime, Storage)
 - Tailwind CSS 4 + Shadcn/UI
-- Zustand, @hello-pangea/dnd, Frappe Gantt
 
 ## License
 
