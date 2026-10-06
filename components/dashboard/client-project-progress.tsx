@@ -1,8 +1,7 @@
-import Link from "next/link";
+import { OpenChatButton } from "@/components/messenger/open-chat-button";
 import { CheckCircle2, Circle, Clock3 } from "lucide-react";
 import { ApprovedSiteGallery } from "@/components/dashboard/approved-site-gallery";
 import { formatDisplayDate, formatRelativeDueDate, getMilestoneStatus, sortMilestones, } from "@/lib/milestone-utils";
-import { projectMessagesPath } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { ApprovedAttachment } from "@/services/task-attachment-service";
 import type { Milestone } from "@/types/database";
@@ -42,9 +41,9 @@ export function ClientProjectProgress({ projectId, milestones, tasks, deliverabl
               {completedCount} of {sorted.length || 0} milestones complete
             </p>
           </div>
-          <Link href={projectMessagesPath(projectId)} className="text-sm font-medium text-amber-800 hover:text-amber-900">
+          <OpenChatButton projectId={projectId} className="text-sm font-medium text-brand hover:text-brand-hover">
             Questions? Message your PM →
-          </Link>
+          </OpenChatButton>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-100">
           <div className="h-full rounded-full bg-linear-to-r from-amber-600 to-amber-500 transition-all" style={{ width: `${progressPct}%` }}/>

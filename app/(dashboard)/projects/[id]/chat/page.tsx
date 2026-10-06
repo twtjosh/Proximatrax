@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { projectMessagesPath } from "@/lib/constants";
+import { projectPath } from "@/lib/constants";
+
+/** Chat lives in the floating messenger; old links open it on this project. */
 export default async function ProjectChatRedirectPage(props: {
     params: Promise<{
         id: string;
     }>;
 }) {
     const { id } = await props.params;
-    redirect(projectMessagesPath(id));
+    redirect(`${projectPath(id)}?chat=${id}`);
 }

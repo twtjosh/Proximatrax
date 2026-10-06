@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarRange, LayoutGrid, Timer, } from "lucide-react";
-import { ProjectMessagesQuickLink } from "@/components/chat/project-messages-quick-link";
+import { ArrowLeft, CalendarRange, LayoutGrid, MessageSquare, Timer, } from "lucide-react";
+import { OpenChatButton } from "@/components/messenger/open-chat-button";
 import { ProjectInviteStatusBanner } from "@/components/projects/project-invite-status-banner";
 import { ProjectClosedBanner } from "@/components/projects/project-closed-banner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { projectBoardPath, projectTimelinePath, ROUTES, } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
-import { countUnreadChatMessages } from "@/services/chat-presence-service";
 import { listInvitationsForProject } from "@/services/project-invitation-service";
 import { getProjectById } from "@/services/project-service";
 import { cn } from "@/lib/utils";
@@ -62,7 +61,6 @@ export default async function ProjectLayout(props: {
     const projectInvitations = isPm && project.status === "pending_invites"
         ? await listInvitationsForProject(id, supabase)
         : [];
-    const unreadChatCount = await countUnreadChatMessages(id, user.id, supabase);
     let progressPct = 0;
     let progressDetail = "";
     let progressSub = "";
@@ -214,14 +212,19 @@ export default async function ProjectLayout(props: {
                   <Timer className="h-3.5 w-3.5 shrink-0"/>
                   {isClient ? "Timeline" : "Time"}
                 </Button>
-                <ProjectMessagesQuickLink projectId={id} viewerId={user.id} initialUnreadChatCount={unreadChatCount} isClient={isClient}/>
+                <OpenChatButton projectId={id} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-[10px] uppercase tracking-wide", isClient
+            ? "h-11 w-full min-w-0 justify-center gap-1.5 rounded-lg border-stone-200 px-2 font-medium normal-case sm:text-[11px]"
+            : "h-8 rounded-none border-slate-200 px-2 font-mono")}>
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0"/>
+                  {isClient ? "Messages" : "Msgs"}
+                </OpenChatButton>
               </div>
             </div>
           </div>
         </div>
 
     </>);
-    return (<ProjectWorkspaceShell projectId={id} isClient={isClient} headerBeforeTabs={headerBeforeTabs} tabs={<ProjectTabs projectId={id} viewerRole={viewerRole} viewerId={user.id} initialUnreadChatCount={unreadChatCount}/>}>
+    return (<ProjectWorkspaceShell projectId={id} isClient={isClient} headerBeforeTabs={headerBeforeTabs} tabs={<ProjectTabs projectId={id} viewerRole={viewerRole}/>}>
       {isPm ? (<ProjectInviteStatusBanner invitations={projectInvitations} projectStatus={project.status}/>) : null}
       <ProjectClosedBanner project={project} variant={isClient ? "client" : viewerRole === "middleman" ? "middleman" : "pm"}/>
       {props.children}

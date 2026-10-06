@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ROLE_TERMS } from "@/lib/vocabulary";
 import type { ProjectStatus, UserRole } from "@/types/enums";
 export type AnalyticsSegment = {
     label: string;
@@ -52,23 +53,13 @@ export type SuperAdminAnalytics = {
         newProjects30d: number;
     };
 };
+/** Status fills follow the stage tokens, so they adapt to the light and Night grounds. */
 const STATUS_COLORS: Record<string, string> = {
-    Active: "#2563eb",
-    Completed: "#10b981",
-    "On hold": "#f59e0b",
+    Active: "var(--stage-progress)",
+    Completed: "var(--stage-done)",
+    "On hold": "var(--stage-todo)",
 };
-const ROLE_COLORS: Record<string, string> = {
-    "Super Admin": "#6366f1",
-    "Admin / PM": "#2563eb",
-    Staff: "#0ea5e9",
-    Client: "#f59e0b",
-};
-const ROLE_LABELS: Record<UserRole, string> = {
-    super_admin: "Super Admin",
-    project_manager: "Admin / PM",
-    middleman: "Staff",
-    client: "Client",
-};
+const ROLE_LABELS: Record<UserRole, string> = ROLE_TERMS;
 function daysAgoIso(days: number): string {
     const d = new Date();
     d.setDate(d.getDate() - days);
@@ -209,11 +200,10 @@ export async function fetchSuperAdminAnalytics(supabase: SupabaseClient): Promis
         const label = ROLE_LABELS[(p.role as UserRole) ?? "client"] ?? "Client";
         roleCounts.set(label, (roleCounts.get(label) ?? 0) + 1);
     }
-    const roleDistribution: AnalyticsSegment[] = [...roleCounts.entries()].map(([label, value]) => ({
-        label,
-        value,
-        color: ROLE_COLORS[label] ?? "#64748b",
-    }));
+    // Shown as a single-hue bar list; identity is the label, not a colour.
+    const roleDistribution: AnalyticsSegment[] = [...roleCounts.entries()]
+        .map(([label, value]) => ({ label, value, color: "var(--brand-bright)" }))
+        .sort((a, b) => b.value - a.value);
     const activeUserIds = new Set<string>();
     for (const row of activity) {
         if (row.user_id)

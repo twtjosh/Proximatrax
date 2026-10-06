@@ -79,7 +79,7 @@ export default async function ProjectsPage(props: {
                 : "font-mono text-[10px] uppercase tracking-[0.24em] text-[#d97706]"}>
               {isMiddleman ? "Field workspace · My projects" : isClient ? "Portfolio" : "Workspace · Projects"}
             </p>) : null}
-          {!isPm ? (<h1 className={isClient
+          <h1 className={isClient
                 ? "font-heading text-3xl font-semibold tracking-tight text-stone-900 sm:text-[2rem]"
                 : "font-heading text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl"}>
             {isMiddleman
@@ -91,9 +91,9 @@ export default async function ProjectsPage(props: {
                         ? "Completed archive"
                         : "Your projects"
                     : isArchiveView
-                        ? "Completed archive"
-                        : "All engagements"}
-          </h1>) : null}
+                        ? "Completed projects"
+                        : "Projects"}
+          </h1>
           <p className={cn(isClient ? "max-w-2xl text-sm leading-relaxed text-stone-600" : "max-w-2xl text-sm leading-relaxed text-slate-500", isPm && "text-[13px] text-muted-ink")}>
             {isArchiveView ? (isClient ? (<>
                   Formally closed engagements with AEG Fashion — milestones,
@@ -118,8 +118,8 @@ export default async function ProjectsPage(props: {
           </p>
         </div>
 
-        {canCreate && !isPm ? (<Button render={<Link href={`${ROUTES.PROJECTS}/new`}/>} className="h-10 rounded-xl border border-[#d97706]/30 bg-[#d97706] px-4 text-sm font-medium text-slate-950 shadow-sm hover:bg-[#f59e0b]">
-            <Plus className="h-4 w-4"/>
+        {canCreate ? (<Button render={<Link href={`${ROUTES.PROJECTS}/new`}/>}>
+            <Plus aria-hidden/>
             New project
           </Button>) : null}
       </header>

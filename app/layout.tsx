@@ -1,38 +1,33 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
-const plusJakarta = Plus_Jakarta_Sans({
-    variable: "--font-plus-jakarta",
+const geist = Geist({
+    variable: "--font-geist",
     subsets: ["latin"],
     display: "swap",
 });
-const inter = Inter({
-    variable: "--font-inter",
-    subsets: ["latin"],
-    display: "swap",
-});
-const jetbrainsMono = JetBrains_Mono({
-    variable: "--font-jetbrains-mono",
+const geistMono = Geist_Mono({
+    variable: "--font-geist-mono",
     subsets: ["latin"],
     display: "swap",
 });
 export const metadata: Metadata = {
     title: "ProximaTrax",
-    description: "A Next.js project workspace for Project Management and real-time collaboration.",
+    description: "Project management and real-time task monitoring for AEG Home Fashion.",
 };
 export default function RootLayout({ children, }: Readonly<{
     children: React.ReactNode;
 }>) {
-    return (<html lang="en" suppressHydrationWarning className={`${plusJakarta.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
+    return (<html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <TooltipProvider>
+          <TooltipProvider delay={300}>
             {children}
           </TooltipProvider>
-          <Toaster richColors position="top-right"/>
+          <Toaster position="bottom-right" offset={{ bottom: 144, right: 24 }} mobileOffset={{ bottom: 144 }}/>
         </ThemeProvider>
       </body>
     </html>);

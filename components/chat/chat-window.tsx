@@ -1,52 +1,44 @@
 "use client";
 import * as React from "react";
-import { CheckCheck, ImageIcon, Loader2, Paperclip, Send } from "lucide-react";
+import { CheckCheck, Loader2, Paperclip, Send } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useProjectWorkspace } from "@/components/projects/project-workspace-context";
-import { formatTypingLabel, useProjectChatRealtime, usersWhoSeenMessage, } from "@/hooks/use-project-chat-realtime";
+import { Face, focusRing } from "@/components/dashboard/overview-kit";
+import { formatTypingLabel, useProjectChatRealtime, usersWhoSeenMessage } from "@/hooks/use-project-chat-realtime";
 import { cn } from "@/lib/utils";
-import { publicAttachmentUrl, uploadChatAttachment, } from "@/services/chat-attachment-service";
+import { publicAttachmentUrl, uploadChatAttachment } from "@/services/chat-attachment-service";
 import type { ChatParticipant } from "@/services/chat-presence-service";
 import { sendChatMessage } from "@/services/chat-service";
-import type { ChatMessage, ChatMessageAttachment, Profile, ProjectChatReadCursor, } from "@/types/database";
+import type { ChatMessage, ChatMessageAttachment, Profile, ProjectChatReadCursor } from "@/types/database";
+
 const TYPING_IDLE_MS = 2000;
-function initials(name: string) {
-    return name
-        .split(" ")
-        .map((p) => p[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-}
+/** Messages from one person within this window read as one group. */
+const GROUP_MS = 5 * 60_000;
+const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const DAY_TIME = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+type Person = Pick<Profile, "id" | "full_name" | "avatar_url">;
+
 export type ChatWindowProps = {
     projectId: string;
     initialMessages: ChatMessage[];
     initialAttachments: ChatMessageAttachment[];
-    viewerProfile: Pick<Profile, "id" | "full_name" | "avatar_url">;
-    senderProfiles: Record<string, Pick<Profile, "id" | "full_name" | "avatar_url">>;
+    viewerProfile: Person;
+    senderProfiles: Record<string, Person>;
     participants: ChatParticipant[];
     initialReadCursors: ProjectChatReadCursor[];
     onAttachmentsChange?: (attachments: ChatMessageAttachment[]) => void;
-    onLiveStateChange?: (state: {
-        messages: ChatMessage[];
-        readCursors: ProjectChatReadCursor[];
-    }) => void;
-    embedded?: boolean;
-    onOpenMedia?: () => void;
+    draft: string;
+    onDraftChange: (text: string) => void;
 };
-export function ChatWindow({ projectId, initialMessages, initialAttachments, viewerProfile, senderProfiles, participants, initialReadCursors, onAttachmentsChange, onLiveStateChange, embedded = false, onOpenMedia, }: ChatWindowProps) {
-    const workspace = useProjectWorkspace();
+
+export function ChatWindow({ projectId, initialMessages, initialAttachments, viewerProfile, senderProfiles, participants, initialReadCursors, onAttachmentsChange, draft, onDraftChange }: ChatWindowProps) {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const [draft, setDraft] = React.useState("");
-    const [sending, setSending] = React.useState(false);
-    const [uploading, setUploading] = React.useState(false);
     const bottomRef = React.useRef<HTMLDivElement>(null);
     const typingIdleRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const isTypingRef = React.useRef(false);
-    const { messages, attachments, senders, readCursors, typingUsers, pushMessage, pushAttachment, broadcastTyping, } = useProjectChatRealtime({
+    const [sending, setSending] = React.useState(false);
+    const [uploading, setUploading] = React.useState(false);
+    const { messages, attachments, senders, readCursors, typingUsers, pushMessage, pushAttachment, broadcastTyping } = useProjectChatRealtime({
         projectId,
         viewerId: viewerProfile.id,
         initialMessages,
@@ -58,28 +50,17 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
     });
     const attachmentsByMessage = React.useMemo(() => {
         const map = new Map<string, ChatMessageAttachment[]>();
-        for (const item of attachments) {
-            const list = map.get(item.message_id) ?? [];
-            list.push(item);
-            map.set(item.message_id, list);
-        }
+        for (const item of attachments)
+            map.set(item.message_id, [...(map.get(item.message_id) ?? []), item]);
         return map;
     }, [attachments]);
-    const recentPhotos = React.useMemo(() => attachments.filter((a) => a.media_kind === "photo").slice(0, 4), [attachments]);
-    const lastOwnMessageId = React.useMemo(() => {
-        for (let i = messages.length - 1; i >= 0; i -= 1) {
-            if (messages[i].sender_id === viewerProfile.id)
-                return messages[i].id;
-        }
-        return null;
-    }, [messages, viewerProfile.id]);
+    const lastOwnMessageId = React.useMemo(() => messages.findLast((m) => m.sender_id === viewerProfile.id)?.id ?? null, [messages, viewerProfile.id]);
     const typingLabel = formatTypingLabel(typingUsers);
+
     React.useEffect(() => {
-        onLiveStateChange?.({ messages, readCursors });
-    }, [messages, readCursors, onLiveStateChange]);
-    React.useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        bottomRef.current?.scrollIntoView({ block: "end" });
     }, [messages, attachments, typingLabel]);
+
     const stopTyping = React.useCallback(() => {
         if (typingIdleRef.current) {
             clearTimeout(typingIdleRef.current);
@@ -90,8 +71,10 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
             broadcastTyping(false);
         }
     }, [broadcastTyping]);
-    const handleDraftChange = React.useCallback((value: string) => {
-        setDraft(value);
+    React.useEffect(() => () => stopTyping(), [stopTyping]);
+
+    function handleDraftChange(value: string) {
+        onDraftChange(value);
         if (!value.trim()) {
             stopTyping();
             return;
@@ -102,12 +85,9 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
         }
         if (typingIdleRef.current)
             clearTimeout(typingIdleRef.current);
-        typingIdleRef.current = setTimeout(() => {
-            typingIdleRef.current = null;
-            stopTyping();
-        }, TYPING_IDLE_MS);
-    }, [broadcastTyping, stopTyping]);
-    React.useEffect(() => () => stopTyping(), [stopTyping]);
+        typingIdleRef.current = setTimeout(stopTyping, TYPING_IDLE_MS);
+    }
+
     async function handleSend(e: React.FormEvent) {
         e.preventDefault();
         const text = draft.trim();
@@ -116,9 +96,8 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
         stopTyping();
         setSending(true);
         try {
-            const msg = await sendChatMessage(projectId, text);
-            setDraft("");
-            pushMessage(msg);
+            pushMessage(await sendChatMessage(projectId, text));
+            onDraftChange("");
         }
         catch (err) {
             toast.error(err instanceof Error ? err.message : "Message not sent.");
@@ -127,6 +106,7 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
             setSending(false);
         }
     }
+
     async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         e.target.value = "";
@@ -136,13 +116,7 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
         try {
             const { attachment } = await uploadChatAttachment(projectId, file);
             pushAttachment(attachment);
-            pushMessage({
-                id: attachment.message_id,
-                project_id: projectId,
-                sender_id: viewerProfile.id,
-                content: file.name,
-                created_at: attachment.created_at,
-            });
+            pushMessage({ id: attachment.message_id, project_id: projectId, sender_id: viewerProfile.id, content: file.name, created_at: attachment.created_at });
         }
         catch (err) {
             toast.error(err instanceof Error ? err.message : "Upload failed.");
@@ -151,159 +125,91 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
             setUploading(false);
         }
     }
-    return (<div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", !workspace && "min-h-[min(70vh,640px)] lg:min-h-0", !embedded && "border border-slate-200 bg-white")}>
-      {recentPhotos.length > 0 && onOpenMedia ? (<button type="button" onClick={onOpenMedia} className="flex items-center gap-3 border-b border-slate-200/80 bg-white px-4 py-2.5 text-left transition-colors hover:bg-slate-50 lg:hidden">
-          <div className="flex -space-x-2">
-            {recentPhotos.map((p) => (<img key={p.id} src={publicAttachmentUrl(p.storage_path)} alt="" className="h-9 w-9 border-2 border-white object-cover"/>))}
-          </div>
-          <span className="text-xs text-slate-600">
-            <span className="font-medium text-slate-900">{attachments.length}</span> shared
-            · tap to browse
-          </span>
-          <ImageIcon className="ml-auto h-4 w-4 text-[#d97706]"/>
-        </button>) : null}
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (<ChatEmptyState onAttach={() => fileInputRef.current?.click()}/>) : (messages.map((m) => {
-            const who = senders[m.sender_id];
-            const mine = m.sender_id === viewerProfile.id;
-            const messageAttachments = attachmentsByMessage.get(m.id) ?? [];
-            const seenBy = mine && m.id === lastOwnMessageId
-                ? usersWhoSeenMessage(m, readCursors, participants, viewerProfile.id)
-                : [];
-            return (<MessageBubbleRow key={m.id} mine={mine} who={who} message={m} attachments={messageAttachments} seenBy={seenBy}/>);
-        }))}
-        {typingLabel ? <TypingIndicator label={typingLabel}/> : null}
-        <ChatBottomAnchor ref={bottomRef}/>
+    return (<div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin]">
+        {messages.length === 0 ? (<p className="grid h-full place-items-center px-6 text-center text-sm text-ink-tertiary">
+            No messages yet. Say hello to the project team.
+          </p>) : (<ol className="flex flex-col">
+            {messages.map((m, i) => {
+                const prev = messages[i - 1];
+                const grouped = prev?.sender_id === m.sender_id && Date.parse(m.created_at) - Date.parse(prev.created_at) < GROUP_MS;
+                const next = messages[i + 1];
+                const lastInGroup = !(next?.sender_id === m.sender_id && Date.parse(next.created_at) - Date.parse(m.created_at) < GROUP_MS);
+                const mine = m.sender_id === viewerProfile.id;
+                const seenBy = mine && m.id === lastOwnMessageId ? usersWhoSeenMessage(m, readCursors, participants, viewerProfile.id) : [];
+                return (<Bubble key={m.id} message={m} who={senders[m.sender_id]} mine={mine} grouped={grouped} lastInGroup={lastInGroup} attachments={attachmentsByMessage.get(m.id) ?? []} seenBy={seenBy}/>);
+            })}
+          </ol>)}
+        {typingLabel ? (<p className="mt-3 flex items-center gap-2 text-xs text-ink-tertiary" aria-live="polite">
+            <span className="flex gap-0.5" aria-hidden>
+              {[0, 1, 2].map((i) => (<span key={i} className="size-1.5 animate-bounce rounded-full bg-ink-tertiary/60 motion-reduce:animate-none" style={{ animationDelay: `${i * 150}ms` }}/>))}
+            </span>
+            {typingLabel}
+          </p>) : null}
+        <div ref={bottomRef}/>
       </div>
 
-      <form onSubmit={(e) => void handleSend(e)} className="shrink-0 border-t border-slate-200 bg-white p-3">
-        <div className="flex items-end gap-2 rounded-sm border border-slate-200 bg-slate-50/80 p-1.5 shadow-inner">
+      <form onSubmit={(e) => void handleSend(e)} className="shrink-0 border-t border-line p-3">
+        <div className="flex items-center gap-1.5 rounded-full bg-surface-sunken p-1 pl-1.5">
           <input ref={fileInputRef} type="file" className="sr-only" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={(e) => void handleFilePick(e)}/>
-          <Button type="button" variant="ghost" size="icon" disabled={uploading || sending} onClick={() => fileInputRef.current?.click()} className="h-9 w-9 shrink-0 rounded-sm text-slate-500 hover:bg-white hover:text-[#9a4f02]" aria-label="Attach file">
-            {uploading ? (<Loader2 className="h-4 w-4 animate-spin"/>) : (<Paperclip className="h-4 w-4"/>)}
-          </Button>
-          <Input value={draft} onChange={(e) => handleDraftChange(e.target.value)} placeholder="Message the project team…" className="min-h-9 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0" maxLength={4000}/>
-          <Button type="submit" disabled={sending || uploading || !draft.trim()} size="icon" className="h-9 w-9 shrink-0 rounded-sm bg-[#d97706] text-slate-950 hover:bg-[#ef9b27]" aria-label="Send message">
-            {sending ? (<Loader2 className="h-4 w-4 animate-spin"/>) : (<Send className="h-4 w-4"/>)}
-          </Button>
+          <button type="button" disabled={uploading || sending} onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" className={cn("grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-ink-tertiary transition-colors hover:bg-surface hover:text-brand disabled:opacity-50", focusRing)}>
+            {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Paperclip className="size-4" aria-hidden/>}
+          </button>
+          <input autoFocus value={draft} onChange={(e) => handleDraftChange(e.target.value)} placeholder="Message the project team" aria-label="Message" maxLength={4000} className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-tertiary"/>
+          <button type="submit" disabled={sending || uploading || !draft.trim()} aria-label="Send" className={cn("grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-brand text-white transition-[background-color,opacity] hover:bg-brand-hover disabled:cursor-default disabled:opacity-35", focusRing)}>
+            {sending ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Send className="size-3.5" aria-hidden/>}
+          </button>
         </div>
-        <p className="mt-2 text-center font-mono text-[9px] uppercase tracking-[0.14em] text-slate-400">
-          Attach photos, videos, or documents · visible in shared media
-        </p>
       </form>
     </div>);
 }
-const ChatBottomAnchor = React.forwardRef<HTMLDivElement>(function ChatBottomAnchor(_, ref) {
-    return <div ref={ref}/>;
-});
-function TypingIndicator({ label }: {
-    label: string;
-}) {
-    return (<div className="flex items-center gap-2 px-1 text-xs text-slate-500" aria-live="polite">
-      <span className="flex gap-0.5">
-        {[0, 1, 2].map((i) => (<span key={i} className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${i * 150}ms` }}/>))}
-      </span>
-      {label}
-    </div>);
-}
-function ChatEmptyState({ onAttach }: {
-    onAttach: () => void;
-}) {
-    return (<div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center border border-dashed border-slate-300 bg-slate-50">
-        <Send className="h-6 w-6 text-slate-400" aria-hidden/>
-      </div>
-      <div className="max-w-xs space-y-1">
-        <p className="font-heading text-base tracking-tight text-slate-900">
-          Start the thread
-        </p>
-        <p className="text-sm text-slate-500">
-          Post updates for the PM, field team, and client. Anything you attach appears in shared
-          media too.
-        </p>
-      </div>
-      <Button type="button" variant="outline" size="sm" onClick={onAttach} className="rounded-none border-slate-200 font-mono text-[10px] uppercase tracking-[0.12em]">
-        <Paperclip className="mr-1.5 h-3.5 w-3.5"/>
-        Share a file
-      </Button>
-    </div>);
-}
-function MessageBubbleRow({ mine, who, message, attachments, seenBy, }: {
-    mine: boolean;
-    who?: Pick<Profile, "id" | "full_name" | "avatar_url">;
+
+function Bubble({ message, who, mine, grouped, lastInGroup, attachments, seenBy }: {
     message: ChatMessage;
+    who?: Person;
+    mine: boolean;
+    grouped: boolean;
+    lastInGroup: boolean;
     attachments: ChatMessageAttachment[];
     seenBy: ChatParticipant[];
 }) {
-    const hasOnlyAttachment = attachments.length > 0 &&
-        message.content === attachments[0]?.file_name;
-    return (<div className={cn("flex gap-2.5", mine ? "flex-row-reverse" : "flex-row")}>
-      <Avatar className="mt-1 h-8 w-8 shrink-0 rounded-sm border border-slate-200 shadow-sm">
-        {who?.avatar_url ? <AvatarImage src={who.avatar_url} alt=""/> : null}
-        <AvatarFallback className="rounded-sm bg-slate-800 text-[10px] text-white">
-          {initials(who?.full_name ?? "?")}
-        </AvatarFallback>
-      </Avatar>
-      <BubbleBody mine={mine} who={who} message={message} attachments={attachments} hasOnlyAttachment={hasOnlyAttachment} seenBy={seenBy}/>
-    </div>);
-}
-function BubbleBody({ mine, who, message, attachments, hasOnlyAttachment, seenBy, }: {
-    mine: boolean;
-    who?: Pick<Profile, "id" | "full_name" | "avatar_url">;
-    message: ChatMessage;
-    attachments: ChatMessageAttachment[];
-    hasOnlyAttachment: boolean;
-    seenBy: ChatParticipant[];
-}) {
-    return (<div className={cn("max-w-[min(100%,32rem)] overflow-hidden rounded-sm shadow-sm", mine
-            ? "rounded-br-none border border-[#d97706]/25 bg-gradient-to-br from-[#fff8ef] to-[#ffedd5]/80"
-            : "rounded-bl-none border border-slate-200 bg-white")}>
-      {!mine ? (<p className="border-b border-slate-100 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500">
-          {who?.full_name ?? "Member"}
-        </p>) : null}
-      {attachments.length > 0 ? (<AttachmentList attachments={attachments}/>) : null}
-      {!hasOnlyAttachment ? (<p className="whitespace-pre-wrap px-3 py-2 text-sm leading-relaxed text-slate-900">
-          {message.content}
-        </p>) : null}
-      <div className={cn("flex items-center gap-2 px-3 pb-2", attachments.length > 0 && hasOnlyAttachment && "pt-0")}>
-        <p className="font-mono text-[10px] text-slate-400">
-          {new Date(message.created_at).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        })}
-        </p>
-        {mine && seenBy.length > 0 ? (<span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-[#9a4f02]">
-            <CheckCheck className="h-3 w-3" aria-hidden/>
-            Seen by {seenBy.map((u) => u.full_name.split(" ")[0]).join(", ")}
-          </span>) : null}
+    const onlyAttachment = attachments.length > 0 && message.content === attachments[0]?.file_name;
+    const sent = new Date(message.created_at);
+    const time = (sent.toDateString() === new Date().toDateString() ? TIME : DAY_TIME).format(sent);
+    return (<li className={cn("flex items-end gap-2", mine ? "flex-row-reverse" : "flex-row", grouped ? "mt-0.5" : "mt-3 first:mt-0")}>
+      {!mine ? (<span className="w-7 shrink-0">
+          {lastInGroup ? <Face person={{ id: message.sender_id, name: who?.full_name ?? "Member", avatarUrl: who?.avatar_url ?? null, role: "" }} size={28}/> : null}
+        </span>) : null}
+      <div className={cn("flex max-w-[78%] min-w-0 flex-col", mine ? "items-end" : "items-start")}>
+        {!mine && !grouped ? <p className="mb-1 px-3 text-[11px] font-medium text-ink-tertiary">{who?.full_name ?? "Member"}</p> : null}
+        <div className={cn("overflow-hidden rounded-[18px]", mine ? "bg-brand text-white" : "bg-surface-sunken text-ink", mine && lastInGroup && "rounded-br-md", !mine && lastInGroup && "rounded-bl-md")} title={time}>
+          {attachments.map((a) => <Attachment key={a.id} item={a} mine={mine}/>)}
+          {!onlyAttachment ? <p className="px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{message.content}</p> : null}
+        </div>
+        {lastInGroup ? (<p className="mt-1 flex items-center gap-1 px-1 text-[10px] text-ink-tertiary tabular">
+            {time}
+            {seenBy.length > 0 ? (<><span aria-hidden>·</span><CheckCheck className="size-3 text-brand" aria-hidden/>Seen by {seenBy.map((u) => u.full_name.split(" ")[0]).join(", ")}</>) : null}
+          </p>) : null}
       </div>
-    </div>);
+    </li>);
 }
-function AttachmentList({ attachments }: {
-    attachments: ChatMessageAttachment[];
-}) {
-    return (<div className="space-y-0.5 p-1">
-      {attachments.map((item) => (<MessageAttachmentPreview key={item.id} item={item}/>))}
-    </div>);
-}
-function MessageAttachmentPreview({ item }: {
+
+function Attachment({ item, mine }: {
     item: ChatMessageAttachment;
+    mine: boolean;
 }) {
     const url = publicAttachmentUrl(item.storage_path);
     if (item.media_kind === "photo") {
-        return (<a href={url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-sm">
-        
+        return (<a href={url} target="_blank" rel="noopener noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Supabase public URL, sized by CSS */}
         <img src={url} alt={item.file_name} className="max-h-56 w-full object-cover"/>
       </a>);
     }
-    if (item.media_kind === "video") {
-        return (<video src={url} controls preload="metadata" className="max-h-56 w-full rounded-sm bg-black"/>);
-    }
-    return (<a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-sm border border-slate-200/80 bg-white px-2.5 py-2 text-xs hover:border-[#d97706]/30">
-      <Paperclip className="h-3.5 w-3.5 shrink-0 text-[#d97706]"/>
-      <span className="truncate font-medium">{item.file_name}</span>
+    if (item.media_kind === "video")
+        return <video src={url} controls preload="metadata" className="max-h-56 w-full bg-ink"/>;
+    return (<a href={url} target="_blank" rel="noopener noreferrer" className={cn("flex items-center gap-2 px-3.5 py-2 text-sm font-medium hover:underline", mine ? "text-white" : "text-ink")}>
+      <Paperclip className="size-3.5 shrink-0" aria-hidden/>
+      <span className="truncate">{item.file_name}</span>
     </a>);
 }

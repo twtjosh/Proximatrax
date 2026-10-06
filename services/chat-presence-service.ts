@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import type { InboxRow } from "@/lib/messenger";
 import type { Profile, ProjectChatReadCursor } from "@/types/database";
 export type ChatParticipant = Pick<Profile, "id" | "full_name" | "avatar_url">;
 function resolveClient(client?: SupabaseClient): SupabaseClient {
@@ -87,4 +88,12 @@ export async function countUnreadChatMessages(projectId: string, userId: string,
     if (error)
         throw error;
     return count ?? 0;
+}
+/** The viewer's project conversations in one request (see migration 0022). */
+export async function listChatInbox(client?: SupabaseClient): Promise<InboxRow[]> {
+    const sb = resolveClient(client);
+    const { data, error } = await sb.rpc("chat_inbox");
+    if (error)
+        throw error;
+    return (data ?? []) as InboxRow[];
 }

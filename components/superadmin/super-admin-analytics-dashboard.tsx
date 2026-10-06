@@ -1,177 +1,133 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
-import { BarChart3, ChevronRight, Clock, FileUp, Flag, FolderPlus, Inbox, UserPlus, CheckCircle2, } from "lucide-react";
-import { AnalyticsBarChart, AnalyticsHorizontalBars, AnalyticsLineChart, ChartCard, DonutWithLegend, } from "@/components/superadmin/analytics-charts";
-import { ProjectProfitOutlook } from "@/components/superadmin/project-profit-outlook";
-import { SuperAdminContentFrame } from "@/components/superadmin/super-admin-content-frame";
+import { ChevronRight, Inbox } from "lucide-react";
+import { CountUp } from "@/components/dashboard/count-up";
+import { focusRing, OverviewCard, OverviewHeader, primaryAction, stagger } from "@/components/dashboard/overview-kit";
+import { ActivityChart, BarList, ColumnBars, SegmentRing } from "@/components/superadmin/analytics-charts";
 import { ROUTES } from "@/lib/constants";
+import { formatDate } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 import type { SuperAdminAnalytics } from "@/services/super-admin-analytics-service";
-function KpiChip({ label, value, tone, }: {
-    label: string;
-    value: number;
-    tone?: "success" | "danger";
-}) {
-    return (<div className="min-w-0 rounded-md border border-slate-200/90 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/60">
-      <p className="truncate text-[9px] font-medium leading-none text-slate-500">{label}</p>
-      <p className={cn("mt-1 font-heading text-base font-semibold tabular-nums leading-none", tone === "success" && "text-emerald-600", tone === "danger" && "text-red-600", !tone && "text-slate-950 dark:text-white")}>
-        {value}
-      </p>
-    </div>);
-}
-type FooterStatTone = "danger" | "success" | "info" | "violet" | "slate";
-function FooterStatChip({ icon: Icon, value, label, detail, tone, }: {
-    icon: LucideIcon;
-    value: string | number;
-    label: string;
-    detail: string;
-    tone: FooterStatTone;
-}) {
-    const iconTone: Record<FooterStatTone, string> = {
-        danger: "text-red-600 bg-red-50 dark:bg-red-950/40",
-        success: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40",
-        info: "text-blue-600 bg-blue-50 dark:bg-blue-950/40",
-        violet: "text-violet-600 bg-violet-50 dark:bg-violet-950/40",
-        slate: "text-slate-600 bg-slate-100 dark:bg-zinc-800",
-    };
-    return (<div className="flex h-full min-h-[3.25rem] min-w-0 items-center gap-2 rounded-md border border-slate-200/90 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/60">
-      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded", iconTone[tone])}>
-        <Icon className="h-3 w-3" strokeWidth={2}/>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-heading text-sm font-semibold tabular-nums leading-none text-slate-900 dark:text-white">
-          {value}
-        </p>
-        <p className="mt-0.5 truncate text-[9px] font-medium leading-tight text-slate-700 dark:text-zinc-300">
-          {label}
-        </p>
-        <p className="truncate text-[8px] leading-tight text-slate-500">{detail}</p>
-      </div>
-    </div>);
-}
-function FooterStatGrid({ children }: {
-    children: React.ReactNode;
-}) {
-    return <div className="grid grid-cols-2 gap-1 [&>*]:h-full">{children}</div>;
-}
-function KpiGroup({ title, children, className, }: {
-    title: string;
-    children: React.ReactNode;
-    className?: string;
-}) {
-    return (<div className={cn("min-w-0", className)}>
-      <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-[#1e3a5f] dark:text-slate-400">
-        {title}
-      </p>
-      <div className="grid grid-cols-4 gap-1">{children}</div>
-    </div>);
-}
-function MetricsPanel({ kpiTitle, kpiChildren, footerTitle, footerChildren, }: {
-    kpiTitle: string;
-    kpiChildren: React.ReactNode;
-    footerTitle: string;
-    footerChildren: React.ReactNode;
-}) {
-    return (<div className="flex min-h-0 min-w-0 flex-col rounded-lg border border-slate-200/90 bg-white dark:border-zinc-800 dark:bg-zinc-950/60">
-      <div className="p-2">
-        <KpiGroup title={kpiTitle}>{kpiChildren}</KpiGroup>
-      </div>
-      <div className="border-t border-slate-200/80 p-2 dark:border-zinc-800">
-        <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-          {footerTitle}
-        </p>
-        {footerChildren}
-      </div>
-    </div>);
-}
-export function SuperAdminAnalyticsDashboard({ name, analytics, }: {
-    name: string;
+
+/**
+ * The super admin's home. The figures answer "is anything waiting on me?"
+ * and "is the platform being used?"; the cards below show how projects and
+ * people are spread. Each number appears once.
+ */
+export function SuperAdminAnalyticsDashboard({ greeting, today, analytics, unopenedInquiries }: {
+    greeting: string;
+    /** ISO date (Manila). */
+    today: string;
     analytics: SuperAdminAnalytics;
+    unopenedInquiries: number;
 }) {
     const { projects, performance, users, activity, engagement } = analytics;
-    return (<SuperAdminContentFrame className="max-w-[1440px] space-y-3">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/90 bg-white dark:border-zinc-800 dark:bg-zinc-950/60">
-            <BarChart3 className="h-4 w-4 text-[#1e3a5f] dark:text-slate-300" strokeWidth={1.75}/>
+    const activityTotal = activity.dailyLogins.reduce((s, p) => s + p.count, 0);
+
+    return (<div className="mx-auto w-full max-w-360 pb-12">
+      <OverviewHeader title={greeting} sub={formatDate(today, { weekday: "long", month: "long", day: "numeric" })} actions={<Link href={ROUTES.INQUIRIES} className={primaryAction}>
+            <Inbox aria-hidden/>
+            Open inquiries
+          </Link>}/>
+
+      <ul className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Figure index={1} label="Unopened inquiries" value={unopenedInquiries} detail={`${engagement.totalInquiries} received in all`} href={ROUTES.INQUIRIES} accent={unopenedInquiries > 0}/>
+        <Figure index={2} label="People" value={users.total} detail={`${users.active30d} active this month, ${users.new30d} new`} href={ROUTES.SETTINGS}/>
+        <Figure index={3} label="Active projects" value={projects.active} detail={`${projects.completed} completed, ${projects.onHold} on hold`}/>
+        <Figure index={4} label="Overdue tasks" value={performance.overdueTasks} detail={performance.overdueTasks > 0 ? `${performance.overduePct}% of all tasks` : "Everything on schedule"} danger={performance.overdueTasks > 0}/>
+      </ul>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <OverviewCard id="activity-heading" title="Platform activity" aside="Task updates and messages, last 30 days" className="materialize flex flex-col" style={stagger(5)}>
+          <div className="flex gap-8 px-5 pt-2 sm:px-6">
+            <Stat label="Events" value={activityTotal}/>
+            <Stat label="Files this month" value={performance.filesThisMonth}/>
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate font-heading text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-              Welcome back, {name}
-            </h1>
-            <p className="text-[10px] text-slate-500">Platform analytics · live data</p>
+          <ActivityChart points={activity.dailyLogins} className="flex flex-1 flex-col px-5 pt-6 pb-5 sm:px-6"/>
+        </OverviewCard>
+
+        <OverviewCard id="projects-heading" title="Projects" count={projects.total} className="materialize" style={stagger(6)}>
+          <div className="flex items-center gap-6 px-5 pt-3 sm:px-6">
+            <SegmentRing segments={projects.statusDistribution} size={112} stroke={10}>
+              <span className="text-2xl font-semibold tracking-[-0.03em] text-ink tabular">{projects.total}</span>
+            </SegmentRing>
+            <ul className="min-w-0 flex-1 space-y-2">
+              {projects.statusDistribution.length === 0 ? <li className="text-sm text-ink-tertiary">No projects yet.</li> : projects.statusDistribution.map((s) => (<li key={s.label} className="flex items-center gap-2.5 text-sm">
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden/>
+                  <span className="flex-1 text-ink-secondary">{s.label}</span>
+                  <span className="font-medium text-ink tabular">{s.value}</span>
+                </li>))}
+            </ul>
           </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-1.5">
-          <Link href={ROUTES.SETTINGS} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-            <UserPlus className="h-3 w-3"/>
-            Users
-          </Link>
-          <Link href={ROUTES.INQUIRIES} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-            <Inbox className="h-3 w-3"/>
-            Inquiries
-            <ChevronRight className="h-2.5 w-2.5 opacity-50"/>
-          </Link>
-        </div>
-      </header>
+          <div className="mx-5 mt-6 border-t border-line pt-5 sm:mx-6">
+            <p className="text-xs font-medium text-ink-secondary">By share of work accepted</p>
+            <div className="mt-3"><ColumnBars items={projects.progressBuckets} unit="project"/></div>
+          </div>
+          <dl className="mx-5 mt-5 grid grid-cols-2 gap-4 border-t border-line pt-5 pb-6 sm:mx-6">
+            <Ratio label="Tasks accepted" pct={performance.taskCompletionPct} count={performance.tasksCompleted}/>
+            <Ratio label="Milestones delivered" pct={performance.milestoneCompletionPct} count={performance.milestonesCompleted}/>
+          </dl>
+        </OverviewCard>
+      </div>
 
-      <section className="rounded-xl border border-slate-200/90 bg-white p-2.5 shadow-sm ring-1 ring-slate-950/3 sm:p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-        
-        <div className="grid gap-2 sm:grid-cols-2 sm:items-stretch">
-          <MetricsPanel kpiTitle="Project analytics" footerTitle="Delivery performance" kpiChildren={<>
-                <KpiChip label="Total" value={projects.total}/>
-                <KpiChip label="Active" value={projects.active} tone="success"/>
-                <KpiChip label="Done" value={projects.completed}/>
-                <KpiChip label="On hold" value={projects.onHold} tone="danger"/>
-              </>} footerChildren={<FooterStatGrid>
-                <FooterStatChip icon={Clock} value={performance.overdueTasks} label="Overdue" detail={`${performance.overduePct}% of tasks`} tone="danger"/>
-                <FooterStatChip icon={CheckCircle2} value={performance.tasksCompleted} label="Tasks done" detail={`${performance.taskCompletionPct}% rate`} tone="success"/>
-                <FooterStatChip icon={Flag} value={performance.milestonesCompleted} label="Milestones" detail={`${performance.milestoneCompletionPct}% rate`} tone="info"/>
-                <FooterStatChip icon={FileUp} value={performance.filesThisMonth} label="Uploads" detail="This month" tone="violet"/>
-              </FooterStatGrid>}/>
+      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+        <OverviewCard id="roles-heading" title="People by role" aside={<Link href={ROUTES.SETTINGS} className={cn("inline-flex items-center gap-0.5 rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Manage<ChevronRight className="size-3.5" aria-hidden/></Link>} className="materialize" style={stagger(7)}>
+          <div className="px-5 pt-3 pb-6 sm:px-6"><BarList items={users.roleDistribution.map((r) => ({ label: r.label, value: r.value }))} empty="No accounts yet."/></div>
+        </OverviewCard>
+        <OverviewCard id="active-heading" title="Most active" aside="Task updates, last 30 days" className="materialize" style={stagger(8)}>
+          <div className="px-5 pt-3 pb-6 sm:px-6"><BarList items={activity.topUsers.map((u) => ({ id: u.id, label: u.name, sublabel: u.role, value: u.count }))} empty="No task updates in the last 30 days."/></div>
+        </OverviewCard>
+      </div>
+    </div>);
+}
 
-          <MetricsPanel kpiTitle="User analytics" footerTitle="Engagement" kpiChildren={<>
-                <KpiChip label="Total" value={users.total}/>
-                <KpiChip label="Active 30d" value={users.active30d} tone="success"/>
-                <KpiChip label="New 30d" value={users.new30d}/>
-                <KpiChip label="Clients" value={users.clients}/>
-              </>} footerChildren={<FooterStatGrid>
-                <FooterStatChip icon={Inbox} value={engagement.totalInquiries} label="Inquiries" detail="All time" tone="slate"/>
-                <FooterStatChip icon={CheckCircle2} value={engagement.projectsCompleted} label="Completed" detail="Projects delivered" tone="success"/>
-                <FooterStatChip icon={UserPlus} value={engagement.newUsers30d} label="New users" detail="Last 30 days" tone="info"/>
-                <FooterStatChip icon={FolderPlus} value={engagement.newProjects30d} label="New projects" detail="Last 30 days" tone="violet"/>
-              </FooterStatGrid>}/>
-        </div>
+/** One headline figure. With an href it opens what it counts. */
+function Figure({ index, label, value, detail, href, accent = false, danger = false }: {
+    index: number;
+    label: string;
+    value: number;
+    detail: string;
+    href?: string;
+    /** Copper: something is waiting. */
+    accent?: boolean;
+    danger?: boolean;
+}) {
+    const body = (<>
+      <span className="flex items-center justify-between gap-2 text-[13px] font-medium text-ink-secondary">
+        {label}
+        {href ? <ChevronRight className="size-4 text-ink-tertiary transition-[translate,color] duration-500 ease-spring group-hover:translate-x-0.5 group-hover:text-brand" aria-hidden/> : null}
+      </span>
+      <span className={cn("mt-3 block text-[2.5rem] leading-none font-semibold tracking-[-0.04em] tabular", danger ? "text-danger" : accent ? "text-brand" : "text-ink")}><CountUp value={value} delay={index * 70 + 220}/></span>
+      <span className="mt-2 block truncate text-xs text-ink-tertiary">{detail}</span>
+    </>);
+    const box = "flex w-full min-w-0 flex-col rounded-[20px] material p-5";
+    return (<li className="materialize flex min-w-0" style={stagger(index)}>
+      {href ? <Link href={href} className={cn(box, "group material-interactive press press-soft", focusRing)}>{body}</Link> : <div className={box}>{body}</div>}
+    </li>);
+}
 
-        
-        <div className="mt-2 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
-          <ChartCard title="Project status" dense>
-            <DonutWithLegend segments={projects.statusDistribution}/>
-          </ChartCard>
-          <ChartCard title="Projects by progress" dense>
-            <AnalyticsBarChart items={projects.progressBuckets} dense/>
-          </ChartCard>
-          <ChartCard title="Users by role" dense>
-            <DonutWithLegend segments={users.roleDistribution}/>
-          </ChartCard>
-          <ChartCard title="User activity" subtitle="30d" dense>
-            <AnalyticsLineChart points={activity.dailyLogins} dense/>
-          </ChartCard>
-        </div>
+function Stat({ label, value }: {
+    label: string;
+    value: number;
+}) {
+    return (<div>
+      <p className="text-xs text-ink-tertiary">{label}</p>
+      <p className="mt-0.5 text-2xl font-semibold tracking-[-0.03em] text-ink tabular">{value}</p>
+    </div>);
+}
 
-        
-        <div className="mt-2">
-          <ChartCard title="Top active users" subtitle="Task updates · 30d" dense>
-            <AnalyticsHorizontalBars compact items={activity.topUsers.map((u) => ({
-            id: u.id,
-            label: u.name,
-            sublabel: u.role,
-            value: u.count,
-        }))}/>
-          </ChartCard>
-        </div>
-      </section>
-
-      <ProjectProfitOutlook />
-    </SuperAdminContentFrame>);
+function Ratio({ label, pct, count }: {
+    label: string;
+    pct: number;
+    count: number;
+}) {
+    return (<div>
+      <dt className="text-xs text-ink-tertiary">{label}</dt>
+      <dd className="mt-1 flex items-baseline gap-2">
+        <span className="text-xl font-semibold tracking-[-0.03em] text-ink tabular">{pct}%</span>
+        <span className="text-xs text-ink-tertiary tabular">{count}</span>
+      </dd>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
+        <div className="h-full rounded-full bg-stage-done" style={{ width: `${pct}%` }}/>
+      </div>
+    </div>);
 }

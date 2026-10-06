@@ -1,4 +1,4 @@
-import { projectAnalyticsPath, projectBoardPath, projectMessagesPath, projectPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
+import { projectAnalyticsPath, projectBoardPath, projectPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
 import type { UserRole } from "@/types/enums";
 export type ProjectWorkspaceTab = {
     href: string;
@@ -10,7 +10,6 @@ export function projectWorkspaceTabs(projectId: string, role: UserRole): Project
         { href: projectPath(projectId), label: "Overview", exact: true },
         { href: projectBoardPath(projectId), label: "Board" },
         { href: projectTimelinePath(projectId), label: "Timeline" },
-        { href: projectMessagesPath(projectId), label: "Messages" },
         { href: projectTeamPath(projectId), label: "Team" },
         { href: projectSettingsPath(projectId), label: "Settings" },
     ];
@@ -24,7 +23,6 @@ export function projectWorkspaceTabs(projectId: string, role: UserRole): Project
             { href: projectPath(projectId), label: "Overview", exact: true },
             { href: projectBoardPath(projectId), label: "Updates" },
             { href: projectTimelinePath(projectId), label: "Timeline" },
-            { href: projectMessagesPath(projectId), label: "Messages" },
             { href: projectAnalyticsPath(projectId), label: "Analytics" },
         ];
     }

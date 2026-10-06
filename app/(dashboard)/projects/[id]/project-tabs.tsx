@@ -1,16 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChatUnreadBadge } from "@/components/chat/chat-unread-badge";
-import { projectMessagesPath } from "@/lib/constants";
 import { projectWorkspaceTabs } from "@/lib/project-view-policy";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/enums";
-export function ProjectTabs({ projectId, viewerRole, viewerId, initialUnreadChatCount, }: {
+export function ProjectTabs({ projectId, viewerRole, }: {
     projectId: string;
     viewerRole: UserRole;
-    viewerId: string;
-    initialUnreadChatCount: number;
 }) {
     const pathname = usePathname();
     const tabs = projectWorkspaceTabs(projectId, viewerRole);
@@ -30,7 +26,6 @@ export function ProjectTabs({ projectId, viewerRole, viewerId, initialUnreadChat
                         ? "border-[#d97706] text-[#9a4f02]"
                         : "border-transparent text-slate-500 hover:text-slate-900"))}>
             {tab.label}
-            {tab.href === projectMessagesPath(projectId) ? (<ChatUnreadBadge projectId={projectId} viewerId={viewerId} initialCount={initialUnreadChatCount}/>) : null}
           </Link>);
         })}
     </nav>);

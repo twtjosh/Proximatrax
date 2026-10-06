@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { Eye, LayoutList, Lock, MessageSquare } from "lucide-react";
+import { OpenChatButton } from "@/components/messenger/open-chat-button";
+import { Eye, LayoutList, Lock } from "lucide-react";
 import { TimelinePhaseCalendar } from "@/components/dashboard/timeline-phase-calendar";
 import { TimelineStats } from "@/components/dashboard/timeline-milestone-list";
-import { projectBoardPath, projectMessagesPath, projectPath, } from "@/lib/constants";
+import { projectBoardPath, projectPath, } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Milestone } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -57,9 +58,9 @@ export function ProjectTimelineView({ projectId, projectStart, projectEnd, miles
             </>) : (<>
               <Lock className="h-4 w-4 text-stone-500"/>
               View only ·{" "}
-              <Link href={projectMessagesPath(projectId)} className="font-medium text-stone-800 hover:underline">
+              <OpenChatButton projectId={projectId} className="font-medium text-ink hover:underline">
                 message PM
-              </Link>{" "}
+              </OpenChatButton>{" "}
               to request changes
             </>)}
         </p>

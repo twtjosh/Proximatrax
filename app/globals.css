@@ -4,17 +4,113 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  /* ProximaTrax brand tokens (landing page / dark surfaces) */
-  --bg: #050505;
-  --bg-secondary: #0A0A0A;
-  --fg: #F4F4F5;
-  --fg-muted: #888888;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --accent-glow: rgba(255, 69, 0, 0.15);
-  --glass: rgba(5, 5, 5, 0.6);
+/* ─────────────────────────────────────────────────────────────────────────
+   ProximaTrax design tokens
 
-  /* ProximaTrax design system colors */
+   A midnight shell around a cool, bright workspace, with AEG copper
+   as the one brand and action colour. Stage colours
+   carry meaning and appear only on measured data or the state they name:
+
+     stage-todo      To do
+     stage-progress  In progress   (info)
+     stage-review    In review     (warning: waiting on the PM)
+     stage-done      Accepted      (success)
+     stage-late      Overdue       (danger)
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --canvas: #F4F5F8;
+  --surface: #FFFFFF;
+  --surface-subtle: #F8F9FB;
+  --surface-sunken: #ECEEF3;
+
+  /* Lines */
+  --line: #E3E6EC;
+  --line-strong: #CDD2DC;
+
+  /* Text */
+  --ink: #0E1222;
+  --ink-secondary: #4B5265;
+  --ink-tertiary: #646B7E; /* 5.3:1 on white */
+
+  /* Brand: AEG copper, the one action colour. --brand is deep enough for
+     white text and for text on white (AA); --copper below is the brighter
+     fill for rings, today markers and data. */
+  --brand: #B45309;
+  --brand-hover: #92400E;
+  --brand-bright: #F0A04B; /* on the midnight shell only */
+  --brand-soft: #FDF1E3; /* warm wash for selected and highlighted surfaces */
+
+  /* Shell: midnight. */
+  --rail: #0B0E1A;
+  --rail-raised: #171B2C;
+  --rail-line: #1F2437;
+  --rail-ink: #F2F3F8;
+  --rail-ink-secondary: #B4B9CC;
+  --rail-ink-tertiary: #8A90A6;
+
+  /* Stage fills for bars, rings and dots. */
+  --stage-todo: #CBD0DA;
+  --stage-progress: #3B8DF2;
+  --stage-review: #F2AA3C;
+  --stage-done: #1FAF7C;
+  --stage-late: #EC4E54;
+
+  /* Status text and tints (AA on white and on their soft tint). */
+  --info: #1D65BF;
+  --info-soft: #EBF3FE;
+  --warning: #935D00;
+  --warning-soft: #FEF4E2;
+  --success: #12754F;
+  --success-soft: #E7F6EF;
+  --danger: #C3262E;
+  --danger-soft: #FDECEC;
+  --neutral: #4B5265;
+  --neutral-soft: #EEF0F4;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(14 18 34 / 0.05), 0 0 0 1px rgb(14 18 34 / 0.06);
+  --shadow-card-hover: 0 2px 4px rgb(14 18 34 / 0.05), 0 12px 32px -12px rgb(14 18 34 / 0.22), 0 0 0 1px rgb(14 18 34 / 0.09);
+  --shadow-overlay: 0 1px 2px rgb(14 18 34 / 0.06), 0 12px 32px -8px rgb(14 18 34 / 0.24);
+
+  /* shadcn semantic mapping */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--surface-sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-sunken);
+  --muted-foreground: var(--ink-secondary);
+  --accent: var(--surface-sunken);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--brand);
+  --chart-1: var(--ink);
+  --chart-2: var(--info);
+  --chart-3: var(--warning);
+  --chart-4: var(--success);
+  --chart-5: var(--ink-tertiary);
+  --radius: 0.375rem;
+  --sidebar: #EFEEEA;
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: var(--surface);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--brand);
+
+  /* Copper is the AEG brand accent: the Overview uses it for "now" (the
+     today line, the next milestone, the selected day). Fill with --copper;
+     set text in --copper-hover, which holds AA on white. The rest of this
+     block is a legacy palette for screens not yet redesigned. */
   --navy-deep: #0F172A;
   --navy: #1E293B;
   --navy-soft: #334155;
@@ -22,65 +118,61 @@
   --copper-hover: #B45309;
   --copper-soft: rgba(217, 119, 6, 0.1);
   --copper-muted: #FEF3C7;
-  --slate-white: #F8FAFC;
-  --surface-canvas: #F1F5F9;
   --surface-card: #FFFFFF;
   --surface-spotlight: #F8FAFC;
   --cool-grey: #E2E8F0;
-  --ink: #1E293B;
   --charcoal: #334155;
   --muted-ink: #64748B;
-  --success: #10B981;
-  --success-soft: rgba(16, 185, 129, 0.1);
   --error: #EF4444;
   --error-soft: rgba(239, 68, 68, 0.08);
-  --warning: #F59E0B;
-  --warning-soft: rgba(245, 158, 11, 0.1);
-
-  /* Shadcn light theme (dashboard) — aligned to brand navy + copper */
-  --background: #F1F5F9;
-  --foreground: #334155;
-  --card: #FFFFFF;
-  --card-foreground: #334155;
-  --popover: #FFFFFF;
-  --popover-foreground: #1E293B;
-  --primary: #1E293B;
-  --primary-foreground: #F8FAFC;
-  --secondary: #F8FAFC;
-  --secondary-foreground: #334155;
-  --muted: #F1F5F9;
-  --muted-foreground: #64748B;
-  --accent: #D97706;
-  --accent-foreground: #1E293B;
-  --destructive: #EF4444;
-  --border: #E2E8F0;
-  --input: #E2E8F0;
-  --ring: #1E293B;
-  --chart-1: #D97706;
-  --chart-2: #10B981;
-  --chart-3: #64748B;
-  --chart-4: #334155;
-  --chart-5: #1E293B;
-  --radius: 0.375rem;
-  --sidebar: #1E293B;
-  --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #D97706;
-  --sidebar-primary-foreground: #F8FAFC;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: #334155;
-  --sidebar-ring: #D97706;
 }
 
 @theme inline {
-  /* ProximaTrax brand palette */
-  --color-bg: var(--bg);
-  --color-bg-secondary: var(--bg-secondary);
-  --color-fg: var(--fg);
-  --color-fg-muted: var(--fg-muted);
-  --color-border-subtle: var(--border-subtle);
-  --color-accent-glow: var(--accent-glow);
-  --color-glass: var(--glass);
+  /* Fonts: Geist for all UI text, Geist Mono for IDs and code. */
+  --font-sans: var(--font-geist);
+  --font-heading: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+
+  /* ProximaTrax tokens */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-soft: var(--brand-soft);
+  --color-rail: var(--rail);
+  --color-rail-raised: var(--rail-raised);
+  --color-rail-line: var(--rail-line);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-ink-secondary: var(--rail-ink-secondary);
+  --color-rail-ink-tertiary: var(--rail-ink-tertiary);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+  --shadow-overlay: var(--shadow-overlay);
+  --color-stage-todo: var(--stage-todo);
+  --color-stage-progress: var(--stage-progress);
+  --color-stage-review: var(--stage-review);
+  --color-stage-done: var(--stage-done);
+  --color-stage-late: var(--stage-late);
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+
+  /* Legacy palette (see note in :root) */
   --color-navy-deep: var(--navy-deep);
   --color-navy: var(--navy);
   --color-navy-soft: var(--navy-soft);
@@ -88,25 +180,15 @@
   --color-copper-hover: var(--copper-hover);
   --color-copper-soft: var(--copper-soft);
   --color-copper-muted: var(--copper-muted);
-  --color-slate-white: var(--slate-white);
-  --color-surface-canvas: var(--surface-canvas);
   --color-surface-card: var(--surface-card);
   --color-surface-spotlight: var(--surface-spotlight);
   --color-cool-grey: var(--cool-grey);
-  --color-ink: var(--ink);
   --color-charcoal: var(--charcoal);
   --color-muted-ink: var(--muted-ink);
-  --color-success: var(--success);
-  --color-success-soft: var(--success-soft);
   --color-error: var(--error);
   --color-error-soft: var(--error-soft);
-  --color-warning: var(--warning);
-  --color-warning-soft: var(--warning-soft);
 
-  /* Shadcn semantic tokens */
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-plus-jakarta);
+  /* shadcn semantic tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -130,13 +212,16 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Radius scale: badges 4px, controls 6px, panels and overlays 8px. */
+  /* One curve for every hover, press and arrival: fast out, long settle. */
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-3xl: 14px;
+  --radius-4xl: 16px;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -155,10 +240,11 @@ body {
 }
 
 ::selection {
-  background-color: var(--copper);
-  color: #000;
+  background-color: color-mix(in srgb, var(--brand) 22%, transparent);
+  color: var(--ink);
 }
 
+/* Auth backdrop texture (login / forgot password). */
 .bg-noise {
   position: fixed;
   inset: 0;
@@ -173,81 +259,33 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 80px 80px;
   mask-image: radial-gradient(circle at 50% 50%, black, transparent 80%);
 }
 
-.glass-panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(20px);
+/* Numbers that sit in columns or next to each other must align. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
-.glass-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-}
-
-.btn-primary {
-  background-color: var(--fg);
-  color: var(--bg);
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
-}
-.btn-primary:hover {
-  background-color: var(--copper);
-  color: #fff;
-  transform: translateY(-2px);
-}
-
-.btn-secondary {
-  background-color: transparent;
-  color: var(--fg);
-  border: 1px solid var(--border-subtle);
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.btn-secondary:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* App scrollbars — light dashboard default (not landing dark tokens) */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--cool-grey);
+  background: var(--line-strong);
   border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--copper);
-}
-
-/* PM dashboard — slightly slimmer scroll area */
-.pm-schedule-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--cool-grey) transparent;
-}
-.pm-schedule-scroll::-webkit-scrollbar {
-  width: 5px;
+  background-color: var(--ink-tertiary);
 }
 
 @keyframes milestone-stamp-pop {
@@ -266,8 +304,14 @@ body {
   animation: milestone-stamp-pop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .milestone-stamp-pop {
+    animation: none;
+  }
+}
+
 /* --- Theme transition: radial wipe powered by the View Transitions API. */
-/* Triggered by ThemeToggle; falls back to an instant swap where unsupported. */
+/* Triggered by ThemeToggle on the public page; instant swap where unsupported. */
 @supports (view-transition-name: root) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -305,6 +349,8 @@ body {
   }
 }
 
+/* Dark theme — used only by the public page and auth screens. The signed-in
+   workspace uses its own tokens instead (light, or Night below). */
 .dark {
   color-scheme: dark;
   scrollbar-color: oklch(0.439 0 0) transparent;
@@ -314,38 +360,23 @@ body {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.746 0.16 75);
+  --primary: oklch(0.985 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.746 0.16 75);
+  --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.746 0.16 75);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.17 0.03 256);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.746 0.16 75);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
+
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.439 0 0);
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: var(--copper);
+  background-color: oklch(0.439 0 0);
 }
 
 @layer base {
@@ -356,12 +387,195 @@ body {
     @apply bg-background text-foreground;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading font-bold;
+    @apply font-heading;
+    font-weight: 600;
+    letter-spacing: -0.011em;
   }
   html {
     @apply font-sans;
     color-scheme: light;
     scrollbar-width: thin;
-    scrollbar-color: var(--cool-grey) transparent;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
+
+
+/* The one authored moment: the portfolio ring draws its stages on first paint. */
+@keyframes ring-draw {
+  from {
+    stroke-dasharray: 0 999;
+  }
+}
+/* Rings draw once their card has arrived (--i is the card's stagger index). */
+.ring-draw {
+  animation: ring-draw 1400ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 220ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-draw {
+    animation: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Overview system (every role's home). Apple-style craft, translated:
+
+   - Material: a translucent layer with a lit top edge, never stacked on
+     another translucent layer. Nested fills use --surface-sunken.
+   - Type: tracking is size-specific. Display tightens, small text opens up.
+   - Response: feedback on pointer-down (.press), not on release.
+   - Motion: surfaces materialize (opacity + blur + rise together) with a
+     critically damped curve. Gesture-driven motion uses springs in JS.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Light material: near-opaque white, a hairline drawn in ink rather than
+     grey so it reads as an edge, and a long soft shadow for lift. */
+  --material: rgb(255 255 255 / 0.86);
+  --material-edge: rgb(255 255 255 / 1);
+  --material-line: rgb(14 18 34 / 0.07);
+  --material-depth: 0 1px 2px rgb(14 18 34 / 0.04), 0 12px 32px -16px rgb(14 18 34 / 0.14);
+  --material-lift: 0 2px 4px rgb(14 18 34 / 0.04), 0 24px 48px -22px rgb(120 60 0 / 0.26);
+}
+
+.material {
+  background: var(--material);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--material-edge), 0 0 0 1px var(--material-line), var(--material-depth);
+}
+/* Everything that responds to a pointer moves on one curve. Unlayered on
+   purpose: these win over a utility's transition list, so keep them complete. */
+.press,
+.material-interactive {
+  transition-property: scale, translate, opacity, box-shadow, background-color, color, filter;
+  transition-duration: 220ms, 500ms, 400ms, 500ms, 250ms, 250ms, 400ms;
+  transition-timing-function: var(--ease-spring);
+}
+/* A card whose hover card is open stays lifted, so the two read as one object. */
+.material-interactive[data-popup-open] {
+  translate: 0 -2px;
+  box-shadow: inset 0 1px 0 var(--material-edge), 0 0 0 1px rgb(217 119 6 / 0.26), var(--material-lift);
+}
+@media (hover: hover) {
+  .material-interactive:hover {
+    translate: 0 -2px;
+    box-shadow: inset 0 1px 0 var(--material-edge), 0 0 0 1px rgb(217 119 6 / 0.26), var(--material-lift);
+  }
+}
+
+/* A project box zoomed toward the viewer: white, edged in copper, sitting on a
+   warm shadow. After .material so it wins. */
+.tile-surface {
+  transition: height 520ms var(--ease-spring), left 520ms var(--ease-spring), right 520ms var(--ease-spring), box-shadow 500ms var(--ease-spring), opacity 450ms var(--ease-spring), filter 450ms var(--ease-spring);
+}
+.tile-surface[data-open="true"] {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 0 0 1.5px rgb(217 119 6 / 0.55),
+    0 0 0 6px rgb(217 119 6 / 0.08),
+    0 44px 80px -32px rgb(120 53 15 / 0.38),
+    0 18px 36px -18px rgb(14 18 34 / 0.2);
+}
+
+/* A soft copper light that follows the pointer across a card. Set --mx/--my
+   from pointermove; it sits between the card's background and its content. */
+/* Positioned by default, in a layer so a card that is already absolute keeps it. */
+@layer components {
+  .spotlight {
+    position: relative;
+  }
+}
+.spotlight {
+  isolation: isolate;
+}
+.spotlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(18rem circle at var(--mx, 50%) var(--my, 50%), rgb(217 119 6 / 0.09), transparent 65%);
+  transition: opacity 500ms var(--ease-spring);
+}
+@media (hover: hover) {
+  .spotlight:hover::after {
+    opacity: 1;
+  }
+}
+
+/* Type, size by size. */
+.type-title {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  letter-spacing: -0.016em;
+  font-weight: 600;
+}
+.type-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.012em;
+}
+
+/* Instant, physical response on press. */
+.press:active,
+.material-interactive:active {
+  translate: 0 0;
+}
+.press:active {
+  scale: 0.97;
+  transition-duration: 90ms;
+}
+.press-soft:active {
+  scale: 0.985;
+}
+
+/* Surfaces arrive as material: blur, opacity and position settle together.
+   --i staggers siblings. */
+@keyframes materialize {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(8px);
+  }
+}
+.materialize {
+  animation: materialize 720ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes materialize-fade {
+    from {
+      opacity: 0;
+    }
+  }
+  .materialize {
+    animation: materialize-fade 200ms ease-out backwards;
+  }
+  .press,
+  .material-interactive {
+    transition-property: opacity, background-color, color, box-shadow;
+  }
+  .material-interactive:hover {
+    translate: none;
+  }
+  .press:active {
+    scale: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .material {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .material {
+    background: var(--card);
+    box-shadow: 0 0 0 1px var(--line-strong);
   }
 }

@@ -27,23 +27,32 @@ function enrichDatabaseError(message: string, code?: unknown): string {
     if (message.includes("pending_invites") ||
         message.includes("project_invitations") ||
         (c === "42P01" && message.includes("project_invitations"))) {
-        return `${message} — apply migration secrets/migrations/0015_project_invitations.sql in the Supabase SQL editor, then try again.`;
+        return `${message} — apply migration internal/migrations/0015_project_invitations.sql in the Supabase SQL editor, then try again.`;
     }
     if (message.includes("completed_at") ||
         message.includes("completion_statement") ||
         message.includes("completed_by")) {
-        return `${message} — apply migration secrets/migrations/0020_project_formal_closure.sql in the Supabase SQL editor, then try again.`;
+        return `${message} — apply migration internal/migrations/0020_project_formal_closure.sql in the Supabase SQL editor, then try again.`;
     }
     if (message.includes("activity_feed_action_type_check") ||
         (message.includes("project_completed") && message.includes("activity_feed"))) {
-        return `${message} — apply migration secrets/migrations/0021_activity_project_completed.sql in the Supabase SQL editor, then try again.`;
+        return `${message} — apply migration internal/migrations/0021_activity_project_completed.sql in the Supabase SQL editor, then try again.`;
     }
     if (message.includes("create_project_completed_notification")) {
-        return `${message} — apply migration secrets/migrations/0020_project_formal_closure.sql in the Supabase SQL editor, then try again.`;
+        return `${message} — apply migration internal/migrations/0020_project_formal_closure.sql in the Supabase SQL editor, then try again.`;
     }
     return message;
 }
 export function throwIfSupabaseError(error: unknown): void {
     if (error)
         throw new Error(getErrorMessage(error));
+}
+export function getInitials(name: string): string {
+    return name
+        .split(" ")
+        .filter(Boolean)
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
 }

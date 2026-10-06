@@ -125,9 +125,9 @@ export function ProjectWorkspaceShell({ projectId, isClient, headerBeforeTabs, t
         clearStoredHeight(projectId);
         setHeaderHeight(DEFAULT_HEADER_PX);
     }
-    const mobileChrome = (<div className={cn("sticky top-20 z-20 border-b py-4 backdrop-blur-md", isClient
-            ? "-mx-4 border-stone-200/90 bg-[#fafaf9]/95 px-4 supports-backdrop-filter:bg-[#fafaf9]/90 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
-            : "-mx-5 border-slate-200 bg-[#f8fafc]/95 px-5 supports-backdrop-filter:bg-[#f8fafc]/85 sm:-mx-7 sm:px-7 lg:-mx-8 lg:px-8")}>
+    const mobileChrome = (<div className={cn("relative border-b py-4", isClient
+            ? "-mx-4 -mt-5 border-stone-200/90 bg-[#fafaf9] px-4 sm:-mx-6 sm:px-6"
+            : "-mx-4 -mt-5 border-slate-200 bg-[#f8fafc] px-4 sm:-mx-6 sm:px-6")}>
       <div className="px-4 sm:px-5 lg:px-6">
         {headerBeforeTabs}
         <div className="mt-5">{tabs}</div>
@@ -145,8 +145,8 @@ export function ProjectWorkspaceShell({ projectId, isClient, headerBeforeTabs, t
             "--ptx-content-h": `${contentHeightPx}px`,
         } as React.CSSProperties}>
         <div className={cn("flex min-h-0 shrink-0 flex-col overflow-hidden", isClient
-            ? "-mx-10 bg-[#fafaf9]/95 px-10 backdrop-blur-md supports-backdrop-filter:bg-[#fafaf9]/90"
-            : "-mx-5 bg-[#f8fafc]/95 px-5 backdrop-blur-md supports-backdrop-filter:bg-[#f8fafc]/85 sm:-mx-7 sm:px-7 lg:-mx-8 lg:px-8", !isResizing && "transition-[height] duration-200 ease-out")} style={{ height: headerHeight }}>
+            ? "-mx-8 bg-[#fafaf9] px-8"
+            : "-mx-8 bg-[#f8fafc] px-8", !isResizing && "transition-[height] duration-200 ease-out")} style={{ height: headerHeight }}>
           <ProjectHeaderPane headerHeightPx={headerHeight} isResizing={isResizing}>
             {headerBeforeTabs}
           </ProjectHeaderPane>

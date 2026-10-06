@@ -1,18 +1,13 @@
-import { ROLE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { ROLE_TERMS } from "@/lib/vocabulary";
 import type { UserRole } from "@/types/enums";
-const roleClasses: Record<UserRole, string> = {
-    super_admin: "border-red-300/40 bg-red-500/10 text-red-700",
-    project_manager: "border-copper/30 bg-copper-soft text-copper-hover",
-    middleman: "border-emerald-300/50 bg-emerald-500/10 text-emerald-700",
-    client: "border-slate-300 bg-slate-100 text-slate-700",
-};
 type RoleBadgeProps = {
     role: UserRole;
     className?: string;
 };
+/** Roles are identity, not state — rendered neutrally so they never compete with status colour. */
 export function RoleBadge({ role, className }: RoleBadgeProps) {
-    return (<span className={cn("inline-flex items-center border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.16em]", roleClasses[role], className)}>
-      {ROLE_LABELS[role]}
+    return (<span className={cn("inline-flex h-5 items-center rounded-sm border border-line px-1.5 text-xs font-medium text-ink-secondary", className)}>
+      {ROLE_TERMS[role]}
     </span>);
 }

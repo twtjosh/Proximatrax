@@ -1,3 +1,4 @@
+import { ROLE_TERMS, TASK_STAGE_TERMS } from "@/lib/vocabulary";
 export const ROUTES = {
     HOME: "/",
     LOGIN: "/login",
@@ -45,7 +46,6 @@ export const projectBoardPath = (id: string, query?: ProjectBoardQuery) => {
 export const projectTimelinePath = (id: string) => `${projectPath(id)}/timeline`;
 export const projectFilesPath = (id: string) => `${projectPath(id)}/files`;
 export const projectChatPath = (id: string) => `${projectPath(id)}/chat`;
-export const projectMessagesPath = (id: string) => `${projectPath(id)}/messages`;
 export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`;
 export const projectTeamPath = (id: string) => `${projectPath(id)}/team`;
 export const projectSettingsPath = (id: string) => `${projectPath(id)}/settings`;
@@ -78,19 +78,8 @@ export const ROLE_HOME_PATHS: Record<string, string> = {
     middleman: ROUTES.MIDDLEMAN_HOME,
     client: ROUTES.DASHBOARD,
 } as const;
-export const ROLE_LABELS: Record<string, string> = {
-    super_admin: "Super Admin",
-    project_manager: "Project Manager",
-    middleman: "Middleman",
-    client: "Client",
-} as const;
-export const TASK_STAGE_LABELS: Record<string, string> = {
-    backlog: "Backlog",
-    to_do: "To Do",
-    in_progress: "In Progress",
-    review: "Review",
-    done: "Done",
-} as const;
+export const ROLE_LABELS: Record<string, string> = ROLE_TERMS;
+export const TASK_STAGE_LABELS: Record<string, string> = Object.fromEntries(Object.entries(TASK_STAGE_TERMS).map(([stage, term]) => [stage, term.label]));
 export function getRoleHomePath(role?: string | null) {
     if (!role) {
         return ROUTES.DASHBOARD;
