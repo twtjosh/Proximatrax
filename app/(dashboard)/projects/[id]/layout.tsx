@@ -2,18 +2,18 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarRange, LayoutGrid, MessageSquare, Timer, } from "lucide-react";
 import { OpenChatButton } from "@/components/messenger/open-chat-button";
-import { ProjectInviteStatusBanner } from "@/components/projects/project-invite-status-banner";
 import { ProjectClosedBanner } from "@/components/projects/project-closed-banner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { projectBoardPath, projectTimelinePath, ROUTES, } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
-import { listInvitationsForProject } from "@/services/project-invitation-service";
 import { getProjectById } from "@/services/project-service";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
 import { ProjectWorkspaceShell } from "@/components/projects/project-workspace-shell";
+import { PmProjectShell } from "@/components/projects/pm/pm-project-shell";
+import { loadPmProject } from "@/lib/data/pm-project";
 import { ProjectTabs } from "./project-tabs";
 function formatDate(value: string) {
     return new Date(value).toLocaleDateString(undefined, {
@@ -47,8 +47,13 @@ export default async function ProjectLayout(props: {
     if (!viewerRole) {
         redirect(ROUTES.LOGIN);
     }
+    if (viewerRole === "project_manager") {
+        const data = await loadPmProject(supabase, id, user.id);
+        if (!data)
+            notFound();
+        return <PmProjectShell data={data}>{props.children}</PmProjectShell>;
+    }
     const isClient = viewerRole === "client";
-    const isPm = viewerRole === "project_manager";
     type Person = Pick<Profile, "id" | "full_name" | "avatar_url">;
     // Clients' progress comes from milestones, everyone else's from tasks.
     const [project, { data: taskRows }, { data: memberRows }] = await Promise.all([
@@ -61,15 +66,10 @@ export default async function ProjectLayout(props: {
     if (!project)
         notFound();
     const memberIds = (memberRows ?? []).map((m) => m.user_id);
-    const [projectInvitations, memberProfiles] = await Promise.all([
-        isPm && project.status === "pending_invites"
-            ? listInvitationsForProject(id, supabase)
-            : Promise.resolve([]),
-        memberIds.length > 0
-            ? supabase.from("profiles").select("id, full_name, avatar_url").in("id", memberIds)
-                .then(({ data }) => (data ?? []) as Person[])
-            : Promise.resolve([] as Person[]),
-    ]);
+    const memberProfiles = memberIds.length > 0
+        ? await supabase.from("profiles").select("id, full_name, avatar_url").in("id", memberIds)
+            .then(({ data }) => (data ?? []) as Person[])
+        : [];
     let progressPct = 0;
     let progressDetail = "";
     let progressSub = "";
@@ -192,7 +192,7 @@ export default async function ProjectLayout(props: {
             ? "h-11 w-full min-w-0 justify-center gap-1.5 rounded-lg border-stone-200 px-2 font-medium normal-case sm:text-[11px]"
             : "h-8 rounded-none border-slate-200 px-2 font-mono")}>
                   <LayoutGrid className="h-3.5 w-3.5 shrink-0"/>
-                  {isClient ? "Updates" : viewerRole === "project_manager" ? "Inspection" : "Board"}
+                  {isClient ? "Updates" : "Board"}
                 </Button>
                 <Button render={<Link href={projectTimelinePath(id)}/>} size="sm" variant="outline" className={cn("text-[10px] uppercase tracking-wide", isClient
             ? "h-11 w-full min-w-0 justify-center gap-1.5 rounded-lg border-stone-200 px-2 font-medium normal-case sm:text-[11px]"
@@ -213,7 +213,6 @@ export default async function ProjectLayout(props: {
 
     </>);
     return (<ProjectWorkspaceShell projectId={id} isClient={isClient} headerBeforeTabs={headerBeforeTabs} tabs={<ProjectTabs projectId={id} viewerRole={viewerRole}/>}>
-      {isPm ? (<ProjectInviteStatusBanner invitations={projectInvitations} projectStatus={project.status}/>) : null}
       <ProjectClosedBanner project={project} variant={isClient ? "client" : viewerRole === "middleman" ? "middleman" : "pm"}/>
       {props.children}
     </ProjectWorkspaceShell>);
