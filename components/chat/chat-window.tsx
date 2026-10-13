@@ -183,9 +183,9 @@ function Bubble({ message, who, mine, grouped, lastInGroup, attachments, seenBy 
         </span>) : null}
       <div className={cn("flex max-w-[78%] min-w-0 flex-col", mine ? "items-end" : "items-start")}>
         {!mine && !grouped ? <p className="mb-1 px-3 text-[11px] font-medium text-ink-tertiary">{who?.full_name ?? "Member"}</p> : null}
-        <div className={cn("overflow-hidden rounded-[18px]", mine ? "bg-brand text-white" : "bg-surface-sunken text-ink", mine && lastInGroup && "rounded-br-md", !mine && lastInGroup && "rounded-bl-md")} title={time}>
+        <div className={cn("max-w-full overflow-hidden rounded-[18px]", mine ? "bg-brand text-white" : "bg-surface-sunken text-ink", mine && lastInGroup && "rounded-br-md", !mine && lastInGroup && "rounded-bl-md")} title={time}>
           {attachments.map((a) => <Attachment key={a.id} item={a} mine={mine}/>)}
-          {!onlyAttachment ? <p className="px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{message.content}</p> : null}
+          {!onlyAttachment ? <p className="px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{message.content}</p> : null}
         </div>
         {lastInGroup ? (<p className="mt-1 flex items-center gap-1 px-1 text-[10px] text-ink-tertiary tabular">
             {time}
@@ -210,6 +210,6 @@ function Attachment({ item, mine }: {
         return <video src={url} controls preload="metadata" className="max-h-56 w-full bg-ink"/>;
     return (<a href={url} target="_blank" rel="noopener noreferrer" className={cn("flex items-center gap-2 px-3.5 py-2 text-sm font-medium hover:underline", mine ? "text-white" : "text-ink")}>
       <Paperclip className="size-3.5 shrink-0" aria-hidden/>
-      <span className="truncate">{item.file_name}</span>
+      <span className="min-w-0 wrap-anywhere">{item.file_name}</span>
     </a>);
 }
