@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 const buttonVariants = cva("group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", {
     variants: {
         variant: {
-            default: "bg-primary text-primary-foreground hover:bg-primary/88 active:bg-primary/80",
+            default: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
             brand: "bg-brand text-white hover:bg-brand-hover active:bg-brand-hover",
-            outline: "border-input bg-surface text-ink hover:bg-surface-subtle hover:border-ink-tertiary/60 aria-expanded:bg-surface-sunken",
-            secondary: "bg-surface-sunken text-ink hover:bg-line aria-expanded:bg-line",
+            outline: "border-input bg-surface text-ink hover:bg-surface-sunken hover:border-ink-tertiary/60 aria-expanded:bg-surface-sunken",
+            secondary: "bg-surface-sunken text-ink hover:bg-line-strong aria-expanded:bg-line-strong",
             ghost: "text-ink-secondary hover:bg-surface-sunken hover:text-ink aria-expanded:bg-surface-sunken aria-expanded:text-ink",
             destructive: "bg-danger text-white hover:bg-danger/90 focus-visible:ring-danger/30",
             link: "h-auto px-0 text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink",
