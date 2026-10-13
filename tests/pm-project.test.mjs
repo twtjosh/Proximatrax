@@ -81,3 +81,8 @@ test("calendar phrase before, during and after the project", () => {
     assert.equal(calendarPhrase("2026-09-01", "2026-09-25", TODAY), "1 day left");
     assert.equal(calendarPhrase("2026-08-01", "2026-09-20", TODAY), "4 days past its end");
 });
+
+test("stage: a failed task load is unavailable, never mistaken for a new project", () => {
+    assert.equal(projectStage("in_progress", [ms({ id: "m", due_date: TODAY })], [], true), "unavailable");
+    assert.equal(projectStage("completed", [], [], true), "closed");
+});

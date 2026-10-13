@@ -18,13 +18,19 @@ export function PmOverview({ data, viewerId }: {
     viewerId: string;
 }) {
     const { project, milestones, tasks, team, today } = data;
-    const stage = projectStage(project.status, milestones, tasks);
+    const stage = projectStage(project.status, milestones, tasks, data.loadFailed);
     const load = projectLoads([project.id], tasks, milestones, today).get(project.id)!;
     const stations = journeyStations(milestones, tasks, today);
 
     if (stage === "closed")
         return (<div className="grid gap-5">
         <ClosedRecord projectId={project.id} title={project.title} start={project.start_date} end={project.end_date} completedAt={project.completed_at} statement={project.completion_statement} milestones={milestones.length} tasks={tasks.length} people={team.length}/>
+        <JourneyLine projectId={project.id} stations={stations} today={today}/>
+      </div>);
+
+    if (stage === "unavailable")
+        return (<div className="grid gap-5">
+        <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">This project&apos;s tasks could not be loaded, so its progress can&apos;t be shown right now. Reload to try again.</p>
         <JourneyLine projectId={project.id} stations={stations} today={today}/>
       </div>);
 
@@ -35,7 +41,6 @@ export function PmOverview({ data, viewerId }: {
       </div>);
 
     return (<div className="grid gap-5">
-      {data.loadFailed ? <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Some task data could not be loaded, so the figures may be incomplete. Reload to try again.</p> : null}
       {stage === "ready" ? <CloseoutCard projectId={project.id} title={project.title} statement={project.completion_statement} milestones={milestones.length} tasks={tasks.length} pmId={viewerId}/> : null}
       <JourneyLine projectId={project.id} stations={stations} today={today}/>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">

@@ -11,14 +11,17 @@ import { cn } from "@/lib/utils";
 
 /**
  * The project's identity on every tab: the same ring and health words as its
- * Overview tile, the team, and Message. Condenses while the page is scrolled.
+ * Overview tile, the team, and Message. Condenses while the page is scrolled,
+ * by scale and fade only: its height never changes, so scrolling can't make it jump.
  */
-export function PmProjectHeader({ projectId, title, client, accepted, total, health, calendar, team, unread, compact }: {
+export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, calendar, team, unread, compact }: {
     projectId: string;
     title: string;
     client: string;
     accepted: number;
     total: number;
+    /** Tasks failed to load: say so instead of "No tasks yet". */
+    tasksFailed: boolean;
     health: { text: string; tone: HealthTone };
     calendar: string;
     team: TeamMember[];
@@ -39,19 +42,19 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, hea
     }
 
     return (<div className="flex items-center gap-4">
-      <ProgressRing value={share} done={share >= 1 && health.tone !== "late"} size={compact ? 36 : 54} stroke={compact ? 4 : 5.5} className="transition-[width,height] duration-500 ease-spring">
-        {compact ? null : <span className="text-[13px] font-semibold text-ink tabular">{Math.round(share * 100)}</span>}
+      <ProgressRing value={share} done={share >= 1 && health.tone !== "late"} size={54} stroke={5.5} className={cn("origin-left transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "scale-[0.67]")}>
+        <span className={cn("text-[13px] font-semibold text-ink tabular transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>{Math.round(share * 100)}</span>
       </ProgressRing>
       <div className="min-w-0 flex-1">
-        <button type="button" onClick={back} className={cn("mb-0.5 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-ink-tertiary hover:text-ink", compact && "sr-only", focusRing)}>
+        <button type="button" onClick={back} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("mb-0.5 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
           <ArrowLeft className="size-3.5" aria-hidden/>
           Back
         </button>
-        <h1 className={cn("truncate font-semibold tracking-[-0.034em] text-ink transition-[font-size] duration-500 ease-spring", compact ? "text-lg" : "text-[1.75rem] leading-[1.05]")}>{title}</h1>
-        <p className={cn("truncate text-[13px] text-ink-tertiary transition-opacity duration-300", compact && "sr-only")}>
+        <h1 className={cn("origin-left truncate text-[1.75rem] leading-[1.05] font-semibold tracking-[-0.034em] text-ink transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.68]")}>{title}</h1>
+        <p className={cn("truncate text-[13px] text-ink-tertiary transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>
           {client}
           {" · "}
-          {total > 0 ? <><b className="font-medium text-ink">{accepted} of {total}</b> tasks accepted</> : "No tasks yet"}
+          {tasksFailed ? "Tasks unavailable" : total > 0 ? <><b className="font-medium text-ink">{accepted} of {total}</b> tasks accepted</> : "No tasks yet"}
           {" · "}
           <span className={cn("font-medium", tone.tone)}>{health.text}</span>
           {" · "}

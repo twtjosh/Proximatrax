@@ -11,12 +11,18 @@ import type { ProjectStatus } from "../types/enums";
  */
 export type PmTask = DashboardTask & { milestone_id: string | null; assigned_to: string | null };
 
-export type ProjectStage = "setup" | "running" | "ready" | "closed";
+export type ProjectStage = "setup" | "running" | "ready" | "closed" | "unavailable";
 
-/** What the Overview is for right now. Setup lasts until invites are answered and both milestones and tasks exist. */
-export function projectStage(status: ProjectStatus, milestones: Pick<DashboardMilestone, "completed">[], tasks: Pick<PmTask, "stage">[]): ProjectStage {
+/**
+ * What the Overview is for right now. Setup lasts until invites are answered
+ * and both milestones and tasks exist. When tasks failed to load we cannot
+ * tell, so the stage is unavailable rather than a misleading "setup".
+ */
+export function projectStage(status: ProjectStatus, milestones: Pick<DashboardMilestone, "completed">[], tasks: Pick<PmTask, "stage">[], loadFailed = false): ProjectStage {
     if (status === "completed")
         return "closed";
+    if (loadFailed)
+        return "unavailable";
     if (status === "pending_invites" || milestones.length === 0 || tasks.length === 0)
         return "setup";
     return assessProjectClosureReadiness({ status }, milestones, tasks).ready ? "ready" : "running";

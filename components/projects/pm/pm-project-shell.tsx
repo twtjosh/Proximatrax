@@ -9,7 +9,6 @@ import { projectHealth, projectLoads } from "@/lib/dashboard";
 import type { PmProjectData } from "@/lib/data/pm-project";
 import { SPRING } from "@/lib/motion";
 import { projectWorkspaceTabs } from "@/lib/project-view-policy";
-import { cn } from "@/lib/utils";
 import { PmProjectHeader } from "./pm-project-header";
 import { activeTabIndex, PmTabs } from "./pm-tabs";
 
@@ -41,7 +40,7 @@ export function PmProjectShell({ data, children }: {
     const load = projectLoads([project.id], tasks, milestones, today).get(project.id)!;
     const health = projectHealth(project, load, today, load.overdue);
 
-    // A sentinel above the header tells us when the page has scrolled under it.
+    // A 24px sentinel above the header: once it has scrolled out, the header condenses.
     const sentinel = React.useRef<HTMLDivElement>(null);
     const [compact, setCompact] = React.useState(false);
     React.useEffect(() => {
@@ -55,9 +54,9 @@ export function PmProjectShell({ data, children }: {
 
     return (<div className="mx-auto w-full max-w-360">
       <LiveRefresh channel={`pm-project-${project.id}`}/>
-      <div ref={sentinel} aria-hidden className="h-px"/>
-      <header className={cn("sticky top-0 z-20 -mx-4 border-b border-line bg-canvas/85 px-4 backdrop-blur-xl transition-[padding] duration-500 ease-spring sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8", compact ? "pt-3" : "pt-1")}>
-        <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} health={health} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact}/>
+      <div ref={sentinel} aria-hidden className="-mb-6 h-6"/>
+      <header className="sticky top-0 z-20 -mx-4 border-b border-line bg-canvas/85 px-4 pt-1 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} tasksFailed={data.loadFailed} health={health} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact}/>
         <div className="mt-3">
           <PmTabs tabs={tabs} active={active} reviewCount={load.inReview.length}/>
         </div>

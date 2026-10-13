@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CalendarClock, Check, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
-import { projectBoardPath, projectPath, projectTimelinePath } from "@/lib/constants";
+import { projectBoardPath, projectPath, projectReviewPath, projectTimelinePath } from "@/lib/constants";
 import { addDays, daysBetween, formatDate, groupByProject, isoDateIn, plural, relativePast, type Deadline, type ProjectLoad } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -69,7 +69,7 @@ export function NeedsYou({ overdue, projects, loads, readyToClose, titleOf, toda
             const oldest = waiting.reduce((min, t) => (t.updated_at < min ? t.updated_at : min), waiting[0].updated_at);
             return {
                 key: `r-${p.id}`,
-                node: (<LinkRow href={projectBoardPath(p.id)} tone="review" badge={waiting.length} action="Review" meta={relativePast(isoDateIn(oldest), today)} title={waiting.length === 1 ? `Review ${waiting[0].title}` : `Review ${waiting.length} submissions`} detail={waiting.length === 1 ? p.title : `${p.title} · ${waiting.slice(0, 2).map((t) => t.title).join(", ")}${waiting.length > 2 ? "…" : ""}`}/>),
+                node: (<LinkRow href={projectReviewPath(p.id)} tone="review" badge={waiting.length} action="Review" meta={relativePast(isoDateIn(oldest), today)} title={waiting.length === 1 ? `Review ${waiting[0].title}` : `Review ${waiting.length} submissions`} detail={waiting.length === 1 ? p.title : `${p.title} · ${waiting.slice(0, 2).map((t) => t.title).join(", ")}${waiting.length > 2 ? "…" : ""}`}/>),
             };
         }),
         ...lateGroups.map((late) => {
