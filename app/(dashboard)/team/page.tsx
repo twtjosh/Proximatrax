@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ROUTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 function initials(name: string) {
     return name
@@ -14,15 +14,9 @@ function initials(name: string) {
         .toUpperCase();
 }
 export default async function TeamDirectoryPage() {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
     const role = (profile as Pick<Profile, "role"> | null)?.role;
     if (role === "super_admin")
         redirect(ROUTES.DASHBOARD);

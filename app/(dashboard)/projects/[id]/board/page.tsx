@@ -8,7 +8,7 @@ import { MiddlemanFieldWork } from "@/components/dashboard/middleman-field-work"
 import { PmInspectionQueue } from "@/components/dashboard/pm-inspection-queue";
 import { Button } from "@/components/ui/button";
 import { projectBoardPath, ROUTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { listApprovedAttachmentsForProject, listTaskAttachmentsForProject, } from "@/services/task-attachment-service";
 import { getProjectById } from "@/services/project-service";
 import { listClientVisibleDeliverables, listTasksForProject, } from "@/services/task-service";
@@ -24,22 +24,18 @@ export default async function ProjectBoardPage(props: {
 }) {
     const { id } = await props.params;
     const { view } = await props.searchParams;
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
     const role = (profile as Pick<Profile, "role"> | null)?.role as UserRole | undefined;
     if (!role)
         redirect(ROUTES.LOGIN);
-    const project = await getProjectById(id, supabase);
+    const [project, tasks, attachments] = await Promise.all([
+        getProjectById(id, supabase),
+        listTasksForProject(id, supabase),
+        listTaskAttachmentsForProject(id, supabase),
+    ]);
     const isArchived = project?.status === "completed";
-    const tasks = await listTasksForProject(id, supabase);
-    const attachments = await listTaskAttachmentsForProject(id, supabase);
     const loading = (<div className="flex items-center gap-2 border border-slate-200 bg-white p-8 text-sm text-slate-500">
       <Loader2 className="h-4 w-4 animate-spin"/>
       Loading…

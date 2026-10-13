@@ -7,7 +7,7 @@ import { ProjectClosedBanner } from "@/components/projects/project-closed-banner
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { projectBoardPath, projectTimelinePath, ROUTES, } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { listInvitationsForProject } from "@/services/project-invitation-service";
 import { getProjectById } from "@/services/project-service";
 import { cn } from "@/lib/utils";
@@ -37,15 +37,9 @@ export default async function ProjectLayout(props: {
     }>;
 }) {
     const { id } = await props.params;
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
     const viewerRole = (profile as Pick<Profile, "role"> | null)?.role as UserRole | undefined;
     if (viewerRole === "super_admin") {
         redirect(ROUTES.DASHBOARD);
@@ -55,21 +49,33 @@ export default async function ProjectLayout(props: {
     }
     const isClient = viewerRole === "client";
     const isPm = viewerRole === "project_manager";
-    const project = await getProjectById(id, supabase);
+    type Person = Pick<Profile, "id" | "full_name" | "avatar_url">;
+    // Clients' progress comes from milestones, everyone else's from tasks.
+    const [project, { data: taskRows }, { data: memberRows }] = await Promise.all([
+        getProjectById(id, supabase, { withMilestones: isClient }),
+        isClient
+            ? Promise.resolve({ data: null })
+            : supabase.from("tasks").select("stage, due_date").eq("project_id", id),
+        supabase.from("project_members").select("user_id").eq("project_id", id).limit(8),
+    ]);
     if (!project)
         notFound();
-    const projectInvitations = isPm && project.status === "pending_invites"
-        ? await listInvitationsForProject(id, supabase)
-        : [];
+    const memberIds = (memberRows ?? []).map((m) => m.user_id);
+    const [projectInvitations, memberProfiles] = await Promise.all([
+        isPm && project.status === "pending_invites"
+            ? listInvitationsForProject(id, supabase)
+            : Promise.resolve([]),
+        memberIds.length > 0
+            ? supabase.from("profiles").select("id, full_name, avatar_url").in("id", memberIds)
+                .then(({ data }) => (data ?? []) as Person[])
+            : Promise.resolve([] as Person[]),
+    ]);
     let progressPct = 0;
     let progressDetail = "";
     let progressSub = "";
     let delayed = 0;
     if (isClient) {
-        const projectWithMilestones = await getProjectById(id, supabase, {
-            withMilestones: true,
-        });
-        const milestones = projectWithMilestones?.milestones ?? [];
+        const milestones = project.milestones ?? [];
         const completed = milestones.filter((m) => m.completed).length;
         progressPct = milestones.length
             ? Math.round((completed / milestones.length) * 100)
@@ -80,10 +86,6 @@ export default async function ProjectLayout(props: {
         progressSub = delayed > 0 ? `${delayed} overdue` : "On schedule";
     }
     else {
-        const { data: taskRows } = await supabase
-            .from("tasks")
-            .select("stage, due_date")
-            .eq("project_id", id);
         const tasks = taskRows ?? [];
         const total = tasks.length;
         const done = tasks.filter((t) => t.stage === "done").length;
@@ -96,22 +98,8 @@ export default async function ProjectLayout(props: {
             t.due_date < today).length;
         progressSub = delayed > 0 ? `${delayed} overdue` : "On schedule";
     }
-    const { data: memberRows } = await supabase
-        .from("project_members")
-        .select("user_id")
-        .eq("project_id", id)
-        .limit(8);
-    const corePeople = [project.pm, project.client].filter(Boolean) as Pick<Profile, "id" | "full_name" | "avatar_url">[];
-    const memberIds = (memberRows ?? []).map((m) => m.user_id);
-    let memberProfiles: Pick<Profile, "id" | "full_name" | "avatar_url">[] = [];
-    if (memberIds.length > 0) {
-        const { data: mp } = await supabase
-            .from("profiles")
-            .select("id, full_name, avatar_url")
-            .in("id", memberIds);
-        memberProfiles = (mp ?? []) as Pick<Profile, "id" | "full_name" | "avatar_url">[];
-    }
-    const rosterMap = new Map<string, Pick<Profile, "id" | "full_name" | "avatar_url">>();
+    const corePeople = [project.pm, project.client].filter(Boolean) as Person[];
+    const rosterMap = new Map<string, Person>();
     for (const p of [...corePeople, ...memberProfiles]) {
         rosterMap.set(p.id, p);
     }

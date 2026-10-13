@@ -4,7 +4,7 @@ import { RoleBadge } from "@/components/shared/role-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 export const dynamic = "force-dynamic";
 function initials(name: string) {
@@ -16,15 +16,9 @@ function initials(name: string) {
         .toUpperCase();
 }
 export default async function MiddlemanAccountPage() {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
     const resolved = profile as Profile | null;
     if (!resolved)
         redirect(ROUTES.LOGIN);

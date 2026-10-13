@@ -1,5 +1,7 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { Profile } from "@/types/database";
 function getSupabaseServerEnv() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -28,3 +30,15 @@ export async function createClient() {
         },
     });
 }
+/**
+ * The signed-in user and their profile. Cached per request, so the layouts
+ * and page of one navigation share a single auth check and profile read.
+ */
+export const getViewer = cache(async () => {
+    const supabase = await createClient();
+    const { data: { user }, } = await supabase.auth.getUser();
+    if (!user)
+        return { supabase, user: null, profile: null };
+    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    return { supabase, user, profile: data as Profile | null };
+});

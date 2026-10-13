@@ -7,7 +7,7 @@ import { ProjectsLifecycleTabs } from "@/components/projects/projects-lifecycle-
 import { ROUTES, type ProjectsListView } from "@/lib/constants";
 import { splitProjectsByLifecycle } from "@/lib/project-lifecycle";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { listProjects } from "@/services/project-service";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -19,15 +19,9 @@ type SearchParams = Promise<{
 export default async function ProjectsPage(props: {
     searchParams?: SearchParams;
 }) {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
     const resolvedProfile = (profile as Profile | null) ?? null;
     if (resolvedProfile?.role === "super_admin") {
         return <MaintenanceOnlyNotice />;

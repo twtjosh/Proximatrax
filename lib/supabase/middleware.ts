@@ -97,7 +97,10 @@ export async function updateSession(request: NextRequest) {
             },
         },
     });
-    const { data: { user }, } = await supabase.auth.getUser();
+    // Verifies the JWT locally with asymmetric signing keys (an Auth round-trip
+    // otherwise) and refreshes an expired session, on every request.
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const user = claimsData?.claims.sub ? { id: claimsData.claims.sub } : null;
     if (!user && isProtected) {
         const url = request.nextUrl.clone();
         url.pathname = WORKSPACE_LOGIN;
