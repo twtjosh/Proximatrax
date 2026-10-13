@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { getRoleHomePath } from "@/lib/constants";
+import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -99,7 +99,7 @@ export async function sendPasswordReset(email: string) {
     const supabase = createClient();
     const origin = window.location.origin;
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: `${origin}/api/auth/callback`,
+        redirectTo: `${origin}/api/auth/callback?next=${ROUTES.UPDATE_PASSWORD}`,
     });
     if (error) {
         throw error;

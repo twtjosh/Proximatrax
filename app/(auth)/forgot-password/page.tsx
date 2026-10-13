@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AlertCircle, ArrowLeft, Building2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,8 @@ import { sendPasswordReset } from "@/services/auth-service";
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const linkFailed = useSearchParams().get("error") === "link";
+    const [error, setError] = useState<string | null>(linkFailed ? "This reset link has expired or was opened in a different browser. Request a new one below." : null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
