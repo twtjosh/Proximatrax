@@ -7,7 +7,6 @@ import { MobileTabBar, MobileTopBar } from "@/components/shell/mobile-nav";
 import type { NotificationsState } from "@/components/shell/notifications-menu";
 import { ProjectSearch } from "@/components/shell/project-search";
 import { Sidebar, type RailProject } from "@/components/shell/sidebar";
-import { WorkspaceTheme } from "@/components/shell/workspace-theme";
 import { useWorkNotifications } from "@/hooks/use-work-notifications";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { triageCounts, type InquiryTriageRow } from "@/lib/inquiry-triage";
@@ -102,7 +101,7 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
     const railProjects = useRailProjects(searchEnabled);
 
 
-    return (<WorkspaceTheme><MotionConfig reducedMotion="user">
+    return (<MotionConfig reducedMotion="user">
       <div className="flex h-svh overflow-hidden bg-canvas text-ink">
         <a href="#workspace-main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:text-white">
           Skip to content
@@ -118,7 +117,7 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
         {searchEnabled ? (<ProjectSearch open={searchOpen} onOpenChange={setSearchOpen} navItems={navItems}/>) : null}
         {role !== "super_admin" ? <Messenger viewer={profile}/> : null}
       </div>
-    </MotionConfig></WorkspaceTheme>);
+    </MotionConfig>);
 }
 
 /**

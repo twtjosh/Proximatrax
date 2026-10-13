@@ -3,8 +3,9 @@ import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react";
 const Toaster = ({ ...props }: ToasterProps) => {
-    const { theme = "system" } = useTheme();
-    return (<Sonner theme={theme as ToasterProps["theme"]} className="toaster group" icons={{
+    // `theme` is the stored choice; the forced workspace theme only shows up in `forcedTheme`.
+    const { forcedTheme, resolvedTheme } = useTheme();
+    return (<Sonner theme={(forcedTheme ?? resolvedTheme ?? "light") as ToasterProps["theme"]} className="toaster group" icons={{
             success: (<CircleCheckIcon className="size-4 text-success"/>),
             info: (<InfoIcon className="size-4 text-info"/>),
             warning: (<TriangleAlertIcon className="size-4 text-warning"/>),

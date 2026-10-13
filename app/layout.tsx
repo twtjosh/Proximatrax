@@ -23,7 +23,7 @@ export default function RootLayout({ children, }: Readonly<{
 }>) {
     return (<html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <ThemeProvider>
           <TooltipProvider delay={300}>
             {children}
           </TooltipProvider>
