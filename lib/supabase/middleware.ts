@@ -13,6 +13,8 @@ const PROTECTED_PREFIXES = [
     ROUTES.MIDDLEMAN_HOME,
     "/inquiries",
     "/settings",
+    // Needs the recovery session from the reset link; not an AUTH_ROUTE, so it isn't bounced home.
+    ROUTES.UPDATE_PASSWORD,
 ] as const;
 const SUPER_ADMIN_ONLY_PREFIXES = ["/settings", "/inquiries"] as const;
 const AUTH_ROUTES = [WORKSPACE_LOGIN, FORGOT_PASSWORD] as const;
