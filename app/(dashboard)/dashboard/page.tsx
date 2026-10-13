@@ -5,7 +5,7 @@ import { ProjectInvitationsInbox } from "@/components/projects/project-invitatio
 import { SuperAdminAnalyticsDashboard } from "@/components/superadmin/super-admin-analytics-dashboard";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { greeting, isoDateIn, type DashboardMilestone, type DashboardTask } from "@/lib/dashboard";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { listPendingInvitationsForUser } from "@/services/project-invitation-service";
 import { listProjects } from "@/services/project-service";
 import { fetchSuperAdminAnalytics } from "@/services/super-admin-analytics-service";
@@ -15,15 +15,9 @@ import { loadProjectContext } from "@/lib/data/project-context";
 import { listApprovedAttachmentsForProject, publicTaskAttachmentUrl } from "@/services/task-attachment-service";
 import type { Profile } from "@/types/database";
 export default async function DashboardPage() {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
     const resolvedProfile = profile as Profile | null;
     const role = resolvedProfile?.role ?? "client";
     const now = new Date();

@@ -3,7 +3,7 @@ import { UserRound } from "lucide-react";
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ROUTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { getProjectById } from "@/services/project-service";
 import type { Profile } from "@/types/database";
 function initials(name: string) {
@@ -20,17 +20,18 @@ export default async function ProjectTeamPage(props: {
     }>;
 }) {
     const { id } = await props.params;
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const project = await getProjectById(id, supabase);
+    const [project, { data: memberRows }] = await Promise.all([
+        getProjectById(id, supabase),
+        supabase
+            .from("project_members")
+            .select("user_id, role_in_project")
+            .eq("project_id", id),
+    ]);
     if (!project)
         notFound();
-    const { data: memberRows } = await supabase
-        .from("project_members")
-        .select("user_id, role_in_project")
-        .eq("project_id", id);
     type MemberRow = {
         user_id: string;
         role_in_project: string;

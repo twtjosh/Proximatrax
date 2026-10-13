@@ -4,7 +4,7 @@ import { InquiryShellRealtimeSubscriber } from "@/components/superadmin/inquiry-
 import { getSuperAdminInquirySummaries, getSuperAdminViewedInquiryIds, } from "@/lib/data/inquiry-shell";
 import { ROUTES } from "@/lib/constants";
 import type { InquiryTriageRow } from "@/lib/inquiry-triage";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 export const dynamic = "force-dynamic";
 export default function DashboardLayout({ children, }: {
@@ -15,16 +15,10 @@ export default function DashboardLayout({ children, }: {
 async function ProtectedDashboardLayout({ children, }: {
     children: React.ReactNode;
 }) {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user) {
         redirect(ROUTES.LOGIN);
     }
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
     if (!profile) {
         await supabase.auth.signOut();
         redirect(ROUTES.LOGIN);

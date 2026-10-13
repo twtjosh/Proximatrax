@@ -3,20 +3,14 @@ import { Users } from "lucide-react";
 import { SuperAdminContentFrame } from "@/components/superadmin/super-admin-content-frame";
 import { SuperAdminHero } from "@/components/superadmin/super-admin-hero";
 import { ROUTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 import { CreateUserForm } from "./create-user-form";
 import { UserDirectoryTable } from "./user-directory-table";
 export default async function SettingsPage() {
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
     const resolvedProfile = profile as Profile | null;
     const isSuperAdmin = resolvedProfile?.role === "super_admin";
     if (!isSuperAdmin) {

@@ -5,7 +5,7 @@ import { ProjectClosurePanel } from "@/components/projects/project-closure-panel
 import { RoleBadge } from "@/components/shared/role-badge";
 import { isProjectArchived } from "@/lib/project-lifecycle";
 import { formatDisplayDate } from "@/lib/milestone-utils";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { getProjectById } from "@/services/project-service";
 import type { Profile, Task } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -17,29 +17,28 @@ export default async function ProjectOverviewPage(props: {
     }>;
 }) {
     const { id } = await props.params;
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
-    const { data: viewerProfile } = user
-        ? await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .maybeSingle()
-        : { data: null };
-    const viewerRole = (viewerProfile as Pick<Profile, "role"> | null)?.role ?? null;
+    const { supabase, user, profile: viewerProfile } = await getViewer();
+    const viewerRole = viewerProfile?.role ?? null;
     const canEditMilestones = viewerRole != null &&
         MILESTONE_EDIT_ROLES.includes(viewerRole);
     const isClient = viewerRole === "client";
     const isPm = viewerRole === "project_manager";
-    const project = await getProjectById(id, supabase, { withMilestones: true });
+    const [project, { data: memberRows }, { data: tasks }] = await Promise.all([
+        getProjectById(id, supabase, { withMilestones: true }),
+        supabase
+            .from("project_members")
+            .select("user_id, role_in_project")
+            .eq("project_id", id),
+        supabase
+            .from("tasks")
+            .select("*")
+            .eq("project_id", id)
+            .order("position", { ascending: true }),
+    ]);
     if (!project)
         notFound();
     const isArchived = isProjectArchived(project);
     const canEdit = canEditMilestones && !isArchived;
-    const { data: memberRows } = await supabase
-        .from("project_members")
-        .select("user_id, role_in_project")
-        .eq("project_id", id);
     let members: Array<{
         user_id: string;
         role_in_project: string;
@@ -57,11 +56,6 @@ export default async function ProjectOverviewPage(props: {
             profiles: (profileMap.get(m.user_id) as Profile | undefined) ?? null,
         }));
     }
-    const { data: tasks } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("project_id", id)
-        .order("position", { ascending: true });
     const taskList = (tasks ?? []) as Task[];
     const milestones = project.milestones ?? [];
     const taskProgressByMilestone: Record<string, {

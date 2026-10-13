@@ -5,7 +5,7 @@ import { SuperAdminContentFrame } from "@/components/superadmin/super-admin-cont
 import { SuperAdminHero } from "@/components/superadmin/super-admin-hero";
 import { ROUTES } from "@/lib/constants";
 import { getSuperAdminViewedInquiryIds } from "@/lib/data/inquiry-shell";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { listInquiries } from "@/services/inquiry-service";
 import type { Inquiry, Profile } from "@/types/database";
 export default async function InquiriesPage({ searchParams, }: {
@@ -14,15 +14,9 @@ export default async function InquiriesPage({ searchParams, }: {
     }>;
 }) {
     const { open: openInquiryId } = await searchParams;
-    const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
     const role = (profile as Pick<Profile, "role"> | null)?.role;
     if (role !== "super_admin") {
         redirect(ROUTES.DASHBOARD);
