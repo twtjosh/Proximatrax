@@ -29,7 +29,7 @@ const reveal = "transition-[opacity,translate] duration-[400ms] ease-spring [@me
 
 const keyOf = (d: Deadline) => `${d.kind}-${d.id}`;
 
-const TONES = {
+export const TONES = {
     review: "bg-warning-soft text-warning",
     late: "bg-danger-soft text-danger",
     close: "bg-success-soft text-success",
