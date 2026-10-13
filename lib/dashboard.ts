@@ -196,6 +196,27 @@ export function projectPace(project: { start_date: string; end_date: string }, l
     return { time, work, state };
 }
 
+export type HealthTone = "late" | "done" | "quiet" | "brand" | "steady";
+
+/**
+ * A project's one status line, its worst true fact first, so a full ring
+ * never hides late work. Shared by the Overview tile, the project header and
+ * the Projects list so all three say the same thing.
+ */
+export function projectHealth(project: { start_date: string; end_date: string }, load: Pick<ProjectLoad, "tasksTotal" | "stages">, today: string, late: number): { text: string; tone: HealthTone } {
+    if (late > 0)
+        return { text: `${late} overdue`, tone: "late" };
+    const pace = projectPace(project, load, today);
+    if (load.tasksTotal > 0 && pace.work >= 1)
+        return { text: "All work accepted", tone: "done" };
+    switch (pace.state) {
+        case "not_started": return { text: `Starts ${formatDate(project.start_date, { month: "short", day: "numeric" })}`, tone: "quiet" };
+        case "ended": return { text: "Past its end date", tone: "brand" };
+        case "behind": return { text: "Behind schedule", tone: "brand" };
+        default: return { text: "On pace", tone: "steady" };
+    }
+}
+
 /** Deadlines grouped by project, soonest first within each; projects ordered by their soonest. */
 export function groupByProject(deadlines: Deadline[]): Deadline[][] {
     const groups = new Map<string, Deadline[]>();

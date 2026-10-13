@@ -8,11 +8,11 @@ import { ArrowUpRight, CalendarDays, MessageSquare, Plus } from "lucide-react";
 import { LiveRefresh } from "@/components/dashboard/live-refresh";
 import { deadlineHref, NeedsYou } from "@/components/dashboard/needs-you";
 import { CountUp } from "@/components/dashboard/count-up";
-import { Face, FaceStack, focusRing, OverviewCard, OverviewHeader, primaryAction, ProgressRing, softAction, stagger, trackSpotlight } from "@/components/dashboard/overview-kit";
+import { Face, FaceStack, focusRing, HEALTH_TONE, OverviewCard, OverviewHeader, primaryAction, ProgressRing, softAction, stagger, trackSpotlight } from "@/components/dashboard/overview-kit";
 import { describeStages } from "@/components/system/stage-meter";
 import { projectBoardPath, projectPath, projectsListPath, projectTimelinePath, ROUTES } from "@/lib/constants";
 import type { ProjectContext, TeamMember } from "@/lib/data/project-context";
-import { addDays, centredGrowth, daysBetween, formatDate, openDeadlines, partitionDeadlines, plural, portfolioStages, projectLoads, projectPace, quietWeek, relativeDay, sortByAttention, spanShare, type DashboardMilestone, type DashboardTask, type Deadline, type ProjectLoad } from "@/lib/dashboard";
+import { addDays, centredGrowth, daysBetween, formatDate, openDeadlines, partitionDeadlines, plural, portfolioStages, projectHealth, projectLoads, quietWeek, relativeDay, sortByAttention, spanShare, type DashboardMilestone, type DashboardTask, type Deadline, type ProjectLoad } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { assessProjectClosureReadiness } from "@/lib/project-lifecycle";
 import { cn } from "@/lib/utils";
@@ -106,21 +106,6 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
 
 /* ─────────────────────────── Projects ─────────────────────────── */
 
-/** The tile's one status: its worst true fact first, so a full ring never hides late work. */
-function paceOf(project: ProjectWithRelations, load: ProjectLoad, today: string, late: number) {
-    const pace = projectPace(project, load, today);
-    if (late > 0)
-        return { text: `${late} overdue`, dot: "bg-stage-late", tone: "text-danger" };
-    if (load.tasksTotal > 0 && pace.work >= 1)
-        return { text: "All work accepted", dot: "bg-stage-done", tone: "text-success" };
-    switch (pace.state) {
-        case "not_started": return { text: `Starts ${formatDate(project.start_date, { month: "short", day: "numeric" })}`, dot: "bg-line-strong", tone: "text-ink-secondary" };
-        case "ended": return { text: "Past its end date", dot: "bg-copper", tone: "text-brand" };
-        case "behind": return { text: "Behind schedule", dot: "bg-copper", tone: "text-brand" };
-        default: return { text: "On pace", dot: "bg-stage-done", tone: "text-ink-secondary" };
-    }
-}
-
 /** How far an open box comes toward you: the full zoom where the row has room, gentler where the margins are narrow. */
 const ZOOM_WIDE = 1.15;
 const ZOOM_NARROW = 1.06;
@@ -168,7 +153,8 @@ function ProjectTile({ index, project: p, load, milestones, team, tasks, unread:
 }) {
     const unread = useLiveUnread(p.id, serverUnread);
     const share = load.tasksTotal > 0 ? load.stages.done / load.tasksTotal : 0;
-    const pace = paceOf(p, load, today, late);
+    const health = projectHealth(p, load, today, late);
+    const pace = { text: health.text, ...HEALTH_TONE[health.tone] };
     const [raised, setRaised] = React.useState(false);
     const timer = React.useRef<number | undefined>(undefined);
     const pointer = React.useRef("mouse");

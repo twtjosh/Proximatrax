@@ -1,3 +1,4 @@
+import type { HealthTone } from "@/lib/dashboard";
 import type { TeamMember } from "@/lib/data/project-context";
 import { cn } from "@/lib/utils";
 
@@ -119,3 +120,12 @@ export function FaceStack({ people, max = 3, size = 26 }: {
       {rest > 0 ? <span className="relative inline-grid place-items-center rounded-full bg-surface-sunken text-[11px] font-semibold text-ink-secondary ring-2 ring-surface tabular" style={{ width: size, height: size }}>+{rest}</span> : null}
     </span>);
 }
+
+/** How each project health tone is drawn: a dot and the text colour. */
+export const HEALTH_TONE: Record<HealthTone, { dot: string; tone: string }> = {
+    late: { dot: "bg-stage-late", tone: "text-danger" },
+    done: { dot: "bg-stage-done", tone: "text-success" },
+    quiet: { dot: "bg-line-strong", tone: "text-ink-secondary" },
+    brand: { dot: "bg-copper", tone: "text-brand" },
+    steady: { dot: "bg-stage-done", tone: "text-ink-secondary" },
+};

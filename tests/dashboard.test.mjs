@@ -8,6 +8,7 @@ import {
     projectLoads,
     isoDateIn,
     sortByAttention,
+    projectHealth,
 } from "../lib/dashboard.ts";
 
 const TODAY = "2026-10-04";
@@ -188,4 +189,31 @@ test("a quiet week names what comes next, else the projects whose plan ran out, 
         projects: [{ project_id: "p1", late: 2 }, { project_id: "p2", late: 1 }],
     });
     assert.deepEqual(quietWeek([], undefined), { kind: "idle" });
+});
+
+const loadOf = (done, total) => ({ tasksTotal: total, stages: { to_do: total - done, in_progress: 0, review: 0, done } });
+const span = { start_date: "2026-09-01", end_date: "2026-12-01" };
+
+test("project health leads with overdue work", () => {
+    assert.deepEqual(projectHealth(span, loadOf(10, 10), TODAY, 2), { text: "2 overdue", tone: "late" });
+});
+
+test("project health says all work accepted when every task is done", () => {
+    assert.deepEqual(projectHealth(span, loadOf(4, 4), TODAY, 0), { text: "All work accepted", tone: "done" });
+});
+
+test("project health before the start names the start date", () => {
+    assert.deepEqual(projectHealth({ start_date: "2026-10-15", end_date: "2026-12-01" }, loadOf(0, 3), TODAY, 0), { text: "Starts Oct 15", tone: "quiet" });
+});
+
+test("project health past the end date", () => {
+    assert.deepEqual(projectHealth({ start_date: "2026-08-01", end_date: "2026-10-01" }, loadOf(1, 3), TODAY, 0), { text: "Past its end date", tone: "brand" });
+});
+
+test("project health behind when time runs a quarter ahead of work", () => {
+    assert.deepEqual(projectHealth({ start_date: "2026-08-01", end_date: "2026-11-01" }, loadOf(0, 4), TODAY, 0), { text: "Behind schedule", tone: "brand" });
+});
+
+test("project health on pace otherwise", () => {
+    assert.deepEqual(projectHealth(span, loadOf(1, 4), TODAY, 0), { text: "On pace", tone: "steady" });
 });
