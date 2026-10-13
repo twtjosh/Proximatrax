@@ -45,6 +45,7 @@ export const projectBoardPath = (id: string, query?: ProjectBoardQuery) => {
     return qs ? `${base}?${qs}` : base;
 };
 export const projectTimelinePath = (id: string) => `${projectPath(id)}/timeline`;
+export const projectReviewPath = (id: string) => `${projectPath(id)}/review`;
 export const projectFilesPath = (id: string) => `${projectPath(id)}/files`;
 export const projectChatPath = (id: string) => `${projectPath(id)}/chat`;
 export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`;

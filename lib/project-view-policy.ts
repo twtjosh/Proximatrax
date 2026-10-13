@@ -1,4 +1,4 @@
-import { projectAnalyticsPath, projectBoardPath, projectPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
+import { projectAnalyticsPath, projectBoardPath, projectPath, projectReviewPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
 import type { UserRole } from "@/types/enums";
 export type ProjectWorkspaceTab = {
     href: string;
@@ -14,9 +14,14 @@ export function projectWorkspaceTabs(projectId: string, role: UserRole): Project
         { href: projectSettingsPath(projectId), label: "Settings" },
     ];
     if (role === "project_manager") {
-        return all.map((t) => t.href === projectBoardPath(projectId)
-            ? { ...t, label: "Inspection" }
-            : t);
+        return [
+            { href: projectPath(projectId), label: "Overview", exact: true },
+            { href: projectReviewPath(projectId), label: "Review" },
+            { href: projectBoardPath(projectId), label: "Board" },
+            { href: projectTimelinePath(projectId), label: "Schedule" },
+            { href: projectTeamPath(projectId), label: "Team" },
+            { href: projectSettingsPath(projectId), label: "Details" },
+        ];
     }
     if (role === "client") {
         return [

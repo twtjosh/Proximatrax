@@ -1,13 +1,10 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ClipboardList, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { ClientProjectProgress } from "@/components/dashboard/client-project-progress";
 import { KanbanBoard } from "@/components/dashboard/kanban-board";
 import { MiddlemanFieldWork } from "@/components/dashboard/middleman-field-work";
-import { PmInspectionQueue } from "@/components/dashboard/pm-inspection-queue";
-import { Button } from "@/components/ui/button";
-import { projectBoardPath, ROUTES } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
 import { listApprovedAttachmentsForProject, listTaskAttachmentsForProject, } from "@/services/task-attachment-service";
 import { getProjectById } from "@/services/project-service";
@@ -23,7 +20,6 @@ export default async function ProjectBoardPage(props: {
     }>;
 }) {
     const { id } = await props.params;
-    const { view } = await props.searchParams;
     const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
@@ -79,51 +75,10 @@ export default async function ProjectBoardPage(props: {
         </Suspense>
       </div>);
     }
-    if (role === "project_manager" && view === "all") {
-        return (<div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-sm">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-              Task management
-            </p>
-            <h2 className="mt-0.5 font-heading text-lg font-semibold tracking-tight text-slate-950">
-              All tasks
-            </h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-600">
-              Full board for creating tasks, assigning owners, and reordering work.
-            </p>
-          </div>
-          <Button render={<Link href={projectBoardPath(id)}/>} variant="outline" className="h-9 shrink-0 gap-1.5 rounded-lg border-slate-200/90 bg-white px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-copper/35 hover:bg-copper-soft/30 hover:text-copper-hover">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden/>
-            Inspection queue
-          </Button>
-        </div>
+    if (role === "project_manager") {
+        return (<div className="pt-2">
         <Suspense fallback={loading}>
           <KanbanBoard projectId={id} initialTasks={tasks} initialAttachments={attachments} viewerRole={role} viewerId={user.id} isArchived={isArchived}/>
-        </Suspense>
-      </div>);
-    }
-    if (role === "project_manager") {
-        return (<div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-sm">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-              Quality check
-            </p>
-            <h2 className="mt-0.5 font-heading text-lg font-semibold tracking-tight text-slate-950">
-              Inspection queue
-            </h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-600">
-              Review submitted field work and accept deliverables for your client.
-            </p>
-          </div>
-          <Button render={<Link href={projectBoardPath(id, { view: "all" })}/>} variant="outline" className="h-9 shrink-0 gap-1.5 rounded-lg border-slate-200/90 bg-white px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-copper/35 hover:bg-copper-soft/30 hover:text-copper-hover">
-            <ClipboardList className="h-3.5 w-3.5" aria-hidden/>
-            Manage all tasks
-          </Button>
-        </div>
-        <Suspense fallback={loading}>
-          <PmInspectionQueue projectId={id} initialTasks={tasks} initialAttachments={attachments}/>
         </Suspense>
       </div>);
     }
