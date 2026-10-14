@@ -3,31 +3,22 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Camera, Check, Film, Hourglass, ImagePlus, Loader2, Paperclip, Play, RotateCcw, Send } from "lucide-react";
+import { ArrowUpRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
-import { nextHandoffAction, normalizeBoardStage, parseChecklist, type ChecklistItem } from "@/lib/board-workflow";
-import { projectBoardPath } from "@/lib/constants";
+import { TaskWorkbench } from "@/components/middleman/task-workbench";
+import { nextHandoffAction, normalizeBoardStage, type ChecklistItem } from "@/lib/board-workflow";
+import { projectPath } from "@/lib/constants";
 import { addDays, daysBetween, duePhrase, fieldOrder, formatDate, isoDateIn, plural, relativeDay, relativePast } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { TASK_STAGE_TERMS } from "@/lib/vocabulary";
 import { indexAttachmentsByTask, moveTaskToStage, type TaskWithProject } from "@/lib/work-task-flow";
-import { listTaskAttachmentsForProject, publicTaskAttachmentUrl, uploadTaskAttachment } from "@/services/task-attachment-service";
+import { listTaskAttachmentsForProject } from "@/services/task-attachment-service";
 import { listAssignedTasksForUser, updateTask } from "@/services/task-service";
 import type { TaskAttachment } from "@/types/database";
 
 const WEEK_DAYS = 7;
-const COARSE = "(pointer: coarse)";
-const subscribeCoarse = (onChange: () => void) => {
-    const mq = window.matchMedia(COARSE);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-};
-/** True on phones and tablets, where the camera input opens the rear camera. */
-function useTouch() {
-    return React.useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
-}
 
 /**
  * A middleman's day, built for a phone on site: the one task to work on now,
@@ -172,42 +163,6 @@ function FocusCard({ task, today, viewerId, attachments, sentBackAt, busy, onAdv
     onChecklist: (items: ChecklistItem[]) => void;
     onUploaded: (added: TaskAttachment[]) => void;
 }) {
-    const stage = normalizeBoardStage(task.stage);
-    const handoff = nextHandoffAction(task, "middleman", viewerId);
-    const checklist = parseChecklist(task.checklist);
-    const done = checklist.filter((c) => c.done).length;
-    const photos = attachments.filter((a) => a.media_kind === "photo").length;
-    const editable = stage !== "review";
-    const cameraRef = React.useRef<HTMLInputElement>(null);
-    const libraryRef = React.useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = React.useState(false);
-    const needsPhoto = handoff?.variant === "submit" && photos === 0;
-    const touch = useTouch();
-    const PhotoIcon = touch ? Camera : ImagePlus;
-
-    async function upload(files: FileList | null) {
-        if (!files?.length)
-            return;
-        setUploading(true);
-        const added: TaskAttachment[] = [];
-        try {
-            for (const file of Array.from(files))
-                added.push(await uploadTaskAttachment(task.project_id, task.id, file));
-            onUploaded(added);
-            toast.success(added.length === 1 ? "Photo added" : `${added.length} files added`);
-        }
-        catch (e) {
-            toast.error(e instanceof Error ? e.message : "Upload failed. Check your signal and try again.");
-        }
-        finally {
-            setUploading(false);
-            if (cameraRef.current)
-                cameraRef.current.value = "";
-            if (libraryRef.current)
-                libraryRef.current.value = "";
-        }
-    }
-
     return (<section aria-labelledby="focus-title" className="materialize rounded-[24px] material" style={stagger(1)}>
       <div className="p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
@@ -218,68 +173,12 @@ function FocusCard({ task, today, viewerId, attachments, sentBackAt, busy, onAdv
         <p className="mt-5 text-xs font-medium text-ink-tertiary">{task.project.title}</p>
         <h2 id="focus-title" className="mt-1 text-[1.5rem] leading-tight font-semibold tracking-[-0.025em] text-balance text-ink sm:text-[1.75rem]">{task.title}</h2>
         {task.description ? <p className="mt-3 line-clamp-3 max-w-prose text-[15px] leading-relaxed text-ink-secondary">{task.description}</p> : null}
-
-        {checklist.length > 0 ? (<div className="mt-7">
-            <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-semibold text-ink">Checklist</h3>
-              <p className="text-xs font-medium text-ink-secondary tabular">{done} of {checklist.length} done</p>
-            </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
-              <div className="h-full rounded-full bg-copper transition-[width] duration-500 ease-spring" style={{ width: `${(done / checklist.length) * 100}%` }}/>
-            </div>
-            <ul className="mt-3 grid gap-1">
-              {checklist.map((item) => (<li key={item.id}>
-                  <button type="button" role="checkbox" aria-checked={item.done} disabled={!editable} onClick={() => onChecklist(checklist.map((c) => (c.id === item.id ? { ...c, done: !c.done } : c)))} className={cn("press flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 text-left text-[15px] hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", focusRing)}>
-                    <span aria-hidden className={cn("grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors duration-300 ease-spring", item.done ? "border-copper bg-copper text-white" : "border-line-strong")}>
-                      {item.done ? <Check className="size-3.5" strokeWidth={3}/> : null}
-                    </span>
-                    <span className={cn("transition-colors duration-300", item.done ? "text-ink-tertiary line-through decoration-line-strong" : "text-ink")}>{item.label}</span>
-                  </button>
-                </li>))}
-            </ul>
-          </div>) : null}
-
-        {attachments.length > 0 ? (<div className="mt-7">
-            <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-semibold text-ink">Site photos <span className="font-normal text-ink-tertiary tabular">{attachments.length}</span></h3>
-              {editable && touch ? (<button type="button" onClick={() => libraryRef.current?.click()} className={cn("rounded-sm text-xs font-medium text-brand hover:underline", focusRing)}>Upload from gallery</button>) : null}
-            </div>
-            <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
-              {attachments.map((a) => <Thumb key={a.id} item={a}/>)}
-              {editable ? (<button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className={cn("press grid size-20 shrink-0 cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-copper/45 bg-brand-soft/60 text-brand hover:border-copper hover:bg-brand-soft", focusRing)} aria-label={touch ? "Take another site photo" : "Add another file"}>
-                  {uploading ? <Loader2 className="size-6 animate-spin" aria-hidden/> : <span className="flex flex-col items-center gap-1 text-[11px] font-semibold"><PhotoIcon className="size-6" aria-hidden/>{touch ? "Take photo" : "Add more"}</span>}
-                </button>) : null}
-            </div>
-          </div>) : null}
-        <input ref={cameraRef} type="file" accept={touch ? "image/*" : "image/*,video/*,.pdf"} capture={touch ? "environment" : undefined} multiple={!touch} className="hidden" onChange={(e) => void upload(e.target.files)}/>
-        <input ref={libraryRef} type="file" accept="image/*,video/*,.pdf" multiple className="hidden" onChange={(e) => void upload(e.target.files)}/>
       </div>
-
-      {/* The next step stays in reach of a thumb while the card is on screen. */}
-      <div className="sticky bottom-0 z-10 rounded-b-[24px] border-t border-line bg-surface/90 p-4 backdrop-blur-md sm:px-7">
-        {stage === "review" ? (<p className="flex h-14 items-center justify-center gap-2 rounded-full bg-warning-soft text-[15px] font-medium text-warning">
-            <Hourglass className="size-4" aria-hidden/>
-            Waiting for your project manager to accept
-          </p>) : handoff ? (<button type="button" disabled={busy || uploading} onClick={needsPhoto ? () => cameraRef.current?.click() : onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
-            {busy || uploading ? <Loader2 className="size-5 animate-spin" aria-hidden/> : needsPhoto ? <PhotoIcon className="size-5" aria-hidden/> : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
-            {uploading ? "Uploading…" : needsPhoto ? (touch ? "Take a photo to submit" : "Add a photo to submit") : handoff.variant === "submit" ? "Submit for review" : "Start work"}
-          </button>) : null}
-        <Link href={projectBoardPath(task.project_id)} className={cn("mt-2 flex h-9 items-center justify-center gap-1 rounded-full text-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>
-          Open board
+      <TaskWorkbench task={task} viewerId={viewerId} attachments={attachments} busy={busy} onAdvance={onAdvance} onChecklist={onChecklist} onUploaded={onUploaded} footer={(<Link href={`${projectPath(task.project_id)}?task=${task.id}`} className={cn("mt-2 flex h-9 items-center justify-center gap-1 rounded-full text-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>
+          Open project
           <ArrowUpRight className="size-3.5" aria-hidden/>
-        </Link>
-      </div>
+        </Link>)}/>
     </section>);
-}
-
-function Thumb({ item }: {
-    item: TaskAttachment;
-}) {
-    const url = publicTaskAttachmentUrl(item.storage_path);
-    return (<a href={url} target="_blank" rel="noopener noreferrer" className={cn("press relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-surface-sunken text-ink-tertiary", focusRing)} title={item.file_name}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- site photos from storage, shown small */}
-      {item.media_kind === "photo" ? <img src={url} alt={item.file_name} className="size-full object-cover"/> : item.media_kind === "video" ? <Film className="size-6" aria-hidden/> : <Paperclip className="size-6" aria-hidden/>}
-    </a>);
 }
 
 /* ─────────────────────────── Week & list ─────────────────────────── */
