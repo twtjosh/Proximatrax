@@ -25,7 +25,7 @@ export default async function ProjectLayout(props: {
         const data = await loadPmProject(supabase, id, user.id);
         if (!data)
             notFound();
-        return <PmProjectShell data={data}>{props.children}</PmProjectShell>;
+        return <PmProjectShell data={data} viewerId={user.id}>{props.children}</PmProjectShell>;
     }
     if (role === "middleman") {
         const data = await loadCrewProject(supabase, id, user.id);
