@@ -49,8 +49,6 @@ export const projectReviewPath = (id: string) => `${projectPath(id)}/review`;
 export const projectFilesPath = (id: string) => `${projectPath(id)}/files`;
 export const projectChatPath = (id: string) => `${projectPath(id)}/chat`;
 export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`;
-export const projectTeamPath = (id: string) => `${projectPath(id)}/team`;
-export const projectSettingsPath = (id: string) => `${projectPath(id)}/settings`;
 export const projectAnalyticsPath = (id: string) => `${projectPath(id)}/analytics`;
 export const projectPhotosPath = (id: string) => `${projectPath(id)}/photos`;
 export type ProjectsListView = "active" | "completed";

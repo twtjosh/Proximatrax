@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Check, Loader2, Lock, X } from "lucide-react";
 import { toast } from "sonner";
-import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
+import { primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { DashboardMilestone } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";

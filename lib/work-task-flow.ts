@@ -173,10 +173,3 @@ export function sortWorkTodayTasks(tasks: TaskWithProject[]): TaskWithProject[] 
         return a.title.localeCompare(b.title);
     });
 }
-export async function refreshProjectWorkData(projectId: string) {
-    const [tasks, attachments] = await Promise.all([
-        listTasksForProject(projectId),
-        listApprovedAttachmentsForProject(projectId),
-    ]);
-    return { tasks, attachments };
-}

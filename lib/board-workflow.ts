@@ -15,33 +15,6 @@ export const BOARD_STAGE_INDEX: Record<BoardColumnStage, number> = {
     review: 2,
     done: 3,
 };
-export type BoardColumnMeta = {
-    title: string;
-    hint: string;
-    owner: string;
-};
-export const BOARD_COLUMN_META: Record<BoardColumnStage, BoardColumnMeta> = {
-    to_do: {
-        title: "Ready",
-        hint: "Scoped work waiting for an owner",
-        owner: "Pool",
-    },
-    in_progress: {
-        title: "Active",
-        hint: "Execution on site or in studio",
-        owner: "Assignee",
-    },
-    review: {
-        title: "Inspection",
-        hint: "Submitted for PM quality check",
-        owner: "Project manager",
-    },
-    done: {
-        title: "Accepted",
-        hint: "Signed off and closed",
-        owner: "Project record",
-    },
-};
 export type ChecklistItem = {
     id: string;
     label: string;
@@ -250,27 +223,4 @@ export function taskBlockedReason(task: TaskForGate, viewerRole: UserRole, gateC
         return "Awaiting PM sign-off";
     }
     return null;
-}
-export function boardHealthStats(tasks: TaskForGate[]): {
-    readyUnowned: number;
-    activeInProgress: number;
-    awaitingPm: number;
-    accepted: number;
-} {
-    let readyUnowned = 0;
-    let activeInProgress = 0;
-    let awaitingPm = 0;
-    let accepted = 0;
-    for (const t of tasks) {
-        const stage = normalizeBoardStage(t.stage);
-        if (stage === "to_do" && !t.assigned_to)
-            readyUnowned += 1;
-        if (stage === "in_progress")
-            activeInProgress += 1;
-        if (stage === "review")
-            awaitingPm += 1;
-        if (stage === "done")
-            accepted += 1;
-    }
-    return { readyUnowned, activeInProgress, awaitingPm, accepted };
 }

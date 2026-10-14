@@ -129,32 +129,4 @@ export function indexAttachmentsByTask(items: TaskAttachment[]): Map<string, Tas
     }
     return map;
 }
-export function attachmentSummary(items: TaskAttachment[]): {
-    count: number;
-    photo: number;
-    video: number;
-    file: number;
-} {
-    let photo = 0;
-    let video = 0;
-    let file = 0;
-    for (const item of items) {
-        if (item.media_kind === "photo")
-            photo += 1;
-        else if (item.media_kind === "video")
-            video += 1;
-        else
-            file += 1;
-    }
-    return { count: items.length, photo, video, file };
-}
-export function formatAttachmentSize(bytes: number | null): string {
-    if (bytes == null || bytes <= 0)
-        return "";
-    if (bytes < 1024)
-        return `${bytes} B`;
-    if (bytes < 1024 * 1024)
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 export type { MediaKind };
