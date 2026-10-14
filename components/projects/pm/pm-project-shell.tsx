@@ -1,69 +1,28 @@
 "use client";
 import * as React from "react";
-import { usePathname } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
-import { LiveRefresh } from "@/components/dashboard/live-refresh";
 import { ProjectClosedBanner } from "@/components/projects/project-closed-banner";
+import { ProjectFrame } from "@/components/projects/shared/project-frame";
 import { calendarPhrase } from "@/lib/pm-project";
 import { projectHealth, projectLoads } from "@/lib/dashboard";
 import type { PmProjectData } from "@/lib/data/pm-project";
-import { SPRING } from "@/lib/motion";
 import { projectWorkspaceTabs } from "@/lib/project-view-policy";
 import { PmProjectHeader } from "./pm-project-header";
-import { activeTabIndex, PmTabs } from "./pm-tabs";
-
-/** How far a tab's content travels as it arrives, toward the side you moved. */
-const TRAVEL = 28;
+import { PmTabs } from "./pm-tabs";
 
 /**
- * The project manager's frame around every project tab: a sticky header that
- * condenses on scroll, the tabs, and content that slides in from the side of
- * travel. Live changes from the site re-render the page.
+ * The project manager's frame around every project tab: the shared project
+ * frame with the PM's header (task progress, health, team, Message) and tabs
+ * (Review carries its waiting count).
  */
 export function PmProjectShell({ data, children }: {
     data: PmProjectData;
     children: React.ReactNode;
 }) {
     const { project, tasks, milestones, today } = data;
-    const pathname = usePathname();
-    const reduce = useReducedMotion();
     const tabs = projectWorkspaceTabs(project.id, "project_manager");
-    const active = Math.max(activeTabIndex(pathname, tabs), 0);
-    // The side content arrives from: remembered from the last tab, the way React stores previous-render facts.
-    const [previous, setPrevious] = React.useState(active);
-    const [direction, setDirection] = React.useState(0);
-    if (previous !== active) {
-        setDirection(active > previous ? 1 : -1);
-        setPrevious(active);
-    }
-
     const load = projectLoads([project.id], tasks, milestones, today).get(project.id)!;
     const health = projectHealth(project, load, today, load.overdue);
-
-    // A 24px sentinel above the header: once it has scrolled out, the header condenses.
-    const sentinel = React.useRef<HTMLDivElement>(null);
-    const [compact, setCompact] = React.useState(false);
-    React.useEffect(() => {
-        const el = sentinel.current;
-        if (!el)
-            return;
-        const io = new IntersectionObserver(([entry]) => setCompact(!entry.isIntersecting), { root: document.getElementById("workspace-main") });
-        io.observe(el);
-        return () => io.disconnect();
-    }, []);
-
-    return (<div className="mx-auto w-full max-w-360">
-      <LiveRefresh channel={`pm-project-${project.id}`}/>
-      <div ref={sentinel} aria-hidden className="-mb-6 h-6"/>
-      <header className="sticky top-0 z-20 -mx-4 border-b border-line bg-canvas/85 px-4 pt-1 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} tasksFailed={data.loadFailed} health={health} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact}/>
-        <div className="mt-3">
-          <PmTabs tabs={tabs} active={active} reviewCount={load.inReview.length}/>
-        </div>
-      </header>
-      {active !== 0 ? <div className="mt-5"><ProjectClosedBanner project={project} variant="pm"/></div> : null}
-      <motion.div key={active} initial={reduce || direction === 0 ? false : { opacity: 0, x: direction * TRAVEL }} animate={{ opacity: 1, x: 0 }} transition={SPRING} className="pt-6 pb-12">
-        {children}
-      </motion.div>
-    </div>);
+    return (<ProjectFrame channel={`pm-project-${project.id}`} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={load.inReview.length}/>} header={(compact) => <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} tasksFailed={data.loadFailed} health={health} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact}/>} banner={<ProjectClosedBanner project={project} variant="pm"/>}>
+      {children}
+    </ProjectFrame>);
 }
