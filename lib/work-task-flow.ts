@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeBoardStage, validateStageTransition, type BoardColumnStage, type WorkflowGateContext, } from "@/lib/board-workflow";
+import { normalizeBoardStage, parseChecklist, validateStageTransition, type BoardColumnStage, type WorkflowGateContext, } from "@/lib/board-workflow";
 import { toGateTasks } from "@/lib/milestone-task-gates";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { logActivity } from "@/services/activity-service";
 import { assertProjectNotArchived, listMilestones, syncMilestoneFromLinkedTasks, } from "@/services/project-service";
-import { indexAttachmentsByTask, listApprovedAttachmentsForProject, approveTaskAttachmentsForClient, } from "@/services/task-attachment-service";
+import { sendBackChecklist } from "@/lib/review-queue";
+import { indexAttachmentsByTask, listApprovedAttachmentsForProject, approveAttachmentsForClient, approveTaskAttachmentsForClient, } from "@/services/task-attachment-service";
 import { listAssignedTasksForUser, listClientVisibleDeliverables, listTasksForProject, updateTask, type TaskWithProject, type TaskWithRelations, } from "@/services/task-service";
 import { dismissWorkNotificationsForTask, notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify, } from "@/services/work-notification-service";
 import type { TaskAttachment } from "@/types/database";
@@ -81,7 +82,13 @@ export async function moveTaskToStage(task: TaskWithRelations, targetStage: Boar
         await dismissWorkNotificationsForTask(task.id, sb);
     }
 }
-export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: string, client?: SupabaseClient): Promise<{
+/**
+ * The PM accepts work: it becomes visible to the client with the photos the
+ * PM chose (`photoIds`), or with all of the task's photos when none are given.
+ */
+export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: string, client?: SupabaseClient, options?: {
+    photoIds?: string[];
+}): Promise<{
     milestoneCompleted?: string;
 }> {
     const sb = resolveClient(client);
@@ -93,7 +100,10 @@ export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: 
         stage: "done",
         client_visible_at: now,
     }, sb);
-    await approveTaskAttachmentsForClient(task.id, now, sb);
+    if (options?.photoIds)
+        await approveAttachmentsForClient(options.photoIds, now, sb);
+    else
+        await approveTaskAttachmentsForClient(task.id, now, sb);
     await logActivity({
         project_id: projectId,
         action_type: "task_moved",
@@ -111,11 +121,20 @@ export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: 
     await notifyWorkReadyAfterProjectTaskChange(projectId, tasksBefore, sb);
     return sync.completed && sync.title ? { milestoneCompleted: sync.title } : {};
 }
-export async function sendTaskBackToActive(task: TaskWithRelations, projectId: string, client?: SupabaseClient): Promise<void> {
+/**
+ * The PM returns work to the crew. A reason goes to the top of the task's
+ * checklist as an unticked "Fix: …" item and into the activity log.
+ */
+export async function sendTaskBackToActive(task: TaskWithRelations, projectId: string, client?: SupabaseClient, reason?: string): Promise<void> {
     const sb = resolveClient(client);
     await assertProjectNotArchived(projectId, sb);
     const tasksBefore = await snapshotProjectTasksForNotify(projectId, sb);
-    await updateTask({ id: task.id, stage: "in_progress" }, sb);
+    const note = reason?.trim();
+    await updateTask({
+        id: task.id,
+        stage: "in_progress",
+        ...(note ? { checklist: sendBackChecklist(parseChecklist(task.checklist), note, crypto.randomUUID()) } : {}),
+    }, sb);
     await logActivity({
         project_id: projectId,
         action_type: "task_moved",
@@ -125,6 +144,7 @@ export async function sendTaskBackToActive(task: TaskWithRelations, projectId: s
             from: "review",
             to: "in_progress",
             handoff: true,
+            ...(note ? { reason: note } : {}),
         },
     }, sb);
     await syncMilestoneFromLinkedTasks(projectId, task.milestone_id, sb);

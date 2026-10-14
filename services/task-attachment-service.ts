@@ -47,6 +47,18 @@ export async function approveTaskAttachmentsForClient(taskId: string, approvedAt
     if (error)
         throw error;
 }
+/** Shares chosen attachments with the client; the rest of the task's files stay with the team. */
+export async function approveAttachmentsForClient(ids: string[], approvedAt: string, client?: SupabaseClient): Promise<void> {
+    if (ids.length === 0)
+        return;
+    const sb = resolveClient(client);
+    const { error } = await sb
+        .from("task_attachments")
+        .update({ approved_for_client_at: approvedAt })
+        .in("id", ids);
+    if (error)
+        throw error;
+}
 export async function uploadTaskAttachment(projectId: string, taskId: string, file: File, client?: SupabaseClient): Promise<TaskAttachment> {
     const sb = resolveClient(client);
     const { data: { user }, } = await sb.auth.getUser();
