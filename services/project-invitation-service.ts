@@ -30,6 +30,12 @@ export async function createProjectInvitations(invitations: CreateProjectInvitat
     throwIfSupabaseError(error);
     return (data ?? []) as ProjectInvitation[];
 }
+/** The PM cancels an invitation; also clears a declined one so the person can be invited again. */
+export async function deleteProjectInvitation(invitationId: string, client?: SupabaseClient): Promise<void> {
+    const sb = resolveClient(client);
+    const { error } = await sb.from("project_invitations").delete().eq("id", invitationId);
+    throwIfSupabaseError(error);
+}
 export async function listPendingInvitationsForUser(userId: string, client?: SupabaseClient): Promise<ProjectInvitationWithInviter[]> {
     const sb = resolveClient(client);
     const { data, error } = await sb

@@ -40,6 +40,7 @@ export type CreateTaskInput = {
     assigned_to?: string | null;
     priority?: TaskPriority;
     due_date?: string | null;
+    start_date?: string | null;
 };
 export async function createTask(input: CreateTaskInput, client?: SupabaseClient): Promise<Task> {
     const sb = resolveClient(client);
@@ -65,6 +66,7 @@ export async function createTask(input: CreateTaskInput, client?: SupabaseClient
         assigned_to: input.assigned_to ?? null,
         priority: input.priority ?? "medium",
         due_date: input.due_date ?? null,
+        start_date: input.start_date ?? null,
         position: nextPosition,
     })
         .select("*")
@@ -82,6 +84,7 @@ export type UpdateTaskInput = {
     assigned_to?: string | null;
     priority?: TaskPriority;
     due_date?: string | null;
+    start_date?: string | null;
     position?: number;
     checklist?: unknown;
     client_visible_at?: string | null;

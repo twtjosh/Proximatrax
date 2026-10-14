@@ -55,6 +55,24 @@ export async function listProjectActivity(projectId: string, limit: number, clie
         throw error;
     return attachActors(sb, (data ?? []) as ActivityFeedItem[]);
 }
+/** One page of a project's log, newest first; `before` continues from the last row shown. */
+export async function listProjectActivityPage(projectId: string, options: { limit: number; before?: string; taskId?: string }, client?: SupabaseClient): Promise<ActivityWithActor[]> {
+    const sb = resolveClient(client);
+    let query = sb
+        .from("activity_feed")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(options.limit);
+    if (options.before)
+        query = query.lt("created_at", options.before);
+    if (options.taskId)
+        query = query.eq("details->>task_id", options.taskId);
+    const { data, error } = await query;
+    if (error)
+        throw error;
+    return attachActors(sb, (data ?? []) as ActivityFeedItem[]);
+}
 export async function listRecentActivityForViewer(limit: number, client?: SupabaseClient): Promise<ActivityWithActor[]> {
     const sb = resolveClient(client);
     const { data, error } = await sb

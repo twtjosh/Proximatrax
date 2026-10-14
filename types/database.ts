@@ -63,6 +63,8 @@ export interface Task {
     assigned_to: string | null;
     priority: TaskPriority;
     due_date: string | null;
+    /** When work is planned to begin; the Timeline draws the task from here to its due date. */
+    start_date: string | null;
     checklist: unknown;
     position: number;
     client_visible_at: string | null;
@@ -89,6 +91,27 @@ export interface TaskAttachment {
     media_kind: "file" | "photo" | "video";
     uploaded_by: string;
     approved_for_client_at: string | null;
+    created_at: string;
+}
+export interface TaskComment {
+    id: string;
+    task_id: string;
+    project_id: string;
+    author_id: string;
+    body: string;
+    created_at: string;
+}
+export type ProjectFileFolder = "drawings" | "designs" | "contracts" | "other";
+export interface ProjectFile {
+    id: string;
+    project_id: string;
+    folder: ProjectFileFolder;
+    storage_path: string;
+    file_name: string;
+    mime_type: string;
+    byte_size: number | null;
+    uploaded_by: string;
+    shared_with_client_at: string | null;
     created_at: string;
 }
 export interface UserNotification {

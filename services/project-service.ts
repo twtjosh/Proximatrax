@@ -134,6 +134,20 @@ export async function addProjectMember(input: {
     });
     throwIfSupabaseError(error);
 }
+/** Takes someone off a project. Their open tasks go back to no one, so nothing is left with a person who can't see it. */
+export async function removeProjectMember(projectId: string, userId: string, client?: SupabaseClient): Promise<void> {
+    const sb = resolveClient(client);
+    await assertProjectNotArchived(projectId, sb);
+    const { error: unassignError } = await sb
+        .from("tasks")
+        .update({ assigned_to: null })
+        .eq("project_id", projectId)
+        .eq("assigned_to", userId)
+        .neq("stage", "done");
+    throwIfSupabaseError(unassignError);
+    const { error } = await sb.from("project_members").delete().eq("project_id", projectId).eq("user_id", userId);
+    throwIfSupabaseError(error);
+}
 export async function updateProject(input: UpdateProjectInput, client?: SupabaseClient): Promise<Project> {
     const sb = resolveClient(client);
     const { id, ...rest } = input;
