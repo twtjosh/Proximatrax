@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
-import { ProjectTimelineView } from "@/components/dashboard/project-timeline-view";
-import { MilestoneEditor } from "../_overview/milestone-editor";
+import { PmSchedule } from "@/components/projects/pm/schedule/pm-schedule";
 import { projectPath, ROUTES } from "@/lib/constants";
 import { CrewSchedule } from "@/components/projects/crew/crew-schedule";
 import { loadCrewProject } from "@/lib/data/crew-project";
+import { isoDateIn } from "@/lib/dashboard";
 import { getViewer } from "@/lib/supabase/server";
-import { getProjectById } from "@/services/project-service";
+import { getProjectById, listMilestones, listProjectAssignees } from "@/services/project-service";
+import { listTasksForProject } from "@/services/task-service";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
 export default async function ProjectTimelinePage(props: {
@@ -26,28 +27,15 @@ export default async function ProjectTimelinePage(props: {
             notFound();
         return <CrewSchedule data={data} viewerId={user.id}/>;
     }
-    if (role === "client")
+    if (role !== "project_manager")
         redirect(projectPath(id));
-    const project = await getProjectById(id, supabase, { withMilestones: true });
+    const [project, milestones, tasks, people] = await Promise.all([
+        getProjectById(id, supabase),
+        listMilestones(id, supabase),
+        listTasksForProject(id, supabase),
+        listProjectAssignees(id, supabase),
+    ]);
     if (!project)
         notFound();
-    const milestones = project.milestones ?? [];
-    if (role === "project_manager") {
-        const { data: taskRows } = await supabase.from("tasks").select("milestone_id, stage").eq("project_id", id);
-        const taskProgressByMilestone: Record<string, { total: number; done: number }> = {};
-        for (const t of taskRows ?? []) {
-            if (!t.milestone_id)
-                continue;
-            const bucket = (taskProgressByMilestone[t.milestone_id] ??= { total: 0, done: 0 });
-            bucket.total += 1;
-            if (t.stage === "done")
-                bucket.done += 1;
-        }
-        const archived = project.status === "completed";
-        return (<div className="space-y-6 pt-2">
-        <MilestoneEditor projectId={id} initialMilestones={milestones} canEdit={!archived} viewerRole={role} projectStart={project.start_date} projectEnd={project.end_date} taskProgressByMilestone={taskProgressByMilestone} isArchived={archived}/>
-        <ProjectTimelineView projectId={id} projectStart={project.start_date} projectEnd={project.end_date} milestones={milestones} viewerRole={role}/>
-      </div>);
-    }
-    redirect(projectPath(id));
+    return <PmSchedule projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} people={people} today={isoDateIn(new Date())} closed={project.status === "completed"}/>;
 }
