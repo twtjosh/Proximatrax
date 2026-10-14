@@ -188,7 +188,7 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
       </div>
 
       <div className="materialize overflow-hidden rounded-[22px] material">
-        <table className="w-full table-fixed border-collapse text-sm">
+        <table className="w-full table-auto border-collapse text-sm sm:table-fixed">
           <thead className="sticky top-[var(--frame-stick,0px)] z-10 bg-surface/95 backdrop-blur-xl">
             <tr className="border-b border-line text-left text-xs text-ink-tertiary">
               <th className="w-11 py-2.5 pl-4">
@@ -197,7 +197,7 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
               <Th label="Task" k="title" sort={sort} onSort={sortBy}/>
               <Th label="Stage" k="stage" sort={sort} onSort={sortBy} className="w-36 max-sm:hidden"/>
               <Th label="Who" k="person" sort={sort} onSort={sortBy} className="w-44 max-md:hidden"/>
-              <Th label="Due" k="due" sort={sort} onSort={sortBy} className="w-32"/>
+              <Th label="Due" k="due" sort={sort} onSort={sortBy} className="w-32 max-sm:hidden"/>
               <th className="w-28 pr-4 font-medium max-lg:hidden"><span className="sr-only">Progress</span></th>
             </tr>
           </thead>
@@ -245,9 +245,14 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
                           <button type="button" tabIndex={-1} onClick={() => onOpen(t)} className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 text-left">
                             {t.priority === "high" ? <Flag className="size-3.5 shrink-0 fill-stage-late text-stage-late" aria-label="High priority"/> : null}
                             <span className={cn("truncate font-medium group-hover:underline", stage === "done" ? "text-ink-tertiary" : "text-ink")}>{t.title}</span>
-                            {fix ? <span title={`Fix: ${fix}`} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-danger-soft px-1.5 py-px text-[10px] font-semibold text-danger"><RotateCcw className="size-2.5" aria-hidden/>Sent back</span> : null}
+                            {fix ? <span title={`Fix: ${fix}`} className="inline-flex shrink-0 max-sm:hidden items-center gap-1 rounded-full bg-danger-soft px-1.5 py-px text-[10px] font-semibold text-danger"><RotateCcw className="size-2.5" aria-hidden/>Sent back</span> : null}
                           </button>
-                          {group !== "milestone" && t.milestone ? <span className="block truncate text-[11px] text-ink-tertiary">{t.milestone.title}</span> : null}
+                          {group !== "milestone" && t.milestone ? <span className="block truncate text-[11px] text-ink-tertiary max-sm:hidden">{t.milestone.title}</span> : null}
+                          <span className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-tertiary sm:hidden">
+                            <span className="inline-flex items-center gap-1"><span className={cn("size-1.5 rounded-full", col.dot)} aria-hidden/>{col.label}</span>
+                            {t.due_date ? <span className={cn("tabular", late && "font-semibold text-danger")}>{late ? `${daysBetween(t.due_date, today)}d late` : short(t.due_date)}</span> : null}
+                            {fix ? <span className="font-semibold text-danger">Sent back</span> : null}
+                          </span>
                         </td>
                         <td className="py-2 pr-3 max-sm:hidden">
                           <DropdownMenu>
@@ -272,7 +277,7 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
                             </select>
                           </label>
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className="py-2 pr-3 max-sm:hidden">
                           <label className={cn("relative inline-flex items-center gap-1.5 rounded-md text-[13px] tabular", late ? "font-semibold text-danger" : t.due_date ? "text-ink-secondary" : "text-ink-tertiary")}>
                             <CalendarDays className="size-3.5 shrink-0" aria-hidden/>
                             {t.due_date ? (late ? `${daysBetween(t.due_date, today)}d late` : short(t.due_date)) : "Set date"}

@@ -112,7 +112,7 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
                     <span className="block truncate text-sm font-medium text-ink">{m.title} is {plural(m.daysLate, "day")} late</span>
                     <span className="block truncate text-xs text-ink-tertiary">Milestone{m.total > 0 ? ` · ${m.accepted} of ${plural(m.total, "task")} accepted` : ""}</span>
                   </span>
-                  {readOnly ? null : (<span className="flex items-center gap-1.5">
+                  {readOnly ? null : (<span className="flex items-center gap-1.5 max-sm:basis-full max-sm:pl-[3.125rem]">
                       <MoveDate today={today} title={m.title} onPick={(date) => void moveMilestone(m, date)}/>
                     </span>)}
                 </div>
@@ -124,7 +124,7 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
                     <span className="block truncate text-sm font-medium text-ink group-hover:underline">{t.title} is overdue</span>
                     <span className="block truncate text-xs text-ink-tertiary">{t.assigned_to ? firstName(t.assigned_to) : "No one has it"} · due {relativeDay(t.due_date, today).toLowerCase()}</span>
                   </Link>
-                  {readOnly ? null : (<span className="flex items-center gap-1.5">
+                  {readOnly ? null : (<span className="flex items-center gap-1.5 max-sm:basis-full max-sm:pl-[3.125rem]">
                       {t.assigned_to ? (<button type="button" onClick={() => askAbout(projectId, `"${t.title}", due ${short(t.due_date)}`)} aria-label={`Nudge ${firstName(t.assigned_to)} about ${t.title}`} className={cn(action, "cursor-pointer bg-surface-sunken text-ink hover:bg-line")}><MessageCircle className="size-3.5" aria-hidden/>Nudge</button>) : null}
                       {crew.length > 0 ? (<DropdownMenu>
                           <DropdownMenuTrigger className={cn(action, "cursor-pointer bg-surface-sunken text-ink hover:bg-line")}>{t.assigned_to ? "Reassign" : "Assign"}</DropdownMenuTrigger>

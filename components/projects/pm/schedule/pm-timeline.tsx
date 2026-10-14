@@ -23,7 +23,6 @@ import { MilestonePanel } from "./milestone-panel";
 type Zoom = "week" | "month";
 /** Pixels per day at each zoom. */
 const PX: Record<Zoom, number> = { week: 34, month: 11 };
-const LABEL_W = 272;
 const ROW_H = 44;
 const BAR: Record<BoardColumnStage, string> = {
     to_do: "bg-stage-todo text-ink",
@@ -249,9 +248,9 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
 
       <section aria-label="Timeline" className="materialize overflow-hidden rounded-[22px] material">
         <div ref={scroller} className="relative max-h-[calc(100dvh-16rem)] min-h-64 overflow-auto overscroll-x-contain" onPointerMove={onMove} onPointerUp={finish} onPointerCancel={finish}>
-          <div className="relative" style={{ width: LABEL_W + width }}>
+          <div className="relative [--label-w:10rem] sm:[--label-w:17rem]" style={{ width: `calc(var(--label-w) + ${width}px)` }}>
             {/* Grid: day lines, weekends, the project window, today. */}
-            <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: LABEL_W, width }}>
+            <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: "var(--label-w)", width }}>
               <span className="absolute inset-y-0 bg-brand/[0.035]" style={{ left: x(start), width: x(end) - x(start) + px }}/>
               {zoom === "week" ? Array.from({ length: days }, (_, i) => addDays(range.from, i)).filter((d) => weekday(d) === 0 || weekday(d) === 6).map((d) => <span key={d} className="absolute inset-y-0 bg-surface-sunken/70" style={{ left: x(d), width: px }}/>) : null}
               <span className="absolute inset-0" style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${px * (zoom === "week" ? 1 : 7) - 1}px, var(--line) ${px * (zoom === "week" ? 1 : 7) - 1}px ${px * (zoom === "week" ? 1 : 7)}px)`, backgroundPositionX: zoom === "week" ? 0 : `${((8 - weekday(range.from)) % 7) * px}px`, opacity: 0.6 }}/>
@@ -260,7 +259,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
 
             {/* Header */}
             <div className="sticky top-0 z-20 flex h-12 border-b border-line bg-surface/95 backdrop-blur-xl">
-              <div className="sticky left-0 z-10 flex shrink-0 items-end border-r border-line bg-surface/95 px-4 pb-2 text-xs font-medium text-ink-tertiary" style={{ width: LABEL_W }}>Work</div>
+              <div className="sticky left-0 z-10 flex shrink-0 items-end border-r border-line bg-surface/95 px-4 pb-2 text-xs font-medium text-ink-tertiary" style={{ width: "var(--label-w)" }}>Work</div>
               <div className="relative" style={{ width }}>
                 <span className="absolute top-1.5 left-2 text-xs font-semibold text-ink">{formatDate(range.from, { month: "long" })}</span>
                 {monthTicks(range).map((t) => <span key={t.date} className="absolute top-1.5 border-l border-line-strong pl-2 text-xs font-semibold text-ink" style={{ left: x(t.date) }}>{formatDate(t.date, { month: "long" })}</span>)}
@@ -273,7 +272,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
 
             <ol>
               {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H }}>
-                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: LABEL_W }}>
+                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)" }}>
                       <button type="button" onClick={() => setCollapsed((c) => {
                         const n = new Set(c);
                         if (n.has(r.id))
@@ -286,7 +285,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                       </button>
                       <button type="button" disabled={!r.milestone} onClick={() => r.milestone && setQuery({ milestone: r.milestone.id })} className={cn("min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 py-1 text-left hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", focusRing)}>
                         <span className="block truncate text-[13px] font-semibold text-ink">{r.label}</span>
-                        <span className="block text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}</span>
+                        <span className="block truncate text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}</span>
                       </button>
                     </div>
                     {r.milestone ? (() => {
@@ -317,7 +316,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 const movable = !closed && stage !== "done";
                 const inside = barW > 110;
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
-                      <button type="button" onClick={() => show(t)} className={cn("sticky left-0 z-10 flex shrink-0 cursor-pointer items-center gap-2.5 border-r border-line bg-surface py-1 pr-3 pl-10 text-left group-hover:bg-surface-subtle", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")} style={{ width: LABEL_W }}>
+                      <button type="button" onClick={() => show(t)} className={cn("sticky left-0 z-10 flex shrink-0 cursor-pointer items-center gap-2.5 border-r border-line bg-surface py-1 pr-3 pl-4 text-left sm:pl-10 group-hover:bg-surface-subtle", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")} style={{ width: "var(--label-w)" }}>
                         <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{t.title}</span>
                         {t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={20}/> : null}
                       </button>
