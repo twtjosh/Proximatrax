@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { askDraft } from "@/lib/calendar";
 
 type MessengerState = {
     open: boolean;
@@ -38,3 +39,10 @@ export function useLiveUnread(projectId: string, serverCount: number): number {
 
 /** For "Message" buttons anywhere in the app. */
 export const openChat = (projectId?: string) => useMessenger.getState().openChat(projectId);
+
+/** "Ask about this": opens the project's chat with a question about `subject` already started. */
+export function askAbout(projectId: string, subject: string) {
+    const state = useMessenger.getState();
+    state.setDraft(projectId, askDraft(subject, state.drafts[projectId] ?? ""));
+    state.openChat(projectId);
+}

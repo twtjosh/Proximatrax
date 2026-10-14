@@ -9,6 +9,7 @@ import { daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import type { Station } from "@/lib/pm-project";
 import { cn } from "@/lib/utils";
+import { AskAbout } from "./ask-about";
 
 export type TaggedPhoto = ViewerPhoto & { milestone_id: string | null };
 
@@ -20,7 +21,8 @@ const arrow = cn("press grid size-11 shrink-0 cursor-pointer place-items-center 
  * accepted in it, and its photos. The arrows step along the route; the
  * journey above picks a milestone too.
  */
-export function MilestoneFocus({ stations, selected, onSelect, nextId, updates, photos, today, onOpenPhoto }: {
+export function MilestoneFocus({ projectId, stations, selected, onSelect, nextId, updates, photos, today, onOpenPhoto }: {
+    projectId: string;
     stations: Station[];
     selected: string;
     onSelect: (id: string) => void;
@@ -69,6 +71,7 @@ export function MilestoneFocus({ stations, selected, onSelect, nextId, updates, 
           <div className="flex flex-wrap items-center gap-2">
             <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", chip.tone)}>{chip.label}</span>
             <span className={cn("text-sm tabular", s.state === "late" ? "font-medium text-danger" : "text-ink-secondary")}>{when}</span>
+            <AskAbout projectId={projectId} subject={s.title} className="ml-auto -mr-2"/>
           </div>
           {work.length > 0 ? (<>
               <p className="mt-5 text-xs font-medium text-ink-tertiary">Accepted work</p>

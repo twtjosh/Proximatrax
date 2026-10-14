@@ -7,6 +7,8 @@ import type { ClientProjectData } from "@/lib/data/client-project";
 import { formatDate } from "@/lib/dashboard";
 import { journeyStations } from "@/lib/pm-project";
 import { cn } from "@/lib/utils";
+import { askAbout } from "@/components/messenger/messenger-store";
+import { DatesToKnow } from "./dates-to-know";
 import { HandoverRecord } from "./handover-record";
 import { LatestPhoto } from "./latest-photo";
 import { MilestoneFocus } from "./milestone-focus";
@@ -36,7 +38,10 @@ export function ClientOverview({ data }: {
     const all = toViewerPhotos(photos, milestones);
     const tagged = all.map((p, k) => ({ ...p, milestone_id: photos[k].milestone_id }));
     const nextId = stations.find((s) => s.state !== "delivered")?.id ?? null;
-    const viewerNode = <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)}/>;
+    const viewerNode = <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)} onAsk={(p) => {
+            setViewer(null);
+            askAbout(project.id, `this photo (${p.caption})`);
+        }}/>;
     const failed = data.loadFailed ? <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Some updates couldn&apos;t be loaded. Reload to try again.</p> : null;
 
     if (stage === "closed") {
@@ -66,14 +71,15 @@ export function ClientOverview({ data }: {
         <div className="grid min-w-0 gap-5">
           {stations.length > 0 && selected ? (<>
               <JourneyLine projectId={project.id} stations={stations} today={today} plain showWork={false} selected={selected} onSelect={setPicked}/>
-              <MilestoneFocus stations={stations} selected={selected} onSelect={setPicked} nextId={nextId} updates={updates} photos={tagged} today={today} onOpenPhoto={(list, index) => setViewer({ list, index })}/>
+              <MilestoneFocus projectId={project.id} stations={stations} selected={selected} onSelect={setPicked} nextId={nextId} updates={updates} photos={tagged} today={today} onOpenPhoto={(list, index) => setViewer({ list, index })}/>
             </>) : <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Your milestones will appear here once your project manager sets them.</p>}
         </div>
-        <aside aria-label="What's new" className="grid gap-5 lg:sticky lg:top-[calc(var(--frame-h,0px)+1.5rem)]">
+        <aside aria-label="What's new" className="grid gap-5 lg:row-span-2">
           {baseline ? <SinceLastVisit projectId={project.id} count={fresh.size} label={sinceLabel(baseline, today)}/> : null}
           {all[0] ? <LatestPhoto photo={all[0]} onOpen={() => setViewer({ list: all, index: 0 })}/> : null}
           <RecentUpdates projectId={project.id} updates={updates} milestones={milestones} fresh={fresh}/>
         </aside>
+        {stations.length > 0 ? <div className="min-w-0 lg:col-start-1"><DatesToKnow projectTitle={project.title} stations={stations} end={project.end_date} today={today} selected={selected} onSelect={setPicked}/></div> : null}
       </div>
       {viewerNode}
     </div>);

@@ -8,6 +8,8 @@ import type { ClientProjectData } from "@/lib/data/client-project";
 import { BUSINESS_TIME_ZONE, daysBetween, formatDate, isoDateIn } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { askAbout } from "@/components/messenger/messenger-store";
+import { AskAbout } from "./ask-about";
 import { MilestoneChips } from "./milestone-chips";
 import { toViewerPhotos, useVisitBaseline } from "./visit-baseline";
 
@@ -68,9 +70,12 @@ export function UpdatesFeed({ data }: {
                     const milestone = milestones.find((m) => m.id === u.milestone_id)?.title ?? "General work";
                     return (<li key={u.id} className="relative py-3">
                       <span aria-hidden className={cn("absolute top-[18px] -left-[30px] size-3 rounded-full ring-4 ring-surface", fresh.has(u.id) ? "bg-copper" : "bg-stage-done")}/>
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <p className="text-[15px] font-semibold tracking-[-0.01em] text-ink">{u.title}</p>
-                        {fresh.has(u.id) ? <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand">New</span> : null}
+                      <div className="flex items-start gap-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <p className="text-[15px] font-semibold tracking-[-0.01em] text-ink">{u.title}</p>
+                          {fresh.has(u.id) ? <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand">New</span> : null}
+                        </div>
+                        <AskAbout projectId={project.id} subject={u.title} label="Ask" className="-my-1.5 -mr-1"/>
                       </div>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-tertiary">
                         <span className="rounded-full bg-surface-sunken px-2 py-0.5 font-medium text-ink-secondary">{milestone}</span>
@@ -90,6 +95,9 @@ export function UpdatesFeed({ data }: {
             </motion.div>))}
         </AnimatePresence>
       </section>
-      <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)}/>
+      <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)} onAsk={(p) => {
+            setViewer(null);
+            askAbout(project.id, `this photo (${p.caption})`);
+        }}/>
     </div>);
 }
