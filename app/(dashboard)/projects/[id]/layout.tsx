@@ -14,6 +14,8 @@ import type { UserRole } from "@/types/enums";
 import { ProjectWorkspaceShell } from "@/components/projects/project-workspace-shell";
 import { PmProjectShell } from "@/components/projects/pm/pm-project-shell";
 import { loadPmProject } from "@/lib/data/pm-project";
+import { CrewProjectShell } from "@/components/projects/crew/crew-project-shell";
+import { loadCrewProject } from "@/lib/data/crew-project";
 import { ProjectTabs } from "./project-tabs";
 function formatDate(value: string) {
     return new Date(value).toLocaleDateString(undefined, {
@@ -52,6 +54,12 @@ export default async function ProjectLayout(props: {
         if (!data)
             notFound();
         return <PmProjectShell data={data}>{props.children}</PmProjectShell>;
+    }
+    if (viewerRole === "middleman") {
+        const data = await loadCrewProject(supabase, id, user.id);
+        if (!data)
+            notFound();
+        return <CrewProjectShell data={data} viewerId={user.id}>{props.children}</CrewProjectShell>;
     }
     const isClient = viewerRole === "client";
     type Person = Pick<Profile, "id" | "full_name" | "avatar_url">;
@@ -105,11 +113,11 @@ export default async function ProjectLayout(props: {
     }
     const roster = Array.from(rosterMap.values()).slice(0, 6);
     const headerBeforeTabs = (<>
-      <Link href={viewerRole === "middleman" ? ROUTES.MIDDLEMAN_HOME : ROUTES.PROJECTS} className={cn("header-back-link mb-1 inline-flex items-center gap-2 text-[12px] font-medium tracking-wide", isClient
+      <Link href={(viewerRole as UserRole) === "middleman" ? ROUTES.MIDDLEMAN_HOME : ROUTES.PROJECTS} className={cn("header-back-link mb-1 inline-flex items-center gap-2 text-[12px] font-medium tracking-wide", isClient
             ? "text-stone-500 hover:text-stone-900"
             : "font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500 hover:text-slate-950")}>
           <ArrowLeft className="h-3.5 w-3.5"/>
-          {viewerRole === "middleman" ? "Back to field home" : "Back to projects"}
+          {(viewerRole as UserRole) === "middleman" ? "Back to field home" : "Back to projects"}
         </Link>
 
         <div className="header-meta-row flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -117,7 +125,7 @@ export default async function ProjectLayout(props: {
             <p className={cn("header-kicker text-[10px] uppercase tracking-[0.2em]", isClient
             ? "font-medium text-amber-800/90"
             : "font-mono tracking-[0.24em] text-[#d97706]")}>
-              {viewerRole === "middleman"
+              {(viewerRole as UserRole) === "middleman"
             ? "Field execution"
             : viewerRole === "client"
                 ? "Your engagement"

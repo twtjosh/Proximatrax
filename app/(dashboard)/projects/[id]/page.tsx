@@ -12,10 +12,15 @@ import type { UserRole } from "@/types/enums";
 import { MilestoneEditor } from "./_overview/milestone-editor";
 import { PmOverview } from "@/components/projects/pm/pm-overview";
 import { loadPmProject } from "@/lib/data/pm-project";
+import { CrewOverview } from "@/components/projects/crew/crew-overview";
+import { loadCrewProject } from "@/lib/data/crew-project";
 const MILESTONE_EDIT_ROLES: UserRole[] = ["project_manager"];
 export default async function ProjectOverviewPage(props: {
     params: Promise<{
         id: string;
+    }>;
+    searchParams: Promise<{
+        task?: string;
     }>;
 }) {
     const { id } = await props.params;
@@ -25,6 +30,13 @@ export default async function ProjectOverviewPage(props: {
         if (!data)
             notFound();
         return <PmOverview data={data} viewerId={user.id}/>;
+    }
+    if (viewerProfile?.role === "middleman" && user) {
+        const data = await loadCrewProject(supabase, id, user.id);
+        if (!data)
+            notFound();
+        const { task } = await props.searchParams;
+        return <CrewOverview data={data} viewerId={user.id} openTask={task ?? null}/>;
     }
     const viewerRole = viewerProfile?.role ?? null;
     const canEditMilestones = viewerRole != null &&
