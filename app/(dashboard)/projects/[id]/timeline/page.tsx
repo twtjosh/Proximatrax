@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { ProjectTimelineView } from "@/components/dashboard/project-timeline-view";
 import { MilestoneEditor } from "../_overview/milestone-editor";
 import { ROUTES } from "@/lib/constants";
+import { CrewSchedule } from "@/components/projects/crew/crew-schedule";
+import { loadCrewProject } from "@/lib/data/crew-project";
 import { getViewer } from "@/lib/supabase/server";
 import { getProjectById } from "@/services/project-service";
 import type { Profile } from "@/types/database";
@@ -18,6 +20,12 @@ export default async function ProjectTimelinePage(props: {
     const role = (profile as Pick<Profile, "role"> | null)?.role as UserRole | undefined;
     if (!role)
         redirect(ROUTES.LOGIN);
+    if (role === "middleman") {
+        const data = await loadCrewProject(supabase, id, user.id);
+        if (!data)
+            notFound();
+        return <CrewSchedule data={data} viewerId={user.id}/>;
+    }
     const project = await getProjectById(id, supabase, { withMilestones: true });
     if (!project)
         notFound();

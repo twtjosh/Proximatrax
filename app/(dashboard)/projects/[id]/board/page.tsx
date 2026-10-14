@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ClientProjectProgress } from "@/components/dashboard/client-project-progress";
 import { KanbanBoard } from "@/components/dashboard/kanban-board";
-import { MiddlemanFieldWork } from "@/components/dashboard/middleman-field-work";
-import { ROUTES } from "@/lib/constants";
+import { projectPath, ROUTES } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
 import { listApprovedAttachmentsForProject, listTaskAttachmentsForProject, } from "@/services/task-attachment-service";
 import { getProjectById } from "@/services/project-service";
@@ -26,6 +25,8 @@ export default async function ProjectBoardPage(props: {
     const role = (profile as Pick<Profile, "role"> | null)?.role as UserRole | undefined;
     if (!role)
         redirect(ROUTES.LOGIN);
+    if (role === "middleman")
+        redirect(projectPath(id));
     const [project, tasks, attachments] = await Promise.all([
         getProjectById(id, supabase),
         listTasksForProject(id, supabase),
@@ -54,25 +55,6 @@ export default async function ProjectBoardPage(props: {
           </p>
         </div>
         <ClientProjectProgress projectId={id} milestones={project?.milestones ?? []} tasks={tasks} deliverables={deliverables} approvedPhotos={approvedPhotos}/>
-      </div>);
-    }
-    if (role === "middleman") {
-        return (<div className="space-y-5">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-500">
-            Field work
-          </p>
-          <h2 className="font-heading text-xl tracking-tight text-slate-950">
-            My assigned work
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Tap a task to upload site photos, then submit for PM review — no
-            dragging columns or checklists.
-          </p>
-        </div>
-        <Suspense fallback={loading}>
-          <MiddlemanFieldWork projectId={id} viewerId={user.id} initialTasks={tasks} initialAttachments={attachments}/>
-        </Suspense>
       </div>);
     }
     if (role === "project_manager") {
