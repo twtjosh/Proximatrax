@@ -1,12 +1,11 @@
-import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { KanbanBoard } from "@/components/dashboard/kanban-board";
+import { PmBoard } from "@/components/projects/pm/board/pm-board";
 import { UpdatesFeed } from "@/components/projects/client/updates-feed";
 import { projectPath, ROUTES } from "@/lib/constants";
+import { isoDateIn } from "@/lib/dashboard";
 import { loadClientProject } from "@/lib/data/client-project";
 import { getViewer } from "@/lib/supabase/server";
-import { getProjectById } from "@/services/project-service";
+import { getProjectById, listMilestones, listProjectAssignees } from "@/services/project-service";
 import { listTaskAttachmentsForProject } from "@/services/task-attachment-service";
 import { listTasksForProject } from "@/services/task-service";
 import type { Profile } from "@/types/database";
@@ -32,14 +31,14 @@ export default async function ProjectBoardPage(props: {
     }
     if (role !== "project_manager")
         redirect(ROUTES.DASHBOARD);
-    const [project, tasks, attachments] = await Promise.all([
+    const [project, tasks, attachments, milestones, people] = await Promise.all([
         getProjectById(id, supabase),
         listTasksForProject(id, supabase),
         listTaskAttachmentsForProject(id, supabase),
+        listMilestones(id, supabase),
+        listProjectAssignees(id, supabase),
     ]);
-    return (<div className="pt-2">
-      <Suspense fallback={<div className="flex items-center gap-2 border border-slate-200 bg-white p-8 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin"/>Loading…</div>}>
-        <KanbanBoard projectId={id} initialTasks={tasks} initialAttachments={attachments} viewerRole="project_manager" viewerId={user.id} isArchived={project?.status === "completed"}/>
-      </Suspense>
-    </div>);
+    if (!project)
+        notFound();
+    return <PmBoard projectId={id} tasks={tasks} attachments={attachments} milestones={milestones} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed"}/>;
 }

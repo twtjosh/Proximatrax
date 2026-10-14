@@ -261,6 +261,30 @@ export async function listProfilesByRoles(roles: Profile["role"][], client?: Sup
     throwIfSupabaseError(error);
     return (data ?? []) as Profile[];
 }
+/**
+ * Who can take a task on this project: its project manager and the crew
+ * added to it, A to Z. Clients never take tasks, so they are left out.
+ */
+export async function listProjectAssignees(projectId: string, client?: SupabaseClient): Promise<Profile[]> {
+    const sb = resolveClient(client);
+    const [project, members] = await Promise.all([
+        sb.from("projects").select("pm_id").eq("id", projectId).maybeSingle(),
+        sb.from("project_members").select("user_id").eq("project_id", projectId),
+    ]);
+    throwIfSupabaseError(project.error);
+    throwIfSupabaseError(members.error);
+    const ids = [...new Set([(project.data as { pm_id: string } | null)?.pm_id, ...((members.data ?? []) as { user_id: string }[]).map((m) => m.user_id)].filter((id): id is string => !!id))];
+    if (ids.length === 0)
+        return [];
+    const { data, error } = await sb
+        .from("profiles")
+        .select("*")
+        .in("id", ids)
+        .in("role", ["project_manager", "middleman"])
+        .order("full_name", { ascending: true });
+    throwIfSupabaseError(error);
+    return (data ?? []) as Profile[];
+}
 export async function createMilestone(input: {
     project_id: string;
     title: string;
