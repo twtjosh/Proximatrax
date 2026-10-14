@@ -1,44 +1,12 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import { projectPath } from "@/lib/constants";
 
-import { ClientMarketInsightPanel } from "@/components/client-portal/client-market-insight-panel";
-import { projectPath, ROUTES } from "@/lib/constants";
-import { getViewer } from "@/lib/supabase/server";
-import { getProjectById } from "@/services/project-service";
-import type { Profile } from "@/types/database";
-
+/** The old client Analytics tab showed sample market prices; its address now opens the project. */
 export default async function ProjectAnalyticsPage(props: {
-  params: Promise<{
-    id: string;
-  }>;
+    params: Promise<{
+        id: string;
+    }>;
 }) {
-  const { id } = await props.params;
-  const { supabase, user, profile } = await getViewer();
-  if (!user) redirect(ROUTES.LOGIN);
-
-  const role = (profile as Pick<Profile, "role"> | null)?.role;
-  if (role !== "client") {
+    const { id } = await props.params;
     redirect(projectPath(id));
-  }
-
-  const project = await getProjectById(id, supabase);
-  if (!project) notFound();
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500">
-          Predictive analytics
-        </p>
-        <h2 className="font-heading text-lg font-semibold tracking-tight text-stone-900">
-          Market price insight
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-stone-600">
-          See how your agreed project value compares to typical market ranges for similar scope and
-          location.
-        </p>
-      </div>
-
-      <ClientMarketInsightPanel projectTitle={project.title} />
-    </div>
-  );
 }

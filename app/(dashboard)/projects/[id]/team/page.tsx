@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { UserRound } from "lucide-react";
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ROUTES } from "@/lib/constants";
+import { projectPath, ROUTES } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
 import { getProjectById } from "@/services/project-service";
 import type { Profile } from "@/types/database";
@@ -20,9 +20,11 @@ export default async function ProjectTeamPage(props: {
     }>;
 }) {
     const { id } = await props.params;
-    const { supabase, user } = await getViewer();
+    const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
+    if ((profile as Pick<Profile, "role"> | null)?.role !== "project_manager")
+        redirect(projectPath(id));
     const [project, { data: memberRows }] = await Promise.all([
         getProjectById(id, supabase),
         supabase
