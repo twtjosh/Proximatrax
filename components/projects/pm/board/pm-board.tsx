@@ -7,14 +7,11 @@ import { CalendarDays, Columns3, CornerDownLeft, Flag, List, Lock, MessageSquare
 import { toast } from "sonner";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { QUICK_ADD_EVENT } from "@/components/projects/pm/project-shortcuts";
-import { checklistProgress, normalizeBoardStage, taskBlockedReason, validateStageTransition, type BoardColumnStage, type WorkflowGateContext } from "@/lib/board-workflow";
-import { projectReviewPath } from "@/lib/constants";
+import { checklistProgress, normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
 import { daysBetween, duePhrase } from "@/lib/dashboard";
-import { toGateTasks } from "@/lib/milestone-task-gates";
 import { SPRING } from "@/lib/motion";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { cn } from "@/lib/utils";
-import { moveTaskToStage } from "@/lib/work-task-flow";
 import { logActivity } from "@/services/activity-service";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
 import { createTask, type TaskWithRelations } from "@/services/task-service";
@@ -23,6 +20,7 @@ import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { COLUMNS, fixReason, isLate } from "./board-meta";
 import { TaskList, type GroupBy } from "./task-list";
 import { TaskSheet } from "./task-sheet";
+import { setQuery as setParams, useTaskActions } from "./use-task-actions";
 
 /** Accepted work piles up; the newest few are enough on the board. */
 const ACCEPTED_SHOWN = 3;
@@ -59,38 +57,16 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const router = useRouter();
     const params = useSearchParams();
     const reduce = useReducedMotion();
-    // Local copies move first; a refresh from the server replaces them.
-    const [items, setItems] = React.useState(tasks);
-    const [files, setFiles] = React.useState(attachments);
-    const [seen, setSeen] = React.useState({ tasks, attachments });
-    if (seen.tasks !== tasks || seen.attachments !== attachments) {
-        setSeen({ tasks, attachments });
-        setItems(tasks);
-        setFiles(attachments);
-    }
-    const [counts, setCounts] = React.useState(comments);
-    const [seenCounts, setSeenCounts] = React.useState(comments);
-    if (seenCounts !== comments) {
-        setSeenCounts(comments);
-        setCounts(comments);
-    }
+    const { items, setItems, byTask, counts, gate, show, patchTask, requestMove, sheet } = useTaskActions({ projectId, viewerId, closed, milestones, tasks, attachments, comments });
     const [query, setQuery] = React.useState(params.get("q") ?? "");
     const [allAccepted, setAllAccepted] = React.useState(false);
     const assignee = params.get("mine") === "1" ? viewerId : params.get("assignee");
     const milestone = params.get("milestone");
     const lateOnly = params.get("late") === "1";
-    const openId = params.get("task");
     const focusStage = params.get("stage");
     const view = params.get("view") === "list" ? "list" : "board";
     const group = (["milestone", "person", "stage", "none"].includes(params.get("group") ?? "") ? params.get("group") : "milestone") as GroupBy;
 
-    const gate: WorkflowGateContext = { milestones, tasks: toGateTasks(items) };
-    const byTask = React.useMemo(() => {
-        const map = new Map<string, TaskAttachment[]>();
-        for (const a of files)
-            map.set(a.task_id, [...(map.get(a.task_id) ?? []), a]);
-        return map;
-    }, [files]);
     const needle = query.trim().toLowerCase();
     const visible = items.filter((t) => (!assignee || (assignee === "none" ? !t.assigned_to : t.assigned_to === assignee))
         && (!milestone || t.milestone_id === milestone)
@@ -99,74 +75,6 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const filtered = visible.length !== items.length;
     const lateCount = items.filter((t) => isLate(t, today)).length;
     const crew = people.filter((p) => p.role === "middleman");
-
-    // Filters and the open task live in the URL without a server round trip.
-    const setParams = React.useCallback((patch: Record<string, string | null>) => {
-        const next = new URLSearchParams(window.location.search);
-        for (const [k, v] of Object.entries(patch)) {
-            if (v)
-                next.set(k, v);
-            else
-                next.delete(k);
-        }
-        // Old links used ?view=all for "every task"; that is just the default now.
-        if (next.get("view") === "all")
-            next.delete("view");
-        const qs = next.toString();
-        window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-    }, []);
-    const openTask = (id: string | null) => setParams({ task: id });
-
-    const patchTask = (id: string, patch: Partial<TaskWithRelations>) => setItems((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-
-    async function move(task: TaskWithRelations, to: BoardColumnStage, undoable = true) {
-        const from = normalizeBoardStage(task.stage);
-        patchTask(task.id, { stage: to });
-        try {
-            await moveTaskToStage(task, to, "project_manager", viewerId, projectId);
-            const label = COLUMNS.find((c) => c.stage === to)!.label;
-            if (undoable)
-                toast.success(`Moved to ${label}`, { description: task.title, action: { label: "Undo", onClick: () => void move({ ...task, stage: to }, from, false) } });
-            router.refresh();
-        }
-        catch (e) {
-            patchTask(task.id, { stage: task.stage });
-            toast.error(errorText(e, "That move didn't go through."));
-        }
-    }
-
-    /** Every move goes through here: the drag, the sheet's next step. */
-    function requestMove(task: TaskWithRelations, to: BoardColumnStage) {
-        const from = normalizeBoardStage(task.stage);
-        if (from === to)
-            return;
-        if (closed) {
-            toast.error("This project is closed. Reopen it to change work.");
-            return;
-        }
-        if (from === "review") {
-            router.push(`${projectReviewPath(projectId)}?task=${task.id}`);
-            return;
-        }
-        if (from === "done") {
-            toast("Accepted work is on the client's record", { description: "Add a new task for anything that needs redoing." });
-            return;
-        }
-        const check = validateStageTransition(task, from, to, "project_manager", gate);
-        if (!check.ok) {
-            toast.error(check.failures[0]?.message ?? "That move isn't allowed.");
-            return;
-        }
-        if (to === "review" && !(byTask.get(task.id) ?? []).some((a) => a.media_kind === "photo")) {
-            toast.error("Add a site photo before submitting for review.", { action: { label: "Open task", onClick: () => openTask(task.id) } });
-            return;
-        }
-        if (check.warning) {
-            toast(check.warning, { description: task.title, duration: 8000, action: { label: "Start anyway", onClick: () => void move(task, to) } });
-            return;
-        }
-        void move(task, to);
-    }
 
     function onDragEnd({ source, destination, draggableId }: DropResult) {
         const task = items.find((t) => t.id === draggableId);
@@ -180,9 +88,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
             document.getElementById(`column-${focusStage}`)?.scrollIntoView({ inline: "start", block: "nearest" });
     }, [focusStage]);
 
-    const open = openId ? items.find((t) => t.id === openId) ?? null : null;
     const fileCounts = new Map([...byTask].map(([id, list]) => [id, list.length]));
-    const openFromList = (t: TaskWithRelations) => (normalizeBoardStage(t.stage) === "review" ? router.push(`${projectReviewPath(projectId)}?task=${t.id}`) : openTask(t.id));
 
     return (<div className="grid gap-4 pt-2">
       <QuickAdd projectId={projectId} people={people} milestones={milestones} today={today} closed={closed} onAdded={(task) => {
@@ -234,7 +140,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
         </div>
       </div>
 
-      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} group={group} onGroup={(g) => setParams({ group: g === "milestone" ? null : g })} fileCounts={fileCounts} comments={counts} onOpen={openFromList} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
+      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} group={group} onGroup={(g) => setParams({ group: g === "milestone" ? null : g })} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
 
       {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
         <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
@@ -252,7 +158,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                   {(drop, dropState) => (<ul ref={drop.innerRef} {...drop.droppableProps} className={cn("grid min-h-24 flex-1 content-start gap-2 rounded-2xl p-0.5 transition-colors duration-300", dropState.isDraggingOver && "bg-brand-soft/60")}>
                       {shown.map((t, i) => (<Draggable key={t.id} draggableId={t.id} index={i} isDragDisabled={closed || col.stage === "done"} disableInteractiveElementBlocking>
                           {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style}>
-                              <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} onOpen={() => (col.stage === "review" ? router.push(`${projectReviewPath(projectId)}?task=${t.id}`) : openTask(t.id))}/>
+                              <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} onOpen={() => show(t)}/>
                             </li>)}
                         </Draggable>))}
                       {drop.placeholder}
@@ -269,11 +175,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
         </div>
       </DragDropContext>) : null}
 
-      <TaskSheet task={open} projectId={projectId} viewerId={viewerId} commentCount={open ? counts[open.id] ?? 0 : 0} onCommentCount={(id, n) => setCounts((c) => (c[id] === n ? c : { ...c, [id]: n }))} attachments={open ? byTask.get(open.id) ?? [] : []} people={people} milestones={milestones} today={today} closed={closed} gate={gate} reduce={!!reduce} onClose={() => openTask(null)} onPatch={patchTask} onMove={requestMove} onFiles={(taskId, list) => setFiles((all) => [...all.filter((a) => a.task_id !== taskId), ...list])} onDeleted={(id) => {
-            openTask(null);
-            setItems((list) => list.filter((t) => t.id !== id));
-            router.refresh();
-        }}/>
+      <TaskSheet {...sheet} people={people} today={today} reduce={!!reduce}/>
     </div>);
 }
 

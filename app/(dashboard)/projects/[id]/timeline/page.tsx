@@ -1,11 +1,13 @@
 import { notFound, redirect } from "next/navigation";
-import { PmSchedule } from "@/components/projects/pm/schedule/pm-schedule";
+import { PmTimeline } from "@/components/projects/pm/schedule/pm-timeline";
 import { projectPath, ROUTES } from "@/lib/constants";
 import { CrewSchedule } from "@/components/projects/crew/crew-schedule";
 import { loadCrewProject } from "@/lib/data/crew-project";
 import { isoDateIn } from "@/lib/dashboard";
 import { getViewer } from "@/lib/supabase/server";
 import { getProjectById, listMilestones, listProjectAssignees } from "@/services/project-service";
+import { listTaskAttachmentsForProject } from "@/services/task-attachment-service";
+import { countTaskComments } from "@/services/task-comment-service";
 import { listTasksForProject } from "@/services/task-service";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -29,13 +31,15 @@ export default async function ProjectTimelinePage(props: {
     }
     if (role !== "project_manager")
         redirect(projectPath(id));
-    const [project, milestones, tasks, people] = await Promise.all([
+    const [project, milestones, tasks, people, attachments, comments] = await Promise.all([
         getProjectById(id, supabase),
         listMilestones(id, supabase),
         listTasksForProject(id, supabase),
         listProjectAssignees(id, supabase),
+        listTaskAttachmentsForProject(id, supabase),
+        countTaskComments(id, supabase),
     ]);
     if (!project)
         notFound();
-    return <PmSchedule projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} people={people} today={isoDateIn(new Date())} closed={project.status === "completed"}/>;
+    return <PmTimeline projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} attachments={attachments} comments={comments} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed"}/>;
 }
