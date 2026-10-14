@@ -40,8 +40,9 @@ export function RoleProjectHeader({ projectId, title, share, done, status, team,
     }
 
     return (<div className="flex items-center gap-4">
-      <ProgressRing value={share} done={done} size={54} stroke={5.5} className={cn("origin-left transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "scale-[0.67]")}>
-        <span className={cn("text-[13px] font-semibold text-ink tabular transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>{Math.round(share * 100)}</span>
+      <ProgressRing value={share} done={done} size={54} stroke={5.5} className={cn("origin-left transition-[scale,translate] duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.67]")}>
+        {/* The ring shrinks to two thirds when condensed; the number grows a little against it so it stays readable. */}
+        <span className={cn("block text-[13px] font-semibold text-ink tabular transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "scale-[1.15]")}>{Math.round(share * 100)}</span>
       </ProgressRing>
       <div className="min-w-0 flex-1">
         <button type="button" onClick={back} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("mb-0.5 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
