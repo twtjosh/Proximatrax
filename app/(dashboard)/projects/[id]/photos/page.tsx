@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
+import { ClientPhotos } from "@/components/projects/client/client-photos";
 import { CrewPhotos } from "@/components/projects/crew/crew-photos";
 import { projectPath, ROUTES } from "@/lib/constants";
+import { loadClientProject } from "@/lib/data/client-project";
 import { loadCrewProject } from "@/lib/data/crew-project";
 import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
@@ -21,6 +23,12 @@ export default async function ProjectPhotosPage(props: {
         if (!data)
             notFound();
         return <CrewPhotos data={data} viewerId={user.id}/>;
+    }
+    if (role === "client") {
+        const data = await loadClientProject(supabase, id, user.id);
+        if (!data)
+            notFound();
+        return <ClientPhotos data={data}/>;
     }
     redirect(projectPath(id));
 }
