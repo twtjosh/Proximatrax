@@ -3,19 +3,23 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { TONES } from "@/components/dashboard/needs-you";
+import { askAbout } from "@/components/messenger/messenger-store";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { TeamMember } from "@/lib/data/project-context";
 import { formatDate, isoDateIn, plural, relativeDay, relativePast } from "@/lib/dashboard";
 import { projectBoardPath, projectReviewPath } from "@/lib/constants";
 import { SPRING } from "@/lib/motion";
-import { quickPickDates, type LateMilestone, type ProjectNeeds } from "@/lib/pm-project";
+import { quickPickDates, type LateMilestone, type LateTask, type ProjectNeeds } from "@/lib/pm-project";
 import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
+import { ROLE_TERMS } from "@/lib/vocabulary";
 import { updateMilestone } from "@/services/project-service";
+import { updateTask } from "@/services/task-service";
+import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
 
 const rowLeave = { initial: false, exit: { opacity: 0, height: 0 }, transition: SPRING } as const;
 const badge = "grid size-9 shrink-0 place-items-center rounded-[11px] text-[13px] font-bold tabular";
@@ -24,7 +28,8 @@ const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" 
 
 /**
  * What this project needs from the PM, and the means to deal with most of it
- * here. Moving or delivering a milestone acts at once and offers Undo.
+ * here: move a date, hand late work to someone else, or nudge whoever has
+ * it. Each acts at once and offers Undo. Milestones deliver themselves.
  */
 export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = false }: {
     projectId: string;
@@ -45,33 +50,44 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
     });
     const firstName = (id: string | null) => (id ? team.find((m) => m.id === id)?.name.split(" ")[0] : undefined) ?? "the team";
     const milestones = needs.lateMilestones.filter((m) => !hidden.has(m.id));
-    const count = needs.count - (needs.lateMilestones.length - milestones.length);
+    const lateTasks = needs.lateTasks.filter((t) => !hidden.has(t.id));
+    const count = needs.count - (needs.lateMilestones.length - milestones.length) - (needs.lateTasks.length - lateTasks.length);
+    const crew = team.filter((m) => m.role === ROLE_TERMS.middleman);
 
-    async function change(m: LateMilestone, patch: { due_date?: string; completed?: boolean }, undo: { due_date?: string; completed?: boolean }, message: string) {
-        hide(m.id, true);
+    /** Saves at once, hides the row when it no longer needs the PM, and offers Undo. */
+    async function act(id: string, gone: boolean, save: () => Promise<unknown>, undo: () => Promise<unknown>, message: string) {
+        if (gone)
+            hide(id, true);
         try {
-            await updateMilestone({ id: m.id, ...patch });
-            await logActivity(patch.completed
-                ? { project_id: projectId, action_type: "milestone_completed", details: { milestone_id: m.id, title: m.title } }
-                : { project_id: projectId, action_type: "milestone_rescheduled", details: { milestone_id: m.id, title: m.title, due_date: patch.due_date } });
+            await save();
             router.refresh();
             toast.success(message, {
                 duration: 5000,
                 action: {
                     label: "Undo",
                     onClick: () => {
-                        void updateMilestone({ id: m.id, ...undo })
-                            .then(() => { hide(m.id, false); router.refresh(); })
-                            .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't undo. Try again from Schedule."));
+                        void undo()
+                            .then(() => { hide(id, false); router.refresh(); })
+                            .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't undo. Try again from the Board."));
                     },
                 },
             });
         }
         catch (err) {
-            hide(m.id, false);
+            hide(id, false);
             toast.error(err instanceof Error ? err.message : "That didn't save. Try again.");
         }
     }
+    const moveMilestone = (m: LateMilestone, date: string) => act(m.id, true, async () => {
+        await updateMilestone({ id: m.id, due_date: date });
+        await logActivity({ project_id: projectId, action_type: "milestone_rescheduled", details: { milestone_id: m.id, title: m.title, due_date: date } });
+    }, () => updateMilestone({ id: m.id, due_date: m.due_date }), `${m.title} moved to ${short(date)}`);
+    const moveTask = (t: LateTask, date: string) => act(t.id, date >= today, () => updateTask({ id: t.id, due_date: date }), () => updateTask({ id: t.id, due_date: t.due_date }), `"${t.title}" is due ${short(date)}`);
+    const reassign = (t: LateTask, to: TeamMember) => act(t.id, false, async () => {
+        const before = await snapshotProjectTasksForNotify(projectId);
+        await updateTask({ id: t.id, assigned_to: to.id });
+        void notifyWorkReadyAfterProjectTaskChange(projectId, before);
+    }, () => updateTask({ id: t.id, assigned_to: t.assigned_to }), `"${t.title}" is with ${to.name.split(" ")[0]} now`);
 
     return (<OverviewCard id="project-needs" title="Needs you" count={count} className="materialize" style={stagger(2)}>
       {count === 0 ? (<p className="flex items-center gap-3 px-6 pt-2 pb-5 text-sm text-ink-secondary">
@@ -97,23 +113,28 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
                     <span className="block truncate text-xs text-ink-tertiary">Milestone{m.total > 0 ? ` · ${m.accepted} of ${plural(m.total, "task")} accepted` : ""}</span>
                   </span>
                   {readOnly ? null : (<span className="flex items-center gap-1.5">
-                      {m.total > 0 && m.accepted === m.total ? (<button type="button" onClick={() => void change(m, { completed: true }, { completed: false }, `${m.title} marked delivered`)} className={cn(action, "bg-brand-soft text-brand hover:bg-brand hover:text-white")}>
-                          <Check className="size-3.5" aria-hidden/>
-                          Delivered
-                        </button>) : null}
-                      <MoveDate today={today} title={m.title} onPick={(date) => void change(m, { due_date: date }, { due_date: m.due_date }, `${m.title} moved to ${short(date)}`)}/>
+                      <MoveDate today={today} title={m.title} onPick={(date) => void moveMilestone(m, date)}/>
                     </span>)}
                 </div>
               </motion.li>))}
-            {needs.lateTasks.map((t) => (<motion.li key={t.id} {...rowLeave} className="overflow-hidden border-t border-line first:border-t-0">
-                <Link href={projectBoardPath(projectId, { view: "all", q: t.title })} className={cn("group flex items-center gap-3.5 px-5 py-3 transition-colors duration-300 ease-spring hover:bg-surface-subtle sm:px-6", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")}>
+            {lateTasks.map((t) => (<motion.li key={t.id} {...rowLeave} className="overflow-hidden border-t border-line first:border-t-0">
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 px-5 py-3 sm:px-6">
                   <span className={cn(badge, TONES.late)} aria-hidden>{t.daysLate}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-ink">{t.title} is overdue</span>
-                    <span className="block truncate text-xs text-ink-tertiary">{firstName(t.assigned_to)} · due {relativeDay(t.due_date, today).toLowerCase()}</span>
-                  </span>
-                  <span className={cn(action, "bg-surface-sunken text-ink group-hover:bg-line")}>Open</span>
-                </Link>
+                  <Link href={`${projectBoardPath(projectId)}?task=${t.id}`} className={cn("group min-w-0 flex-1 rounded-sm", focusRing)}>
+                    <span className="block truncate text-sm font-medium text-ink group-hover:underline">{t.title} is overdue</span>
+                    <span className="block truncate text-xs text-ink-tertiary">{t.assigned_to ? firstName(t.assigned_to) : "No one has it"} · due {relativeDay(t.due_date, today).toLowerCase()}</span>
+                  </Link>
+                  {readOnly ? null : (<span className="flex items-center gap-1.5">
+                      {t.assigned_to ? (<button type="button" onClick={() => askAbout(projectId, `"${t.title}", due ${short(t.due_date)}`)} aria-label={`Nudge ${firstName(t.assigned_to)} about ${t.title}`} className={cn(action, "cursor-pointer bg-surface-sunken text-ink hover:bg-line")}><MessageCircle className="size-3.5" aria-hidden/>Nudge</button>) : null}
+                      {crew.length > 0 ? (<DropdownMenu>
+                          <DropdownMenuTrigger className={cn(action, "cursor-pointer bg-surface-sunken text-ink hover:bg-line")}>{t.assigned_to ? "Reassign" : "Assign"}</DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-44">
+                            {crew.filter((p) => p.id !== t.assigned_to).map((p) => <DropdownMenuItem key={p.id} onClick={() => void reassign(t, p)}>{p.name}</DropdownMenuItem>)}
+                          </DropdownMenuContent>
+                        </DropdownMenu>) : null}
+                      <MoveDate today={today} title={t.title} onPick={(date) => void moveTask(t, date)}/>
+                    </span>)}
+                </div>
               </motion.li>))}
           </AnimatePresence>
         </ul>)}
