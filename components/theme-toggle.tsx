@@ -74,11 +74,11 @@ export function ThemeToggle() {
                     ? `Switch to ${isDark ? "light" : "dark"} mode`
                     : "Toggle theme"
             }
-            className="press relative grid size-8 place-items-center overflow-hidden rounded-full text-land-ink-2 outline-none hover:bg-land-raised hover:text-land-ink focus-visible:ring-2 focus-visible:ring-land-accent"
+            className="press relative grid size-10 place-items-center overflow-hidden rounded-full max-sm:size-9 text-land-ink-2 outline-none hover:bg-land-raised hover:text-land-ink focus-visible:ring-2 focus-visible:ring-land-accent"
         >
             <Sun
                 aria-hidden="true"
-                className={`absolute size-4 transition-[transform,opacity] duration-500 ease-spring ${
+                className={`absolute size-[18px] transition-[transform,opacity] duration-500 ease-spring ${
                     isDark
                         ? "-rotate-90 scale-0 opacity-0"
                         : "rotate-0 scale-100 opacity-100"
@@ -86,7 +86,7 @@ export function ThemeToggle() {
             />
             <Moon
                 aria-hidden="true"
-                className={`absolute size-4 transition-[transform,opacity] duration-500 ease-spring ${
+                className={`absolute size-[18px] transition-[transform,opacity] duration-500 ease-spring ${
                     isDark
                         ? "rotate-0 scale-100 opacity-100"
                         : "rotate-90 scale-0 opacity-0"

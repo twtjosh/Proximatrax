@@ -38,7 +38,7 @@ function useNavState() {
         const top = (id: string) => document.getElementById(id)?.getBoundingClientRect().top ?? Infinity;
         const section: SectionId = top("inquire") < line ? "inquire" : top("journey") < line ? "journey" : "overview";
         const starter = document.getElementById("hero-starter")?.getBoundingClientRect().bottom ?? Infinity;
-        const next = { scrolled: window.scrollY > 4, section, cta: starter < 52 && section !== "inquire" };
+        const next = { scrolled: window.scrollY > 4, section, cta: starter < 64 && section !== "inquire" };
         setState((s) => (s.scrolled === next.scrolled && s.section === next.section && s.cta === next.cta ? s : next));
     }, []);
     useMotionValueEvent(scrollY, "change", read);
@@ -61,28 +61,28 @@ function NavBar({ onStart }: {
     const { scrolled, section, cta } = useNavState();
     const reduce = useReducedMotion();
     return (<header className={cn("fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-500 ease-spring", scrolled ? "border-land-line/80 bg-land/72 backdrop-blur-2xl backdrop-saturate-[1.8]" : "border-transparent bg-transparent")}>
-      <nav aria-label="Main" className="mx-auto grid h-[52px] max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-4 max-md:grid-cols-[1fr_auto] sm:px-6">
-        <a href="#overview" className={cn("flex items-center gap-2 justify-self-start rounded-lg py-1 pr-1", ring)}>
-          <BrandMark className="size-6"/>
-          <span className="text-[15px] font-semibold tracking-[-0.015em] text-land-ink">ProximaTrax</span>
+      <nav aria-label="Main" className="mx-auto grid h-16 max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-4 max-md:grid-cols-[1fr_auto] sm:px-6">
+        <a href="#overview" className={cn("group/brand flex items-center gap-2.5 justify-self-start rounded-xl py-1 pr-1.5", ring)}>
+          <BrandMark className="size-8 transition-transform duration-500 ease-spring group-hover/brand:-rotate-12"/>
+          <span className="text-[17px] font-semibold tracking-[-0.02em] text-land-ink">ProximaTrax</span>
         </a>
-        <ul className="flex items-center text-[13px] max-md:hidden">
+        <ul className="flex items-center gap-0.5 rounded-full bg-land-raised/40 p-1 text-sm ring-1 ring-land-line/70 max-md:hidden">
           {SECTIONS.map((l) => (<li key={l.id}>
-              <a href={`#${l.id}`} aria-current={section === l.id ? "location" : undefined} className={cn("relative isolate block rounded-full px-3.5 py-1.5 transition-colors duration-300", section === l.id ? "text-land-ink" : "text-land-ink-2 hover:text-land-ink", ring)}>
-                {section === l.id ? <motion.span layoutId="nav-current" aria-hidden className="absolute inset-0 -z-10 rounded-full bg-land-raised ring-1 ring-land-line" transition={reduce ? { duration: 0 } : SPRING}/> : null}
+              <a href={`#${l.id}`} aria-current={section === l.id ? "location" : undefined} className={cn("relative isolate block rounded-full px-4 py-2 font-medium transition-colors duration-300", section === l.id ? "text-land-ink" : "text-land-ink-2 hover:text-land-ink", ring)}>
+                {section === l.id ? <motion.span layoutId="nav-current" aria-hidden className="absolute inset-0 -z-10 rounded-full bg-land-raised shadow-[0_1px_2px_rgb(0_0_0/0.25)] ring-1 ring-land-line" transition={reduce ? { duration: 0 } : SPRING}/> : null}
                 {l.label}
               </a>
             </li>))}
         </ul>
-        <div className="flex items-center gap-1 justify-self-end">
+        <div className="flex items-center gap-1.5 justify-self-end">
           <ThemeToggle />
           <motion.span layout={!reduce} transition={SPRING}>
-            <Link href={ROUTES.LOGIN} prefetch={false} className={cn("press inline-flex h-8 items-center rounded-full px-3 text-[13px] font-medium text-land-ink hover:bg-land-raised", ring)}>
+            <Link href={ROUTES.LOGIN} prefetch={false} className={cn("press inline-flex h-10 items-center rounded-full px-4 text-sm font-medium text-land-ink hover:bg-land-raised max-sm:h-9 max-sm:px-3", ring)}>
               Log in
             </Link>
           </motion.span>
           <AnimatePresence initial={false}>
-            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-1 h-8 px-3.5 text-[13px]")}>
+            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-0.5 h-10 px-4.5 text-sm max-sm:h-9 max-sm:px-3.5")}>
                 <span className="sm:hidden">Inquire</span>
                 <span className="max-sm:hidden">Start an inquiry</span>
               </motion.button>) : null}
