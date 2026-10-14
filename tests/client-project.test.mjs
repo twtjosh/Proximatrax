@@ -72,15 +72,35 @@ test("client photos: approved photos only, never files, videos or unapproved row
     ]);
 });
 
-test("visit baseline: first visit is null and records now; later reads in the session keep the earlier visit; blocked storage is null", () => {
-    const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) }; };
+const store = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) }; };
+
+test("visit baseline: first visit is null; a visit keeps one baseline while the viewer stays active", () => {
     const local = store();
-    const s1 = store();
-    assert.equal(readVisitBaseline("p1", s1, local, "2026-09-20T00:00:00.000Z"), null);
-    assert.equal(readVisitBaseline("p1", s1, local, "2026-09-20T05:00:00.000Z"), null);
-    const s2 = store();
-    assert.equal(readVisitBaseline("p1", s2, local, "2026-09-24T00:00:00.000Z"), "2026-09-20T00:00:00.000Z");
-    assert.equal(readVisitBaseline("p1", s2, local, "2026-09-24T09:00:00.000Z"), "2026-09-20T00:00:00.000Z");
+    const tab = store();
+    assert.equal(readVisitBaseline("p1", tab, local, "2026-09-20T09:00:00.000Z"), null);
+    assert.equal(readVisitBaseline("p1", tab, local, "2026-09-20T09:20:00.000Z"), null);
+});
+
+test("visit baseline: the next visit measures from the last view, not from when the previous visit began", () => {
+    const local = store();
+    const monday = store();
+    readVisitBaseline("p1", monday, local, "2026-09-21T09:00:00.000Z");
+    readVisitBaseline("p1", monday, local, "2026-09-21T11:00:00.000Z");
+    assert.equal(readVisitBaseline("p1", store(), local, "2026-09-22T08:00:00.000Z"), "2026-09-21T11:00:00.000Z");
+});
+
+test("visit baseline: a tab left open for hours starts a new visit when the viewer comes back", () => {
+    const local = store();
+    const tab = store();
+    readVisitBaseline("p1", tab, local, "2026-09-21T09:00:00.000Z");
+    assert.equal(readVisitBaseline("p1", tab, local, "2026-09-21T15:00:00.000Z"), "2026-09-21T09:00:00.000Z");
+});
+
+test("visit baseline: blocked storage is null", () => {
     const blocked = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
     assert.equal(readVisitBaseline("p1", blocked, blocked, "2026-09-24T00:00:00.000Z"), null);
+});
+
+test("health: a paused project says so instead of on track", () => {
+    assert.deepEqual(clientHealth("on_hold", [ms({ id: "a", due_date: "2026-10-10" })], TODAY), { text: "On hold", tone: "steady" });
 });

@@ -25,6 +25,8 @@ export function CrewSchedule({ data, viewerId }: {
 }) {
     const { project, milestones, tasks, today } = data;
     const feed = milestoneFeed(milestones, tasks, viewerId, today);
+    if (data.loadFailed)
+        return <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">This project&apos;s tasks could not be loaded, so the schedule can&apos;t show your work right now. Reload to try again.</p>;
     if (feed.length === 0)
         return <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Your project manager hasn&apos;t set milestones yet. They&apos;ll appear here with their dates.</p>;
     return (<div className="grid gap-5">

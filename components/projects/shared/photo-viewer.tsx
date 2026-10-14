@@ -10,7 +10,8 @@ const control = "grid size-11 place-items-center rounded-full bg-white/12 text-w
 /**
  * Photos full screen on a native modal dialog, which makes the page behind it
  * inert, closes on Esc and returns focus to the opener. Arrow keys and swipes
- * move between photos.
+ * move between photos; `touch-pan-y` keeps a sideways swipe ours instead of
+ * the browser's, so it ends in pointerup rather than pointercancel.
  */
 export function PhotoViewer({ photos, index, onIndex, onClose }: {
     photos: ViewerPhoto[];
@@ -51,7 +52,9 @@ export function PhotoViewer({ photos, index, onIndex, onClose }: {
             startX.current = null;
             if (Math.abs(dx) > 50)
                 go(dx < 0 ? 1 : -1);
-        }} className="m-0 h-dvh max-h-none w-screen max-w-none bg-transparent p-0 backdrop:bg-black/85 backdrop:backdrop-blur-sm">
+        }} onPointerCancel={() => {
+            startX.current = null;
+        }} className="m-0 h-dvh max-h-none w-screen max-w-none touch-pan-y bg-transparent p-0 backdrop:bg-black/85 backdrop:backdrop-blur-sm">
       {photo ? (<figure className="flex h-full flex-col items-center justify-center gap-4 p-4 sm:p-12">
           {/* eslint-disable-next-line @next/next/no-img-element -- site photos from storage, shown full size */}
           <img key={photo.id} src={photo.url} alt={photo.caption} draggable={false} className="materialize max-h-[78dvh] max-w-full rounded-2xl object-contain shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7)] select-none"/>
@@ -62,8 +65,8 @@ export function PhotoViewer({ photos, index, onIndex, onClose }: {
         </figure>) : null}
       <button type="button" onClick={onClose} aria-label="Close" className={cn(control, "absolute top-4 right-4")}><X className="size-5" aria-hidden/></button>
       {photos.length > 1 ? (<>
-          <button type="button" onClick={() => go(-1)} aria-label="Previous photo" className={cn(control, "absolute top-1/2 left-4 -translate-y-1/2 max-sm:hidden")}><ChevronLeft className="size-5" aria-hidden/></button>
-          <button type="button" onClick={() => go(1)} aria-label="Next photo" className={cn(control, "absolute top-1/2 right-4 -translate-y-1/2 max-sm:hidden")}><ChevronRight className="size-5" aria-hidden/></button>
+          <button type="button" onClick={() => go(-1)} aria-label="Previous photo" className={cn(control, "absolute top-1/2 left-3 -translate-y-1/2 sm:left-4")}><ChevronLeft className="size-5" aria-hidden/></button>
+          <button type="button" onClick={() => go(1)} aria-label="Next photo" className={cn(control, "absolute top-1/2 right-3 -translate-y-1/2 sm:right-4")}><ChevronRight className="size-5" aria-hidden/></button>
         </>) : null}
     </dialog>);
 }

@@ -1,4 +1,5 @@
 import { daysBetween, formatDate, isoDateIn, plural, type DashboardMilestone } from "./dashboard.ts";
+import { PROJECT_STATUS_TERMS } from "./vocabulary.ts";
 import type { ProjectStatus } from "../types/enums";
 
 /**
@@ -25,6 +26,8 @@ const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" 
 export function clientHealth(status: ProjectStatus, milestones: DashboardMilestone[], today: string): { text: string; tone: "late" | "done" | "steady" } {
     if (status === "completed")
         return { text: "Completed", tone: "done" };
+    if (status === "on_hold")
+        return { text: PROJECT_STATUS_TERMS.on_hold.label, tone: "steady" };
     const late = undelivered(milestones).find((m) => m.due_date < today);
     return late ? { text: `${late.title} ${plural(daysBetween(late.due_date, today), "day")} late`, tone: "late" } : { text: "On track", tone: "steady" };
 }
@@ -112,21 +115,25 @@ export function toClientPhotos(rows: ApprovedRow[], urlFor: (path: string) => st
 
 export type StorageLike = { getItem(key: string): string | null; setItem(key: string, value: string): void };
 
+/** This long without a view ends a visit; the next view starts a new one. */
+const VISIT_GAP_MS = 30 * 60 * 1000;
+
 /**
- * When the viewer last looked at this project before this browser session, or
- * null on a first visit or with storage blocked. The first read in a session
- * records `now` for next time, so every page in the session compares against
- * the same earlier visit.
+ * When the viewer last looked at this project before the current visit, or
+ * null on a first visit or with storage blocked. Every read records `now` as
+ * the last view; the tab holds the baseline while the visit lasts, so every
+ * page in it compares against the same moment, and a tab left open for hours
+ * starts a fresh visit when the viewer comes back.
  */
 export function readVisitBaseline(projectId: string, session: StorageLike, local: StorageLike, now: string): string | null {
     const key = `ptx:visit:${projectId}`;
     try {
-        let base = session.getItem(key);
-        if (base === null) {
-            base = local.getItem(key) ?? "";
-            session.setItem(key, base);
-            local.setItem(key, now);
-        }
+        const held = session.getItem(key);
+        const visit = held ? JSON.parse(held) as { base: string; seen: string } : null;
+        const ongoing = visit !== null && Date.parse(now) - Date.parse(visit.seen) < VISIT_GAP_MS;
+        const base = ongoing ? visit.base : local.getItem(key) ?? "";
+        session.setItem(key, JSON.stringify({ base, seen: now }));
+        local.setItem(key, now);
         return base || null;
     }
     catch {

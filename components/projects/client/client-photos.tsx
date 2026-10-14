@@ -21,6 +21,8 @@ export function ClientPhotos({ data }: {
     const shown = filter ? photos.filter((p) => (p.milestone_id ?? "other") === filter) : photos;
     const viewer = toViewerPhotos(shown, milestones);
 
+    if (data.loadFailed && photos.length === 0)
+        return <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Photos couldn&apos;t be loaded. Reload to try again.</p>;
     if (photos.length === 0)
         return <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Approved photos from the site will appear here.</p>;
 
