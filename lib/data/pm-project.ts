@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isoDateIn, type DashboardMilestone } from "@/lib/dashboard";
 import { loadProjectContext, type TeamMember } from "@/lib/data/project-context";
 import type { PmTask } from "@/lib/pm-project";
+import { latestUpdate, type StatusUpdate } from "@/lib/project-log";
+import { listProjectActivityPage, type ActivityWithActor } from "@/services/activity-service";
 import { listInvitationsForProject } from "@/services/project-invitation-service";
 import { getProjectById, type ProjectWithRelations } from "@/services/project-service";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
@@ -22,12 +24,17 @@ export type PmProjectData = {
     invitations: ProjectInvitationWithInvitee[];
     /** The newest site photos, newest first. */
     photos: SitePhoto[];
+    /** The newest rows of the project log, newest first. */
+    activity: ActivityWithActor[];
+    /** The PM's latest status update, however old. */
+    update: StatusUpdate | null;
     /** Manila calendar date; overdue is measured against it. */
     today: string;
     loadFailed: boolean;
 };
 
 const PHOTO_COUNT = 3;
+const ACTIVITY_COUNT = 10;
 
 /**
  * Everything the PM's project shell and Overview read, once per request:
@@ -37,7 +44,7 @@ export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: s
     const project = await getProjectById(projectId, supabase, { withMilestones: true });
     if (!project)
         return null;
-    const [taskResult, photoResult, context, invitations] = await Promise.all([
+    const [taskResult, photoResult, context, invitations, activity, updateRows] = await Promise.all([
         supabase.from("tasks")
             .select("id, title, project_id, stage, due_date, client_visible_at, updated_at, assigned_to, milestone_id")
             .eq("project_id", projectId),
@@ -47,6 +54,10 @@ export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: s
             .order("created_at", { ascending: false }).limit(PHOTO_COUNT),
         loadProjectContext(supabase, [project], viewerId),
         project.status === "pending_invites" ? listInvitationsForProject(projectId, supabase).catch(() => []) : Promise.resolve([]),
+        listProjectActivityPage(projectId, { limit: ACTIVITY_COUNT }, supabase).catch(() => []),
+        supabase.from("activity_feed").select("action_type, details, created_at, user_id")
+            .eq("project_id", projectId).eq("action_type", "project_update")
+            .order("created_at", { ascending: false }).limit(1),
     ]);
     const tasks = (taskResult.data ?? []) as PmTask[];
     const team = context.teams[projectId] ?? [];
@@ -58,6 +69,8 @@ export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: s
         team,
         unread: context.unread[projectId] ?? 0,
         invitations,
+        activity,
+        update: latestUpdate((updateRows.data ?? []) as Parameters<typeof latestUpdate>[0]),
         photos: photoRows.map((p) => ({
             id: p.id,
             url: publicTaskAttachmentUrl(p.storage_path),

@@ -2,25 +2,28 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Lock, MessageSquare, MoreHorizontal, Settings2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Lock, Megaphone, MessageSquare, MoreHorizontal, Settings2, ShieldCheck } from "lucide-react";
 import { useLiveUnread } from "@/components/messenger/messenger-store";
 import { OpenChatButton } from "@/components/messenger/open-chat-button";
 import { FaceStack, focusRing, HEALTH_TONE, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { TeamMember } from "@/lib/data/project-context";
-import type { HealthTone } from "@/lib/dashboard";
-import { ROUTES } from "@/lib/constants";
+import { agoPhrase, isoDateIn, type HealthTone } from "@/lib/dashboard";
+import { projectReportPath, projectTeamPath, ROUTES } from "@/lib/constants";
+import { HEALTH, type StatusUpdate } from "@/lib/project-log";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { HEALTH_STYLE, postUpdate } from "./status-update-dialog";
 
 /**
  * The project's identity on every tab: the same ring and health words as its
- * Overview tile, then what the PM reaches for from anywhere: the review
- * queue (when work waits), the people, Message, and settings. Condenses while
+ * Overview tile and the PM's latest status update, then what the PM reaches
+ * for from anywhere: the review queue (when work waits), the team, Message,
+ * and the project menu. Condenses while
  * the page is scrolled, by scale and fade only: its height never changes, so
  * scrolling can't make it jump.
  */
-export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, calendar, team, unread, compact, reviewCount, reviewHref, closed, onPeople, onSettings }: {
+export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, update, calendar, team, unread, compact, reviewCount, reviewHref, closed, onSettings }: {
     projectId: string;
     title: string;
     client: string;
@@ -29,6 +32,8 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
     /** Tasks failed to load: say so instead of "No tasks yet". */
     tasksFailed: boolean;
     health: { text: string; tone: HealthTone };
+    /** The PM's own word on the project, shown beside the computed state. */
+    update: StatusUpdate | null;
     calendar: string;
     team: TeamMember[];
     unread: number;
@@ -37,7 +42,6 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
     reviewCount: number;
     reviewHref: string;
     closed: boolean;
-    onPeople: () => void;
     onSettings: (section?: "close") => void;
 }) {
     const router = useRouter();
@@ -70,8 +74,15 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
           {tasksFailed ? "Tasks unavailable" : total > 0 ? <><b className="font-medium text-ink">{accepted} of {total}</b> tasks accepted</> : "No tasks yet"}
           {" · "}
           <span className={cn("font-medium", tone.tone)}>{health.text}</span>
-          {" · "}
-          {calendar}
+          <span className="max-sm:hidden">{" · "}{calendar}</span>
+          {update && !closed ? (<>
+              {" · "}
+              <button type="button" onClick={postUpdate} tabIndex={compact ? -1 : undefined} title={update.note} className={cn("inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-px align-[1px] text-xs font-semibold", HEALTH_STYLE[update.health].chip, focusRing)}>
+                <span className={cn("size-1.5 rounded-full", HEALTH_STYLE[update.health].dot)} aria-hidden/>
+                {HEALTH[update.health].label}
+                <span className="font-normal opacity-75">{agoPhrase(isoDateIn(update.at), isoDateIn(new Date()))}</span>
+              </button>
+            </>) : null}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -84,9 +95,9 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
               </Link>
             </motion.span>) : null}
         </AnimatePresence>
-        {team.length > 0 ? (<button type="button" onClick={onPeople} aria-label={`People on this project: ${team.map((m) => m.name).join(", ")}`} className={cn("press rounded-full p-0.5 max-sm:hidden hover:bg-surface-sunken", focusRing)}>
+        {team.length > 0 ? (<Link href={projectTeamPath(projectId)} aria-label={`Team: ${team.map((m) => m.name).join(", ")}`} className={cn("press rounded-full p-0.5 max-sm:hidden hover:bg-surface-sunken", focusRing)}>
             <FaceStack people={team} max={3} size={28}/>
-          </button>) : null}
+          </Link>) : null}
         <OpenChatButton projectId={projectId} aria-label={liveUnread > 0 ? `Message, ${liveUnread} unread` : "Message"} className={cn(softAction, "relative h-9 px-3.5", liveUnread > 0 && "bg-brand-soft text-brand ring-1 ring-brand/20 hover:bg-brand-soft")}>
           <MessageSquare aria-hidden/>
           <span className="max-md:hidden">Message</span>
@@ -96,8 +107,9 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
           <DropdownMenuTrigger aria-label="Project menu" className={cn("press grid size-9 cursor-pointer place-items-center rounded-full bg-surface-sunken text-ink hover:bg-line", focusRing)}>
             <MoreHorizontal className="size-4" aria-hidden/>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
-            <DropdownMenuItem onClick={onPeople} className="sm:hidden">People</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="min-w-52">
+            {!closed ? <DropdownMenuItem onClick={postUpdate}><Megaphone aria-hidden/>Post status update<span className="ml-auto text-xs text-ink-tertiary">U</span></DropdownMenuItem> : null}
+            <DropdownMenuItem onClick={() => router.push(projectReportPath(projectId))}><FileText aria-hidden/>Project report</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings()}><Settings2 aria-hidden/>Project settings<span className="ml-auto text-xs text-ink-tertiary">,</span></DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings("close")}><Lock aria-hidden/>{closed ? "Reopen project" : "Close project"}</DropdownMenuItem>
           </DropdownMenuContent>

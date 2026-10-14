@@ -6,6 +6,8 @@ import { Camera, Check, CheckCircle2, FileText, Flag, Loader2, Lock, Play, Plus,
 import { toast } from "sonner";
 import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
+import { TaskDiscussion } from "@/components/projects/shared/task-discussion";
+import { TaskHistory } from "@/components/projects/shared/task-history";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { normalizeBoardStage, parseChecklist, taskBlockedReason, type BoardColumnStage, type ChecklistItem, type WorkflowGateContext } from "@/lib/board-workflow";
 import { projectReviewPath } from "@/lib/constants";
@@ -24,6 +26,10 @@ const field = "h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm
 type Props = {
     task: TaskWithRelations | null;
     projectId: string;
+    viewerId: string;
+    /** Comments on the open task, for its tab label until the thread loads. */
+    commentCount: number;
+    onCommentCount: (taskId: string, n: number) => void;
     attachments: TaskAttachment[];
     people: Profile[];
     milestones: Milestone[];
@@ -51,7 +57,7 @@ export function TaskSheet(props: Props) {
     </Sheet>);
 }
 
-function Body({ task, projectId, attachments, people, milestones, today, closed, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
+function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachments, people, milestones, today, closed, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
     task: TaskWithRelations;
 }) {
     const stage = normalizeBoardStage(task.stage);
@@ -70,6 +76,8 @@ function Body({ task, projectId, attachments, people, milestones, today, closed,
     const [viewer, setViewer] = React.useState<number | null>(null);
     const [confirmDelete, setConfirmDelete] = React.useState(false);
     const [deleting, setDeleting] = React.useState(false);
+    const [tab, setTab] = React.useState<"details" | "discussion" | "history">("details");
+    const [count, setCount] = React.useState(commentCount);
     const fileRef = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
@@ -167,7 +175,20 @@ function Body({ task, projectId, attachments, people, milestones, today, closed,
         <NextStep task={task} stage={stage} projectId={projectId} closed={closed} onMove={onMove}/>
       </SheetHeader>
 
-      <div className="grid flex-1 content-start gap-6 overflow-y-auto px-6 py-5">
+      <nav role="tablist" aria-label="Task" className="flex gap-1 border-b border-line px-4">
+        {([["details", "Details"], ["discussion", "Discussion"], ["history", "History"]] as const).map(([key, label]) => (<button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={cn("relative inline-flex cursor-pointer items-center gap-1.5 px-2.5 py-3 text-sm font-medium transition-colors duration-300", tab === key ? "text-ink" : "text-ink-tertiary hover:text-ink", focusRing, "focus-visible:ring-offset-0")}>
+            {label}
+            {key === "discussion" && count > 0 ? <span className="rounded-full bg-surface-sunken px-1.5 text-[11px] font-semibold text-ink-secondary tabular">{count}</span> : null}
+            {tab === key ? <motion.span layoutId="task-sheet-tab" transition={SPRING} className="absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-copper" aria-hidden/> : null}
+          </button>))}
+      </nav>
+
+      {tab === "discussion" ? (<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-5 pb-4">
+          <TaskDiscussion taskId={task.id} projectId={projectId} taskTitle={task.title} viewerId={viewerId} isPm disabled={closed} onCount={(n) => {
+                setCount(n);
+                onCommentCount(task.id, n);
+            }}/>
+        </div>) : tab === "history" ? (<div className="flex-1 overflow-y-auto px-6 py-5"><TaskHistory projectId={projectId} taskId={task.id}/></div>) : (<div className="grid flex-1 content-start gap-6 overflow-y-auto px-6 py-5">
         {fix ? (<p className="flex items-start gap-2 rounded-2xl bg-danger-soft px-3.5 py-3 text-sm text-danger"><RotateCcw className="mt-0.5 size-4 shrink-0" aria-hidden/><span><b className="font-semibold">Sent back:</b> {fix}</span></p>) : null}
         {blocked && blocked !== "Needs owner" ? (<p className="flex items-center gap-2 rounded-2xl bg-warning-soft px-3.5 py-3 text-sm text-warning"><Lock className="size-4 shrink-0" aria-hidden/>{blocked}. You can still start it; you&apos;ll be asked first.</p>) : null}
 
@@ -190,11 +211,14 @@ function Body({ task, projectId, attachments, people, milestones, today, closed,
               {milestones.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
             </select>
           </label>
+          <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">Starts
+            <input type="date" value={task.start_date ?? ""} max={task.due_date ?? undefined} onChange={(e) => void save({ start_date: e.target.value || null }, { start_date: e.target.value || null })} className={cn(field, "tabular")}/>
+          </label>
           <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">
             <span>Due{isLate(task, today) ? <span className="ml-1.5 font-semibold text-danger">late</span> : null}</span>
             <input type="date" value={task.due_date ?? ""} onChange={(e) => void save({ due_date: e.target.value || null }, { due_date: e.target.value || null }, true)} className={cn(field, "tabular", isLate(task, today) && "border-danger/40 text-danger")}/>
           </label>
-          <div className="grid gap-1.5 text-xs font-medium text-ink-secondary">Priority
+          <div className="col-span-2 grid gap-1.5 text-xs font-medium text-ink-secondary">Priority
             <button type="button" role="switch" aria-checked={task.priority === "high"} onClick={() => void save({ priority: task.priority === "high" ? "medium" : "high" })} className={cn("press flex h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm transition-colors duration-300", task.priority === "high" ? "border-stage-late/40 bg-danger-soft font-semibold text-danger" : "border-line bg-surface text-ink-secondary hover:text-ink", focusRing)}>
               <Flag className={cn("size-4", task.priority === "high" && "fill-current")} aria-hidden/>High priority
             </button>
@@ -258,9 +282,9 @@ function Body({ task, projectId, attachments, people, milestones, today, closed,
             </ul>) : null}
           {attachments.length === 0 ? <p className="rounded-2xl border border-dashed border-line px-4 py-5 text-center text-xs text-ink-tertiary">No photos yet. The crew adds them when they submit.</p> : null}
         </section>
-      </div>
+      </div>)}
 
-      {!locked ? (<footer className="border-t border-line px-6 py-3">
+      {!locked && tab === "details" ? (<footer className="border-t border-line px-6 py-3">
           <button type="button" disabled={deleting} onClick={() => void remove()} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors duration-300", confirmDelete ? "bg-danger text-white" : "text-ink-tertiary hover:bg-danger-soft hover:text-danger", focusRing)}>
             {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Trash2 className="size-4" aria-hidden/>}{confirmDelete ? "Click again to delete" : "Delete task"}
           </button>

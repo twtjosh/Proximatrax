@@ -3,15 +3,16 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ProjectWorkspaceTab } from "@/lib/project-view-policy";
+import { postUpdate } from "./status-update-dialog";
 
 /** Event the Board listens for to focus quick add. */
 export const QUICK_ADD_EVENT = "pm:quick-add";
 
 const KEYS: [string, string][] = [
-    ["1 · 2 · 3", "Overview · Board · Schedule"],
+    ["1 – 6", "Overview · Tasks · Timeline · Files · Team · Activity"],
     ["R", "Review submissions"],
     ["N", "New task"],
-    ["P", "People"],
+    ["U", "Post a status update"],
     [",", "Project settings"],
     ["A · S", "Accept · Send back (in Review)"],
     ["J · K", "Next · previous submission"],
@@ -22,11 +23,10 @@ const KEYS: [string, string][] = [
  * Keyboard shortcuts across a project, for the PM. They stay out of the way
  * while you type in a field or work in a dialog or panel.
  */
-export function ProjectShortcuts({ tabs, reviewHref, boardHref, onPeople, onSettings }: {
+export function ProjectShortcuts({ tabs, reviewHref, boardHref, onSettings }: {
     tabs: ProjectWorkspaceTab[];
     reviewHref: string;
     boardHref: string;
-    onPeople: () => void;
     onSettings: () => void;
 }) {
     const router = useRouter();
@@ -41,7 +41,7 @@ export function ProjectShortcuts({ tabs, reviewHref, boardHref, onPeople, onSett
             if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], dialog"))
                 return;
             const key = e.key.toLowerCase();
-            const tab = ["1", "2", "3"].indexOf(key);
+            const tab = ["1", "2", "3", "4", "5", "6"].indexOf(key);
             if (tab >= 0 && tabs[tab])
                 router.push(tabs[tab].href);
             else if (key === "r")
@@ -52,8 +52,8 @@ export function ProjectShortcuts({ tabs, reviewHref, boardHref, onPeople, onSett
                 else
                     router.push(`${boardHref}?add=1`);
             }
-            else if (key === "p")
-                onPeople();
+            else if (key === "u")
+                postUpdate();
             else if (key === ",")
                 onSettings();
             else if (e.key === "?")
@@ -64,7 +64,7 @@ export function ProjectShortcuts({ tabs, reviewHref, boardHref, onPeople, onSett
         }
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [tabs, reviewHref, boardHref, pathname, router, onPeople, onSettings]);
+    }, [tabs, reviewHref, boardHref, pathname, router, onSettings]);
 
     return (<Dialog open={help} onOpenChange={setHelp}>
       <DialogContent className="max-w-sm">

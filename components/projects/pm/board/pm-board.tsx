@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandleProps, type DropResult } from "@hello-pangea/dnd";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarDays, CornerDownLeft, Flag, Lock, Paperclip, Plus, RotateCcw, Search, SquareCheck, X } from "lucide-react";
+import { CalendarDays, Columns3, CornerDownLeft, Flag, List, Lock, MessageSquare, Paperclip, Plus, RotateCcw, Search, SquareCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { QUICK_ADD_EVENT } from "@/components/projects/pm/project-shortcuts";
@@ -21,6 +21,7 @@ import { createTask, type TaskWithRelations } from "@/services/task-service";
 import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { COLUMNS, fixReason, isLate } from "./board-meta";
+import { TaskList, type GroupBy } from "./task-list";
 import { TaskSheet } from "./task-sheet";
 
 /** Accepted work piles up; the newest few are enough on the board. */
@@ -42,10 +43,12 @@ function order(stage: BoardColumnStage, tasks: TaskWithRelations[], today: strin
  * one stage at a time. In review is decided in Review mode, so a card dragged
  * out of it opens there; Accepted is the client's record and stays put.
  */
-export function PmBoard({ projectId, tasks, attachments, milestones, people, today, viewerId, closed }: {
+export function PmBoard({ projectId, tasks, attachments, comments, milestones, people, today, viewerId, closed }: {
     projectId: string;
     tasks: TaskWithRelations[];
     attachments: TaskAttachment[];
+    /** Discussion length per task. */
+    comments: Record<string, number>;
     milestones: Milestone[];
     /** Who can be given work: the PM and the project's crew. */
     people: Profile[];
@@ -65,6 +68,12 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
         setItems(tasks);
         setFiles(attachments);
     }
+    const [counts, setCounts] = React.useState(comments);
+    const [seenCounts, setSeenCounts] = React.useState(comments);
+    if (seenCounts !== comments) {
+        setSeenCounts(comments);
+        setCounts(comments);
+    }
     const [query, setQuery] = React.useState(params.get("q") ?? "");
     const [allAccepted, setAllAccepted] = React.useState(false);
     const assignee = params.get("mine") === "1" ? viewerId : params.get("assignee");
@@ -72,6 +81,8 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
     const lateOnly = params.get("late") === "1";
     const openId = params.get("task");
     const focusStage = params.get("stage");
+    const view = params.get("view") === "list" ? "list" : "board";
+    const group = (["milestone", "person", "stage", "none"].includes(params.get("group") ?? "") ? params.get("group") : "milestone") as GroupBy;
 
     const gate: WorkflowGateContext = { milestones, tasks: toGateTasks(items) };
     const byTask = React.useMemo(() => {
@@ -98,7 +109,9 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
             else
                 next.delete(k);
         }
-        next.delete("view");
+        // Old links used ?view=all for "every task"; that is just the default now.
+        if (next.get("view") === "all")
+            next.delete("view");
         const qs = next.toString();
         window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, []);
@@ -168,6 +181,8 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
     }, [focusStage]);
 
     const open = openId ? items.find((t) => t.id === openId) ?? null : null;
+    const fileCounts = new Map([...byTask].map(([id, list]) => [id, list.length]));
+    const openFromList = (t: TaskWithRelations) => (normalizeBoardStage(t.stage) === "review" ? router.push(`${projectReviewPath(projectId)}?task=${t.id}`) : openTask(t.id));
 
     return (<div className="grid gap-4 pt-2">
       <QuickAdd projectId={projectId} people={people} milestones={milestones} today={today} closed={closed} onAdded={(task) => {
@@ -203,7 +218,7 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
             <span className={cn("size-1.5 rounded-full", lateOnly ? "bg-white" : "bg-stage-late")} aria-hidden/>{lateCount} late
           </button>) : null}
         <AnimatePresence>
-          {filtered ? (<motion.p initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={SPRING} className="flex items-center gap-2 text-xs text-ink-tertiary sm:ml-auto">
+          {filtered ? (<motion.p initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={SPRING} className="flex items-center gap-2 text-xs text-ink-tertiary">
               <span className="tabular">{visible.length} of {items.length}</span>
               <button type="button" onClick={() => {
                     setQuery("");
@@ -211,9 +226,17 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
                 }} className={cn("press inline-flex h-7 cursor-pointer items-center gap-1 rounded-full bg-surface-sunken px-2.5 font-medium text-ink-secondary hover:text-ink", focusRing)}><X className="size-3" aria-hidden/>Clear</button>
             </motion.p>) : null}
         </AnimatePresence>
+        <div role="radiogroup" aria-label="View" className="ml-auto flex rounded-full bg-surface-sunken p-1">
+          {([["board", "Board", Columns3], ["list", "List", List]] as const).map(([key, label, Icon]) => (<button key={key} type="button" role="radio" aria-checked={view === key} onClick={() => setParams({ view: key === "list" ? "list" : null })} className={cn("relative isolate inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors duration-300", view === key ? "text-ink" : "text-ink-secondary hover:text-ink", focusRing)}>
+              {view === key ? <motion.span layoutId="tasks-view" transition={SPRING} className="absolute inset-0 -z-10 rounded-full bg-surface shadow-card"/> : null}
+              <Icon className="size-3.5" aria-hidden/>{label}
+            </button>))}
+        </div>
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
+      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} group={group} onGroup={(g) => setParams({ group: g === "milestone" ? null : g })} fileCounts={fileCounts} comments={counts} onOpen={openFromList} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
+
+      {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
         <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
           {COLUMNS.map((col, ci) => {
                 const all = order(col.stage, visible.filter((t) => normalizeBoardStage(t.stage) === col.stage), today);
@@ -229,7 +252,7 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
                   {(drop, dropState) => (<ul ref={drop.innerRef} {...drop.droppableProps} className={cn("grid min-h-24 flex-1 content-start gap-2 rounded-2xl p-0.5 transition-colors duration-300", dropState.isDraggingOver && "bg-brand-soft/60")}>
                       {shown.map((t, i) => (<Draggable key={t.id} draggableId={t.id} index={i} isDragDisabled={closed || col.stage === "done"} disableInteractiveElementBlocking>
                           {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style}>
-                              <Card handle={drag.dragHandleProps} task={t} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} onOpen={() => (col.stage === "review" ? router.push(`${projectReviewPath(projectId)}?task=${t.id}`) : openTask(t.id))}/>
+                              <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} onOpen={() => (col.stage === "review" ? router.push(`${projectReviewPath(projectId)}?task=${t.id}`) : openTask(t.id))}/>
                             </li>)}
                         </Draggable>))}
                       {drop.placeholder}
@@ -244,9 +267,9 @@ export function PmBoard({ projectId, tasks, attachments, milestones, people, tod
               </section>);
             })}
         </div>
-      </DragDropContext>
+      </DragDropContext>) : null}
 
-      <TaskSheet task={open} projectId={projectId} attachments={open ? byTask.get(open.id) ?? [] : []} people={people} milestones={milestones} today={today} closed={closed} gate={gate} reduce={!!reduce} onClose={() => openTask(null)} onPatch={patchTask} onMove={requestMove} onFiles={(taskId, list) => setFiles((all) => [...all.filter((a) => a.task_id !== taskId), ...list])} onDeleted={(id) => {
+      <TaskSheet task={open} projectId={projectId} viewerId={viewerId} commentCount={open ? counts[open.id] ?? 0 : 0} onCommentCount={(id, n) => setCounts((c) => (c[id] === n ? c : { ...c, [id]: n }))} attachments={open ? byTask.get(open.id) ?? [] : []} people={people} milestones={milestones} today={today} closed={closed} gate={gate} reduce={!!reduce} onClose={() => openTask(null)} onPatch={patchTask} onMove={requestMove} onFiles={(taskId, list) => setFiles((all) => [...all.filter((a) => a.task_id !== taskId), ...list])} onDeleted={(id) => {
             openTask(null);
             setItems((list) => list.filter((t) => t.id !== id));
             router.refresh();
@@ -263,10 +286,11 @@ function EmptyColumn({ stage, filtered }: {
 }
 
 /** A card says what matters at a glance: who, when, why it is stuck, and if it came back. */
-function Card({ handle, task, today, files, blocked, dragging, onOpen }: {
+function Card({ handle, task, comments, today, files, blocked, dragging, onOpen }: {
     /** The drag handle is the card itself, so it is one tab stop: Enter opens, Space lifts. */
     handle: DraggableProvidedDragHandleProps | null;
     task: TaskWithRelations;
+    comments: number;
     today: string;
     files: TaskAttachment[];
     blocked: string | null;
@@ -295,6 +319,7 @@ function Card({ handle, task, today, files, blocked, dragging, onOpen }: {
         {task.due_date && stage !== "done" ? (<span className={cn("inline-flex items-center gap-1 tabular", late && "font-medium text-danger")}><CalendarDays className="size-3" aria-hidden/>{late ? `${daysBetween(task.due_date, today)}d late` : duePhrase(task.due_date, today)}</span>) : null}
         <span className="ml-auto flex items-center gap-2.5">
           {steps.total > 0 ? <span className={cn("inline-flex items-center gap-1 tabular", steps.done === steps.total && "text-success")}><SquareCheck className="size-3" aria-hidden/>{steps.done}/{steps.total}</span> : null}
+          {comments > 0 ? <span className="inline-flex items-center gap-1 tabular"><MessageSquare className="size-3" aria-hidden/>{comments}</span> : null}
           {files.length > 0 ? <span className="inline-flex items-center gap-1 tabular"><Paperclip className="size-3" aria-hidden/>{files.length}</span> : null}
         </span>
       </span>
