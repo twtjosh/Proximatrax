@@ -627,3 +627,21 @@ body {
     scroll-behavior: smooth;
   }
 }
+
+/* A client's handover record prints on its own: everything else steps aside. */
+@media print {
+  body:has(.print-record) * {
+    visibility: hidden;
+  }
+  .print-record,
+  .print-record * {
+    visibility: visible;
+  }
+  .print-record {
+    position: absolute;
+    inset: 0 0 auto 0;
+  }
+  [data-print-hide] {
+    display: none !important;
+  }
+}
