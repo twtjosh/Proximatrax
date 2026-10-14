@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: {
     children: React.ReactNode;
 }) {
     const themed = THEMED_PATHS.includes(usePathname());
-    return (<NextThemesProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme={themed ? undefined : "light"} disableTransitionOnChange>
+    return (<NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme={themed ? undefined : "light"} disableTransitionOnChange>
       {children}
     </NextThemesProvider>);
 }
