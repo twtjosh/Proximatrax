@@ -260,6 +260,29 @@ export async function reopenProject(projectId: string, client?: SupabaseClient):
     }, sb);
     return data as Project;
 }
+/**
+ * Deletes a project for good: its uploads leave storage first (while the PM
+ * still has the right to remove them), then the project, which takes its
+ * tasks, milestones, members, messages and log with it.
+ */
+export async function deleteProjectPermanently(projectId: string, client?: SupabaseClient): Promise<void> {
+    const sb = resolveClient(client);
+    const paths = async (table: string) => {
+        const { data } = await sb.from(table).select("storage_path").eq("project_id", projectId);
+        return ((data ?? []) as { storage_path: string }[]).map((r) => r.storage_path);
+    };
+    const [taskFiles, docs, chatFiles] = await Promise.all([paths("task_attachments"), paths("project_files"), paths("chat_message_attachments")]);
+    // Storage cleanup is best effort: a file left behind must not keep the project alive.
+    const remove = async (bucket: string, list: string[]) => {
+        for (let i = 0; i < list.length; i += 100)
+            await sb.storage.from(bucket).remove(list.slice(i, i + 100)).catch(() => undefined);
+    };
+    await Promise.all([remove("project-tasks", [...taskFiles, ...docs]), remove("project-chat", chatFiles)]);
+    const { error, count } = await sb.from("projects").delete({ count: "exact" }).eq("id", projectId);
+    throwIfSupabaseError(error);
+    if (count === 0)
+        throw new Error("Only the project's manager can delete it.");
+}
 export async function deleteProject(id: string, client?: SupabaseClient): Promise<void> {
     const sb = resolveClient(client);
     const { error } = await sb.from("projects").delete().eq("id", id);

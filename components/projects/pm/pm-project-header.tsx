@@ -2,11 +2,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, FileText, Lock, Megaphone, MessageSquare, MoreHorizontal, Settings2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Lock, Megaphone, MessageSquare, MoreHorizontal, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useLiveUnread } from "@/components/messenger/messenger-store";
 import { OpenChatButton } from "@/components/messenger/open-chat-button";
 import { FaceStack, focusRing, HEALTH_TONE, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { TeamMember } from "@/lib/data/project-context";
 import { agoPhrase, isoDateIn, type HealthTone } from "@/lib/dashboard";
 import { projectReportPath, projectTeamPath, ROUTES } from "@/lib/constants";
@@ -42,7 +42,7 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
     reviewCount: number;
     reviewHref: string;
     closed: boolean;
-    onSettings: (section?: "close") => void;
+    onSettings: (section?: "close" | "delete") => void;
 }) {
     const router = useRouter();
     const liveUnread = useLiveUnread(projectId, unread);
@@ -112,6 +112,8 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
             <DropdownMenuItem onClick={() => router.push(projectReportPath(projectId))}><FileText aria-hidden/>Project report</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings()}><Settings2 aria-hidden/>Project settings<span className="ml-auto text-xs text-ink-tertiary">,</span></DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings("close")}><Lock aria-hidden/>{closed ? "Reopen project" : "Close project"}</DropdownMenuItem>
+            <DropdownMenuSeparator/>
+            <DropdownMenuItem variant="destructive" onClick={() => onSettings("delete")}><Trash2 aria-hidden/>Delete project…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

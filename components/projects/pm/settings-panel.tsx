@@ -2,15 +2,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, Loader2, Lock, X } from "lucide-react";
+import { Check, Loader2, Lock, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { primaryAction, softAction } from "@/components/dashboard/overview-kit";
+import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ROUTES } from "@/lib/constants";
 import type { DashboardMilestone } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { assessProjectClosureReadiness, DEFAULT_COMPLETION_STATEMENT } from "@/lib/project-lifecycle";
 import { cn } from "@/lib/utils";
-import { completeProject, reopenProject, updateProject, type ProjectWithRelations } from "@/services/project-service";
+import { completeProject, deleteProjectPermanently, reopenProject, updateProject, type ProjectWithRelations } from "@/services/project-service";
 
 const field = "w-full rounded-xl border border-line bg-surface px-3.5 text-[15px] text-ink transition-[border-color,box-shadow] duration-300 ease-spring placeholder:text-ink-tertiary hover:border-line-strong focus:border-brand focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none";
 
@@ -19,12 +20,12 @@ type Field = "title" | "description" | "start_date" | "end_date";
 /**
  * The project's settings in one panel: its details, each saved on its own the
  * moment you leave the field, and closing (or reopening) the project, with
- * the checks that decide whether it can close.
+ * the checks that decide whether it can close, and deleting it for good.
  */
 export function SettingsPanel({ open, onOpenChange, section, project, milestones, tasks, viewerId }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** "close" scrolls straight to Close project. */
+    /** "close" or "delete" scrolls straight to that section. */
     section: string | null;
     project: ProjectWithRelations;
     milestones: DashboardMilestone[];
@@ -39,12 +40,19 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
     const [busy, setBusy] = React.useState(false);
     const [confirmReopen, setConfirmReopen] = React.useState(false);
     const closeRef = React.useRef<HTMLElement>(null);
+    const deleteRef = React.useRef<HTMLElement>(null);
+    const [confirmName, setConfirmName] = React.useState("");
+    const [deleting, setDeleting] = React.useState(false);
     const readiness = assessProjectClosureReadiness(project, milestones, tasks as never);
     const closed = project.status === "completed";
 
     React.useEffect(() => {
-        if (open && section === "close")
-            requestAnimationFrame(() => closeRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+        const target = section === "close" ? closeRef : section === "delete" ? deleteRef : null;
+        if (!open || !target)
+            return;
+        // After the sheet has slid in; before that the section isn't laid out.
+        const t = window.setTimeout(() => target.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 320);
+        return () => window.clearTimeout(t);
     }, [open, section]);
 
     async function save(name: Field, value: string) {
@@ -73,6 +81,22 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
         }
         finally {
             setSaving(null);
+        }
+    }
+
+    async function remove() {
+        if (confirmName.trim() !== project.title.trim() || deleting)
+            return;
+        setDeleting(true);
+        try {
+            await deleteProjectPermanently(project.id);
+            toast.success(`Deleted ${project.title}`, { description: "The project and everything in it are gone." });
+            router.replace(ROUTES.PROJECTS);
+            router.refresh();
+        }
+        catch (e) {
+            setDeleting(false);
+            toast.error(e instanceof Error ? e.message : "The project couldn't be deleted. Try again.");
         }
     }
 
@@ -172,6 +196,24 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
                   {readiness.ready ? "Close and hand over" : "Not ready to close yet"}
                 </button>
               </>)}
+          </section>
+
+          <section ref={deleteRef} aria-labelledby="settings-delete" className="scroll-mt-4 grid gap-4 rounded-2xl border border-danger/25 bg-danger-soft/40 p-5">
+            <div className="flex items-center gap-2">
+              <Trash2 className="size-4 text-danger" aria-hidden/>
+              <h3 id="settings-delete" className="text-[15px] font-semibold text-danger">Delete project</h3>
+            </div>
+            <p className="text-sm leading-relaxed text-ink-secondary">
+              This removes <b className="font-medium text-ink">{project.title}</b> for everyone, for good: {tasks.length} {tasks.length === 1 ? "task" : "tasks"}, {milestones.length} {milestones.length === 1 ? "milestone" : "milestones"}, every photo, file, message and log entry. The client and crew lose access at once. {closed ? "" : "To keep a record instead, close the project."}
+            </p>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium text-ink-secondary">Type <b className="font-semibold text-ink select-all">{project.title}</b> to confirm</span>
+              <input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void remove()} autoComplete="off" spellCheck={false} aria-describedby="settings-delete" className={cn(field, "h-11 focus:border-danger focus:shadow-[0_0_0_4px_rgb(195_38_46/0.14)]")}/>
+            </label>
+            <button type="button" disabled={confirmName.trim() !== project.title.trim() || deleting} onClick={() => void remove()} className={cn("press inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full bg-danger px-5 text-sm font-medium text-white transition-opacity duration-300 hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-40", focusRing)}>
+              {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Trash2 className="size-4" aria-hidden/>}
+              {deleting ? "Deleting…" : "Delete this project"}
+            </button>
           </section>
         </div>
       </SheetContent>
