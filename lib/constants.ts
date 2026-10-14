@@ -52,6 +52,7 @@ export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`
 export const projectTeamPath = (id: string) => `${projectPath(id)}/team`;
 export const projectSettingsPath = (id: string) => `${projectPath(id)}/settings`;
 export const projectAnalyticsPath = (id: string) => `${projectPath(id)}/analytics`;
+export const projectPhotosPath = (id: string) => `${projectPath(id)}/photos`;
 export type ProjectsListView = "active" | "completed";
 export const projectsListPath = (view: ProjectsListView = "active") => {
     if (view === "completed")

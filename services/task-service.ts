@@ -116,6 +116,23 @@ export async function updateTask(input: UpdateTaskInput, client?: SupabaseClient
         throw error;
     return data as Task;
 }
+/**
+ * Takes an unassigned task for the viewer, only while it is still unassigned.
+ * Returns false when someone else got there first. RLS lets a middleman claim
+ * open work but not hand it back, so callers confirm before calling.
+ */
+export async function claimOpenTask(taskId: string, viewerId: string, client?: SupabaseClient): Promise<boolean> {
+    const sb = resolveClient(client);
+    const { data, error } = await sb
+        .from("tasks")
+        .update({ assigned_to: viewerId })
+        .eq("id", taskId)
+        .is("assigned_to", null)
+        .select("id");
+    if (error)
+        throw error;
+    return (data ?? []).length > 0;
+}
 export async function deleteTask(id: string, client?: SupabaseClient): Promise<void> {
     const sb = resolveClient(client);
     const { error } = await sb.from("tasks").delete().eq("id", id);

@@ -1,21 +1,16 @@
-import { projectAnalyticsPath, projectBoardPath, projectPath, projectReviewPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
+import { projectBoardPath, projectPath, projectPhotosPath, projectReviewPath, projectSettingsPath, projectTeamPath, projectTimelinePath, } from "@/lib/constants";
 import type { UserRole } from "@/types/enums";
 export type ProjectWorkspaceTab = {
     href: string;
     label: string;
     exact?: boolean;
 };
+/** Each role's tabs inside a project. Super admins never reach project pages. */
 export function projectWorkspaceTabs(projectId: string, role: UserRole): ProjectWorkspaceTab[] {
-    const all: ProjectWorkspaceTab[] = [
-        { href: projectPath(projectId), label: "Overview", exact: true },
-        { href: projectBoardPath(projectId), label: "Board" },
-        { href: projectTimelinePath(projectId), label: "Timeline" },
-        { href: projectTeamPath(projectId), label: "Team" },
-        { href: projectSettingsPath(projectId), label: "Settings" },
-    ];
+    const overview: ProjectWorkspaceTab = { href: projectPath(projectId), label: "Overview", exact: true };
     if (role === "project_manager") {
         return [
-            { href: projectPath(projectId), label: "Overview", exact: true },
+            overview,
             { href: projectReviewPath(projectId), label: "Review" },
             { href: projectBoardPath(projectId), label: "Board" },
             { href: projectTimelinePath(projectId), label: "Schedule" },
@@ -25,15 +20,17 @@ export function projectWorkspaceTabs(projectId: string, role: UserRole): Project
     }
     if (role === "client") {
         return [
-            { href: projectPath(projectId), label: "Overview", exact: true },
+            overview,
             { href: projectBoardPath(projectId), label: "Updates" },
-            { href: projectTimelinePath(projectId), label: "Timeline" },
-            { href: projectAnalyticsPath(projectId), label: "Analytics" },
+            { href: projectPhotosPath(projectId), label: "Photos" },
         ];
     }
-    return all
-        .filter((t) => t.href !== projectSettingsPath(projectId))
-        .map((t) => t.href === projectBoardPath(projectId)
-        ? { ...t, label: "My work" }
-        : t);
+    if (role === "middleman") {
+        return [
+            overview,
+            { href: projectTimelinePath(projectId), label: "Schedule" },
+            { href: projectPhotosPath(projectId), label: "Photos" },
+        ];
+    }
+    return [overview];
 }
