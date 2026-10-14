@@ -3,6 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TaskWorkbench } from "@/components/middleman/task-workbench";
+import { DiscussionDisclosure } from "@/components/projects/shared/task-discussion";
 import { nextHandoffAction, type ChecklistItem } from "@/lib/board-workflow";
 import { crewLanes, crewStage, milestoneFeed, nextMove, openWork, siteNext } from "@/lib/crew-project";
 import type { CrewProjectData } from "@/lib/data/crew-project";
@@ -118,7 +119,7 @@ export function CrewOverview({ data, viewerId, openTask }: {
     if (stage === "unavailable")
         return <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">This project&apos;s tasks could not be loaded, so your work here can&apos;t be shown right now. Reload to try again.</p>;
 
-    const workbench = (task: TaskWithRelations) => (<TaskWorkbench task={task} viewerId={viewerId} attachments={byTask.get(task.id) ?? []} busy={busy === task.id} disabledReason={paused ? PAUSED : undefined} onAdvance={() => void advance(task)} onChecklist={(items) => void saveChecklist(task, items)} onUploaded={(added) => setAttachments((list) => [...added, ...list])}/>);
+    const workbench = (task: TaskWithRelations) => (<TaskWorkbench task={task} viewerId={viewerId} attachments={byTask.get(task.id) ?? []} busy={busy === task.id} disabledReason={paused ? PAUSED : undefined} onAdvance={() => void advance(task)} onChecklist={(items) => void saveChecklist(task, items)} onUploaded={(added) => setAttachments((list) => [...added, ...list])} footer={<DiscussionDisclosure taskId={task.id} projectId={project.id} taskTitle={task.title} viewerId={viewerId} disabled={paused}/>}/>);
 
     return (<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="grid min-w-0 gap-5">

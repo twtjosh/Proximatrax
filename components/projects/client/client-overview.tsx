@@ -15,6 +15,7 @@ import { MilestoneFocus } from "./milestone-focus";
 import { RecentUpdates } from "./recent-updates";
 import { SinceLastVisit } from "./since-last-visit";
 import { toViewerPhotos, useVisitBaseline } from "./visit-baseline";
+import { PmUpdate } from "./pm-update";
 
 const long = (iso: string) => formatDate(iso, { month: "long", day: "numeric" });
 
@@ -75,6 +76,7 @@ export function ClientOverview({ data }: {
             </>) : <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Your milestones will appear here once your project manager sets them.</p>}
         </div>
         <aside aria-label="What's new" className="grid gap-5 lg:row-span-2">
+          {data.update ? <PmUpdate update={data.update} pm={data.team.find((m) => m.id === project.pm_id)?.name ?? "Your project manager"} today={today}/> : null}
           {baseline ? <SinceLastVisit projectId={project.id} count={fresh.size} label={sinceLabel(baseline, today)}/> : null}
           {all[0] ? <LatestPhoto photo={all[0]} onOpen={() => setViewer({ list: all, index: 0 })}/> : null}
           <RecentUpdates projectId={project.id} updates={updates} milestones={milestones} fresh={fresh}/>

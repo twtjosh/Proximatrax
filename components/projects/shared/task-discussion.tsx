@@ -150,3 +150,21 @@ export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, o
         </form>) : null}
     </div>);
 }
+
+/** The discussion folded under a task, for the crew's work view: open it to read or reply. */
+export function DiscussionDisclosure(props: Omit<React.ComponentProps<typeof TaskDiscussion>, "onCount" | "isPm">) {
+    const [open, setOpen] = React.useState(false);
+    const [count, setCount] = React.useState<number | null>(null);
+    return (<div className="mt-3 border-t border-line pt-3">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className={cn("flex h-9 w-full cursor-pointer items-center gap-2 rounded-xl px-1 text-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>
+        <MessagesSquare className="size-4" aria-hidden/>
+        Discussion with the PM{count ? <span className="rounded-full bg-surface-sunken px-1.5 text-[11px] font-semibold tabular">{count}</span> : null}
+        <span className="ml-auto text-xs text-ink-tertiary">{open ? "Hide" : "Open"}</span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open ? (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={SPRING} className="overflow-hidden">
+            <div className="pt-3"><TaskDiscussion {...props} isPm={false} onCount={setCount}/></div>
+          </motion.div>) : null}
+      </AnimatePresence>
+    </div>);
+}
