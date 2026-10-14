@@ -13,8 +13,14 @@ const TRAVEL = 28;
 /**
  * The frame around every project tab, for every role: a sticky header that
  * condenses on scroll, the tabs, and content that slides in from the side of
- * travel. Live changes re-render the page. `--frame-h` on the root is the
- * header's height, so content can stick just beneath it.
+ * travel. Live changes re-render the page.
+ *
+ * The scroll area (#workspace-main) has top padding, and a sticky element
+ * stops at that padding rather than the edge, which would leave a strip of
+ * page scrolling past above the header. So the header sticks at minus the
+ * measured padding (`--frame-pad`). `--frame-h` is the header's height (for
+ * scroll margins); `--frame-stick` is the `top` that puts other sticky
+ * content right under it.
  */
 export function ProjectFrame({ channel, tabs, header, renderTabs, banner, children }: {
     channel: string;
@@ -55,15 +61,24 @@ export function ProjectFrame({ channel, tabs, header, renderTabs, banner, childr
         const el = head.current;
         if (!frame || !el)
             return;
-        const ro = new ResizeObserver(() => frame.style.setProperty("--frame-h", `${el.offsetHeight}px`));
+        const scroller = document.getElementById("workspace-main");
+        const measure = () => {
+            const pad = scroller ? parseFloat(getComputedStyle(scroller).paddingTop) || 0 : 0;
+            frame.style.setProperty("--frame-pad", `${pad}px`);
+            frame.style.setProperty("--frame-h", `${el.offsetHeight}px`);
+            frame.style.setProperty("--frame-stick", `${el.offsetHeight - pad}px`);
+        };
+        const ro = new ResizeObserver(measure);
         ro.observe(el);
+        if (scroller)
+            ro.observe(scroller);
         return () => ro.disconnect();
     }, []);
 
     return (<div ref={root} className="mx-auto w-full max-w-360">
       <LiveRefresh channel={channel}/>
       <div ref={sentinel} aria-hidden className="-mb-6 h-6"/>
-      <header ref={head} className="sticky top-0 z-20 -mx-4 border-b border-line bg-canvas/85 px-4 pt-1 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <header ref={head} className="sticky top-[calc(var(--frame-pad,0px)*-1)] z-20 -mx-4 border-b border-line bg-canvas/85 px-4 pt-1 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         {header(compact)}
         <div className="mt-3">{renderTabs(active)}</div>
       </header>

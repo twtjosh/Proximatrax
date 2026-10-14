@@ -17,7 +17,7 @@ export function SiteCard({ projectId, next, team, viewerId }: {
 }) {
     const pm = team.find((m) => m.role === ROLE_TERMS.project_manager);
     const crew = team.filter((m) => m.role === ROLE_TERMS.middleman);
-    return (<OverviewCard id="this-site" title="This site" className="materialize lg:sticky lg:top-[calc(var(--frame-h,0px)+1.5rem)]">
+    return (<OverviewCard id="this-site" title="This site" className="materialize lg:sticky lg:top-[calc(var(--frame-stick,0px)+1.5rem)]">
       <div className="px-5 pb-5 sm:px-6">
         {next ? (<div className="rounded-2xl bg-surface-subtle p-4 ring-1 ring-line">
             <p className="text-xs font-medium text-ink-tertiary">Next milestone</p>

@@ -63,7 +63,7 @@ export function UpdatesFeed({ data }: {
       <section aria-label="Accepted work" className="materialize rounded-[20px] material px-2 py-2 sm:px-3">
         <AnimatePresence mode="popLayout" initial={false}>
           {days.map((d) => (<motion.div key={`${filter ?? "all"}-${d.day}`} layout={!reduce} initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.12 } }} transition={SPRING}>
-              <h2 className="sticky top-[var(--frame-h,0px)] z-10 rounded-xl bg-surface/95 px-3 pt-3 pb-1.5 text-xs font-semibold text-ink-secondary backdrop-blur-md">{dayLabel(d.day, today)}</h2>
+              <h2 className="sticky top-[var(--frame-stick,0px)] z-10 rounded-xl bg-surface/95 px-3 pt-3 pb-1.5 text-xs font-semibold text-ink-secondary backdrop-blur-md">{dayLabel(d.day, today)}</h2>
               <ol className="relative mx-3 mb-2 border-l border-line pl-6">
                 {d.items.map((u) => {
                     const own = all.filter((p, k) => photos[k].task_id === u.id);
