@@ -34,7 +34,8 @@ export function ProjectShortcuts({ tabs, reviewHref, boardHref, onPeople, onSett
     const [help, setHelp] = React.useState(false);
     React.useEffect(() => {
         function onKey(e: KeyboardEvent) {
-            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey)
+            // Review mode has its own keys.
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || pathname === reviewHref)
                 return;
             const target = e.target as HTMLElement | null;
             if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], dialog"))

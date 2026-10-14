@@ -1,14 +1,14 @@
 import { notFound, redirect } from "next/navigation";
-import { PmInspectionQueue } from "@/components/dashboard/pm-inspection-queue";
+import { ReviewMode } from "@/components/projects/pm/review/review-mode";
 import { projectBoardPath, ROUTES } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
 import { getProjectById } from "@/services/project-service";
 import { listTaskAttachmentsForProject } from "@/services/task-attachment-service";
 import { listTasksForProject } from "@/services/task-service";
 
-/** The PM's review queue. Phase 2 turns it into the focused review mode. */
-export default async function ProjectReviewPage(props: { params: Promise<{ id: string }> }) {
-    const { id } = await props.params;
+/** The PM's review mode: every submission waiting on them, full screen over the project. */
+export default async function ProjectReviewPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ task?: string }> }) {
+    const [{ id }, { task }] = await Promise.all([props.params, props.searchParams]);
     const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
@@ -21,7 +21,5 @@ export default async function ProjectReviewPage(props: { params: Promise<{ id: s
     ]);
     if (!project)
         notFound();
-    return (<div className="pt-2">
-      <PmInspectionQueue projectId={id} initialTasks={tasks} initialAttachments={attachments}/>
-    </div>);
+    return <ReviewMode projectId={id} tasks={tasks} attachments={attachments} initialTask={task ?? null}/>;
 }
