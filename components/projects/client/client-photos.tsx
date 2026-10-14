@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
-import { focusRing } from "@/components/dashboard/overview-kit";
+import Link from "next/link";
+import { Camera } from "lucide-react";
+import { focusRing, softAction } from "@/components/dashboard/overview-kit";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
+import { projectBoardPath } from "@/lib/constants";
 import type { ClientProjectData } from "@/lib/data/client-project";
 import { cn } from "@/lib/utils";
 import { MilestoneChips } from "./milestone-chips";
@@ -16,15 +19,23 @@ export function ClientPhotos({ data }: {
     const [index, setIndex] = React.useState<number | null>(null);
     const options = [
         ...[...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date)).filter((m) => photos.some((p) => p.milestone_id === m.id)).map((m) => ({ key: m.id, label: m.title })),
-        ...(photos.some((p) => p.milestone_id === null) ? [{ key: "other", label: "Other work" }] : []),
+        ...(photos.some((p) => p.milestone_id === null) ? [{ key: "general", label: "General work" }] : []),
     ];
-    const shown = filter ? photos.filter((p) => (p.milestone_id ?? "other") === filter) : photos;
+    const shown = filter ? photos.filter((p) => (p.milestone_id ?? "general") === filter) : photos;
     const viewer = toViewerPhotos(shown, milestones);
 
     if (data.loadFailed && photos.length === 0)
         return <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Photos couldn&apos;t be loaded. Reload to try again.</p>;
-    if (photos.length === 0)
-        return <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Approved photos from the site will appear here.</p>;
+    if (photos.length === 0) {
+        return (<section className="materialize flex max-w-xl flex-col items-start gap-4 rounded-[20px] material px-6 py-7 sm:flex-row">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand" aria-hidden><Camera className="size-6"/></span>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.016em] text-ink">No site photos yet</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-ink-secondary">The crew photograph their work on site. When your project manager accepts that work, its photos are shared with you here, by milestone.</p>
+            {data.updates.length > 0 ? <Link href={projectBoardPath(data.project.id)} className={cn(softAction, "mt-4 h-10 px-4")}>See accepted work</Link> : null}
+          </div>
+        </section>);
+    }
 
     return (<div className="grid gap-5">
       {options.length > 1 ? <MilestoneChips options={options} value={filter} onChange={(key) => { setIndex(null); setFilter(key); }}/> : null}

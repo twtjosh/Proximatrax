@@ -1,72 +1,95 @@
 "use client";
 import * as React from "react";
-import { Check } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { focusRing } from "@/components/dashboard/overview-kit";
-import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
-import { groupUpdates, newSince } from "@/lib/client-project";
+import { PhotoViewer, type ViewerPhoto } from "@/components/projects/shared/photo-viewer";
+import { groupByDay, newSince } from "@/lib/client-project";
 import type { ClientProjectData } from "@/lib/data/client-project";
-import { formatDate, isoDateIn } from "@/lib/dashboard";
+import { BUSINESS_TIME_ZONE, daysBetween, formatDate, isoDateIn } from "@/lib/dashboard";
+import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { MilestoneChips } from "./milestone-chips";
 import { toViewerPhotos, useVisitBaseline } from "./visit-baseline";
 
+const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: BUSINESS_TIME_ZONE });
+const dayLabel = (day: string, today: string) => {
+    const ago = daysBetween(day, today);
+    return ago === 0 ? "Today" : ago === 1 ? "Yesterday" : formatDate(day, { weekday: "long", month: "long", day: "numeric" });
+};
+
 /**
- * Everything the project manager accepted, newest first, under milestone
- * headings that stay put while you scroll. Work new since the last visit is
- * marked until the next one.
+ * Everything the project manager accepted, as one timeline by day, newest
+ * first. Each entry names its milestone and carries its photos; work new
+ * since the last visit is marked. Chips narrow it to one milestone.
  */
 export function UpdatesFeed({ data }: {
     data: ClientProjectData;
 }) {
-    const { project, milestones, updates, photos } = data;
+    const { project, milestones, updates, photos, today } = data;
+    const reduce = useReducedMotion();
     const baseline = useVisitBaseline(project.id);
     const fresh = new Set(newSince(updates, baseline).map((u) => u.id));
     const [filter, setFilter] = React.useState<string | null>(null);
-    const [index, setIndex] = React.useState<number | null>(null);
-    const groups = groupUpdates(updates, milestones);
-    const shown = filter ? groups.filter((g) => g.key === filter) : groups;
-    const viewer = toViewerPhotos(photos, milestones);
+    const [viewer, setViewer] = React.useState<{ list: ViewerPhoto[]; index: number } | null>(null);
+    const options = [
+        ...[...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date)).filter((m) => updates.some((u) => u.milestone_id === m.id)).map((m) => ({ key: m.id, label: m.title })),
+        ...(updates.some((u) => u.milestone_id === null) ? [{ key: "general", label: "General work" }] : []),
+    ];
+    const shown = filter ? updates.filter((u) => (u.milestone_id ?? "general") === filter) : updates;
+    const days = groupByDay(shown);
+    const all = toViewerPhotos(photos, milestones);
+    const latest = updates.reduce<string | null>((max, u) => (max === null || Date.parse(u.at) > Date.parse(max) ? u.at : max), null);
 
     if (data.loadFailed && updates.length === 0)
         return <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Updates couldn&apos;t be loaded. Reload to try again.</p>;
-    if (updates.length === 0)
-        return <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Nothing approved yet. When your project manager accepts finished work, it appears here.</p>;
+    if (updates.length === 0) {
+        return (<section className="materialize max-w-xl rounded-[20px] material px-6 py-7">
+          <h2 className="text-[17px] font-semibold tracking-[-0.016em] text-ink">Nothing accepted yet</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-secondary">When your project manager accepts finished work, it appears here with its photos, newest first.</p>
+        </section>);
+    }
 
-    return (<div className="grid gap-6">
-      {groups.length > 1 ? <MilestoneChips options={groups.map((g) => ({ key: g.key, label: g.title }))} value={filter} onChange={setFilter}/> : null}
-      {shown.map((g) => (<section key={g.key} aria-labelledby={`updates-${g.key}`}>
-          <h2 id={`updates-${g.key}`} className="sticky top-[var(--frame-h,0px)] z-10 -mx-2 bg-canvas/90 px-2 py-2 text-sm font-semibold text-ink backdrop-blur-md">
-            {g.title} <span className="font-normal text-ink-tertiary tabular">{g.items.length}</span>
-          </h2>
-          <ol className="mt-2 grid gap-3">
-            {g.items.map((u) => {
-                const own = photos.filter((p) => p.task_id === u.id);
-                return (<li key={u.id} className="materialize rounded-[20px] material p-4 sm:p-5">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-success-soft text-success" aria-hidden><Check className="size-3.5" strokeWidth={3}/></span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[15px] font-semibold text-ink">
-                        {u.title}
-                        {fresh.has(u.id) ? <span className="ml-2 inline-flex items-center gap-1 align-middle text-[11px] font-medium text-brand"><span className="size-1.5 rounded-full bg-copper" aria-hidden/>New</span> : null}
+    return (<div className="grid gap-5">
+      <div className="materialize flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <p className="text-sm text-ink-secondary">
+          <b className="font-semibold text-ink tabular">{updates.length}</b> accepted
+          {latest ? <> · latest {formatDate(isoDateIn(latest), { weekday: "short", month: "short", day: "numeric" })}</> : null}
+          {fresh.size > 0 ? <> · <span className="font-medium text-brand">{fresh.size} new</span></> : null}
+        </p>
+        {options.length > 1 ? <MilestoneChips options={options} value={filter} onChange={setFilter}/> : null}
+      </div>
+      <section aria-label="Accepted work" className="materialize rounded-[20px] material px-2 py-2 sm:px-3">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {days.map((d) => (<motion.div key={`${filter ?? "all"}-${d.day}`} layout={!reduce} initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.12 } }} transition={SPRING}>
+              <h2 className="sticky top-[var(--frame-h,0px)] z-10 rounded-xl bg-surface/95 px-3 pt-3 pb-1.5 text-xs font-semibold text-ink-secondary backdrop-blur-md">{dayLabel(d.day, today)}</h2>
+              <ol className="relative mx-3 mb-2 border-l border-line pl-6">
+                {d.items.map((u) => {
+                    const own = all.filter((p, k) => photos[k].task_id === u.id);
+                    const milestone = milestones.find((m) => m.id === u.milestone_id)?.title ?? "General work";
+                    return (<li key={u.id} className="relative py-3">
+                      <span aria-hidden className={cn("absolute top-[18px] -left-[30px] size-3 rounded-full ring-4 ring-surface", fresh.has(u.id) ? "bg-copper" : "bg-stage-done")}/>
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <p className="text-[15px] font-semibold tracking-[-0.01em] text-ink">{u.title}</p>
+                        {fresh.has(u.id) ? <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand">New</span> : null}
+                      </div>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-tertiary">
+                        <span className="rounded-full bg-surface-sunken px-2 py-0.5 font-medium text-ink-secondary">{milestone}</span>
+                        <span className="tabular">Accepted {time.format(new Date(u.at))}</span>
                       </p>
-                      <p className="text-xs text-ink-tertiary">Accepted {formatDate(isoDateIn(u.at), { weekday: "short", month: "short", day: "numeric" })}</p>
                       {own.length > 0 ? (<ul className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
-                          {own.map((p) => {
-                              const at = viewer.findIndex((v) => v.id === p.id);
-                              return (<li key={p.id} className="shrink-0">
-                                <button type="button" onClick={() => setIndex(at)} className={cn("press block size-20 overflow-hidden rounded-xl bg-surface-sunken sm:size-24", focusRing)} aria-label={`Open photo: ${viewer[at]?.caption ?? u.title}`}>
-                                  {/* eslint-disable-next-line @next/next/no-img-element -- approved site photos from storage */}
-                                  <img src={p.url} alt="" className="size-full object-cover"/>
-                                </button>
-                              </li>);
-                          })}
+                          {own.map((p, k) => (<li key={p.id} className="shrink-0">
+                              <button type="button" onClick={() => setViewer({ list: own, index: k })} aria-label={`Open photo: ${p.caption}`} className={cn("group press block size-24 overflow-hidden rounded-xl bg-surface-sunken sm:size-28", focusRing)}>
+                                {/* eslint-disable-next-line @next/next/no-img-element -- approved site photos from storage */}
+                                <img src={p.url} alt="" className="size-full object-cover transition-transform duration-700 ease-spring group-hover:scale-[1.05]"/>
+                              </button>
+                            </li>))}
                         </ul>) : null}
-                    </div>
-                  </div>
-                </li>);
-            })}
-          </ol>
-        </section>))}
-      <PhotoViewer photos={viewer} index={index} onIndex={setIndex} onClose={() => setIndex(null)}/>
+                    </li>);
+                })}
+              </ol>
+            </motion.div>))}
+        </AnimatePresence>
+      </section>
+      <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)}/>
     </div>);
 }

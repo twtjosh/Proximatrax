@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clientHealth, clientStage, groupUpdates, newSince, nextMilestoneSentence, photoCaption, readVisitBaseline, sinceLabel, toClientPhotos } from "../lib/client-project.ts";
+import { clientHealth, clientStage, focusMilestone, groupByDay, newSince, nextMilestoneSentence, photoCaption, readVisitBaseline, sinceLabel, toClientPhotos } from "../lib/client-project.ts";
 
 const TODAY = "2026-09-24"; // a Thursday
 const ms = (o) => ({ id: o.id, title: o.title ?? o.id, project_id: "p1", due_date: o.due_date, completed: o.completed ?? false });
 
-test("stage: closed, planning while invites or planning, delivered when every milestone is, else running", () => {
+test("stage: closed, planning while nothing has happened yet, delivered when every milestone is, else running", () => {
     assert.equal(clientStage("completed", []), "closed");
-    assert.equal(clientStage("pending_invites", [ms({ id: "a", due_date: TODAY, completed: true })]), "planning");
+    assert.equal(clientStage("pending_invites", [ms({ id: "a", due_date: TODAY })]), "planning");
     assert.equal(clientStage("planning", []), "planning");
     assert.equal(clientStage("in_progress", [ms({ id: "a", due_date: TODAY, completed: true })]), "delivered");
     assert.equal(clientStage("in_progress", []), "running");
@@ -30,20 +30,30 @@ test("next milestone sentence: late, today, tomorrow, later, none", () => {
     assert.equal(nextMilestoneSentence([], TODAY), null);
 });
 
-test("updates group by milestone, groups ordered by their newest entry, unlinked work under Other work", () => {
-    const milestones = [{ id: "m1", title: "Design" }, { id: "m2", title: "Fit-out" }];
+test("stage: work already delivered or accepted means the project is under way, whatever its status says", () => {
+    assert.equal(clientStage("planning", [ms({ id: "a", due_date: TODAY, completed: true }), ms({ id: "b", due_date: "2026-10-30" })]), "running");
+    assert.equal(clientStage("pending_invites", [ms({ id: "b", due_date: "2026-10-30" })], 1), "running");
+    assert.equal(clientStage("planning", [ms({ id: "b", due_date: "2026-10-30" })], 0), "planning");
+});
+
+test("updates group by their Manila day, newest day and newest entry first", () => {
     const updates = [
         { id: "u1", milestone_id: "m1", at: "2026-09-20T02:00:00+00:00" },
-        { id: "u2", milestone_id: null, at: "2026-09-22T02:00:00+00:00" },
+        { id: "u2", milestone_id: null, at: "2026-09-22T17:00:00+00:00" },
         { id: "u3", milestone_id: "m1", at: "2026-09-23T02:00:00+00:00" },
-        { id: "u4", milestone_id: "m2", at: "2026-09-21T02:00:00+00:00" },
+        { id: "u4", milestone_id: "m2", at: "2026-09-20T05:00:00+00:00" },
     ];
-    const groups = groupUpdates(updates, milestones);
-    assert.deepEqual(groups.map((g) => [g.key, g.title, g.items.map((u) => u.id)]), [
-        ["m1", "Design", ["u3", "u1"]],
-        ["other", "Other work", ["u2"]],
-        ["m2", "Fit-out", ["u4"]],
+    assert.deepEqual(groupByDay(updates).map((d) => [d.day, d.items.map((u) => u.id)]), [
+        ["2026-09-23", ["u3", "u2"]],
+        ["2026-09-20", ["u4", "u1"]],
     ]);
+});
+
+test("focus milestone: the earliest undelivered one, else the last; none without milestones", () => {
+    const milestones = [ms({ id: "c", due_date: "2026-10-30" }), ms({ id: "a", due_date: "2026-09-10", completed: true }), ms({ id: "b", due_date: "2026-09-20" })];
+    assert.equal(focusMilestone(milestones), "b");
+    assert.equal(focusMilestone(milestones.map((m) => ({ ...m, completed: true }))), "c");
+    assert.equal(focusMilestone([]), null);
 });
 
 test("new since compares instants, not strings; no baseline means nothing is new", () => {

@@ -10,11 +10,14 @@ import type { ProjectStatus } from "../types/enums";
  */
 export type ClientStage = "planning" | "running" | "delivered" | "closed";
 
-/** What the client Overview is for right now. */
-export function clientStage(status: ProjectStatus, milestones: Pick<DashboardMilestone, "completed">[]): ClientStage {
+/**
+ * What the client Overview is for right now. A project still marked as
+ * planning is under way once a milestone is delivered or work is accepted.
+ */
+export function clientStage(status: ProjectStatus, milestones: Pick<DashboardMilestone, "completed">[], accepted = 0): ClientStage {
     if (status === "completed")
         return "closed";
-    if (status === "pending_invites" || status === "planning")
+    if ((status === "pending_invites" || status === "planning") && accepted === 0 && !milestones.some((m) => m.completed))
         return "planning";
     return milestones.length > 0 && milestones.every((m) => m.completed) ? "delivered" : "running";
 }
@@ -48,21 +51,19 @@ export function nextMilestoneSentence(milestones: DashboardMilestone[], today: s
 }
 
 export type Update = { id: string; milestone_id: string | null; at: string };
-export type UpdateGroup<T> = { key: string; title: string; items: T[] };
-
-/** Accepted work newest first, grouped by milestone in order of each group's newest entry; unlinked work goes under "Other work". */
-export function groupUpdates<T extends Update>(updates: T[], milestones: Pick<DashboardMilestone, "id" | "title">[]): UpdateGroup<T>[] {
-    const groups = new Map<string, UpdateGroup<T>>();
+/** Accepted work by the Manila day it was accepted, newest day and newest entry first. */
+export function groupByDay<T extends Update>(updates: T[]): { day: string; items: T[] }[] {
+    const days = new Map<string, T[]>();
     for (const u of [...updates].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))) {
-        const key = u.milestone_id ?? "other";
-        let group = groups.get(key);
-        if (!group) {
-            group = { key, title: milestones.find((m) => m.id === u.milestone_id)?.title ?? "Other work", items: [] };
-            groups.set(key, group);
-        }
-        group.items.push(u);
+        const day = isoDateIn(u.at);
+        days.set(day, [...(days.get(day) ?? []), u]);
     }
-    return [...groups.values()];
+    return [...days].map(([day, items]) => ({ day, items }));
+}
+
+/** The milestone the Overview opens on: the earliest not yet delivered, else the last one. */
+export function focusMilestone(milestones: DashboardMilestone[]): string | null {
+    return undelivered(milestones)[0]?.id ?? [...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date)).at(-1)?.id ?? null;
 }
 
 /** Items newer than the last visit. Instants are compared, since Postgres and JS format them differently. */

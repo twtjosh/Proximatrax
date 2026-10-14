@@ -1,84 +1,79 @@
 "use client";
 import * as React from "react";
 import { JourneyLine } from "@/components/projects/pm/journey-line";
-import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
-import { clientStage, newSince, nextMilestoneSentence, sinceLabel } from "@/lib/client-project";
+import { PhotoViewer, type ViewerPhoto } from "@/components/projects/shared/photo-viewer";
+import { clientStage, focusMilestone, newSince, nextMilestoneSentence, sinceLabel } from "@/lib/client-project";
 import type { ClientProjectData } from "@/lib/data/client-project";
-import { formatDate, isoDateIn } from "@/lib/dashboard";
+import { formatDate } from "@/lib/dashboard";
 import { journeyStations } from "@/lib/pm-project";
 import { cn } from "@/lib/utils";
 import { HandoverRecord } from "./handover-record";
-import { LatestUpdate } from "./latest-update";
-import { PmCard } from "./pm-card";
+import { LatestPhoto } from "./latest-photo";
+import { MilestoneFocus } from "./milestone-focus";
+import { RecentUpdates } from "./recent-updates";
 import { SinceLastVisit } from "./since-last-visit";
 import { toViewerPhotos, useVisitBaseline } from "./visit-baseline";
 
-const short = (iso: string) => formatDate(iso, { month: "long", day: "numeric", year: "numeric" });
+const long = (iso: string) => formatDate(iso, { month: "long", day: "numeric" });
 
 /**
- * The client's project Overview: their space taking shape. What it shows
- * depends on the project: being planned, under way, every milestone
- * delivered, or handed over.
+ * The client's project Overview. The headline answers "what's next, and is it
+ * on time"; the journey and the milestone under it show what happened where;
+ * the side keeps what's new. Messaging lives in the header, once.
  */
 export function ClientOverview({ data }: {
     data: ClientProjectData;
 }) {
     const { project, milestones, updates, photos, today } = data;
     const baseline = useVisitBaseline(project.id);
-    const [index, setIndex] = React.useState<number | null>(null);
-    const stage = clientStage(project.status, milestones);
     const stations = journeyStations(milestones, [], today);
+    const [picked, setPicked] = React.useState<string | null>(null);
+    const selected = picked && stations.some((s) => s.id === picked) ? picked : focusMilestone(milestones);
+    const [viewer, setViewer] = React.useState<{ list: ViewerPhoto[]; index: number } | null>(null);
+    const stage = clientStage(project.status, milestones, updates.length);
     const sentence = nextMilestoneSentence(milestones, today);
-    const fresh = newSince(updates, baseline);
-    const viewer = toViewerPhotos(photos, milestones);
-    const newest = updates[0];
-    const newestText = newest ? { title: newest.title, line: [`Accepted ${formatDate(isoDateIn(newest.at), { month: "short", day: "numeric" })}`, milestones.find((m) => m.id === newest.milestone_id)?.title].filter(Boolean).join(" · ") } : undefined;
-    const viewerNode = <PhotoViewer photos={viewer} index={index} onIndex={setIndex} onClose={() => setIndex(null)}/>;
+    const fresh = new Set(newSince(updates, baseline).map((u) => u.id));
+    const all = toViewerPhotos(photos, milestones);
+    const tagged = all.map((p, k) => ({ ...p, milestone_id: photos[k].milestone_id }));
+    const nextId = stations.find((s) => s.state !== "delivered")?.id ?? null;
+    const viewerNode = <PhotoViewer photos={viewer?.list ?? []} index={viewer?.index ?? null} onIndex={(index) => setViewer((v) => (v ? { ...v, index } : v))} onClose={() => setViewer(null)}/>;
     const failed = data.loadFailed ? <p role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">Some updates couldn&apos;t be loaded. Reload to try again.</p> : null;
 
     if (stage === "closed") {
-        return (<>
+        return (<div className="grid gap-5">
           {failed}
-          <HandoverRecord project={project} stations={stations} today={today} photos={viewer} onOpen={setIndex}/>
+          <HandoverRecord project={project} stations={stations} today={today} photos={all} onOpen={(index) => setViewer({ list: all, index })}/>
           {viewerNode}
-        </>);
-    }
-
-    const journey = stations.length > 0 ? (<div className="grid gap-3">
-        <JourneyLine projectId={project.id} stations={stations} today={today} plain showWork={false}/>
-        {sentence ? <p className={cn("px-2 text-[15px] font-medium", sentence.late ? "text-danger" : "text-ink")}>{sentence.text}</p> : null}
-      </div>) : (<p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Your milestones will appear here once your project manager sets them.</p>);
-
-    if (stage === "planning") {
-        return (<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="grid min-w-0 gap-5">
-            {failed}
-            <section aria-labelledby="planning" className="materialize rounded-[24px] material p-6 sm:p-8">
-              <h2 id="planning" className="text-[1.5rem] leading-tight font-semibold tracking-[-0.025em] text-ink">Your project is being planned</h2>
-              <p className="mt-2 text-sm text-ink-secondary">Planned for {short(project.start_date)} to {short(project.end_date)}.</p>
-              <ol className="mt-6 grid gap-3 text-sm text-ink-secondary">
-                {["Your project manager sets the milestones and their dates.", "Work starts on site.", "When your project manager accepts finished work, it appears here with its photos."].map((step, i) => (<li key={step} className="flex gap-3">
-                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-xs font-semibold text-ink tabular" aria-hidden>{i + 1}</span>
-                    {step}
-                  </li>))}
-              </ol>
-            </section>
-            {stations.length > 0 ? journey : null}
-          </div>
-          <PmCard projectId={project.id} pm={project.pm}/>
         </div>);
     }
 
-    return (<div className="grid gap-5">
+    const headline = stage === "planning" ? { text: "Your project is being planned", tone: "text-ink" }
+        : stage === "delivered" ? { text: "Every milestone is delivered", tone: "text-success" }
+            : sentence ? { text: sentence.text, tone: sentence.late ? "text-danger" : "text-ink" }
+                : { text: "Your project is under way", tone: "text-ink" };
+    const sub = stage === "planning" ? `Planned for ${long(project.start_date)} to ${long(project.end_date)}. ${project.pm?.full_name ?? "Your project manager"} is setting the milestones; finished work appears here as it is accepted.`
+        : stage === "delivered" ? "Your project manager is preparing the handover."
+            : project.status === "on_hold" ? "Your project manager has paused work for now. Message them if you have questions."
+                : null;
+
+    return (<div className="grid gap-6">
       {failed}
-      {stage === "delivered" ? <p role="status" className="materialize rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">Every milestone is delivered. Your project manager is preparing the handover.</p> : null}
-      <LatestUpdate photo={viewer[0]} text={newestText} onOpen={() => setIndex(0)}/>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0">{journey}</div>
-        <div className="grid gap-5">
-          {baseline ? <SinceLastVisit projectId={project.id} count={fresh.length} label={sinceLabel(baseline, today)}/> : null}
-          <PmCard projectId={project.id} pm={project.pm}/>
+      <header className="materialize">
+        <h2 className={cn("text-[clamp(1.4rem,2.6vw,1.9rem)] leading-tight font-semibold tracking-[-0.03em] text-balance", headline.tone)}>{headline.text}</h2>
+        {sub ? <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-secondary">{sub}</p> : null}
+      </header>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid min-w-0 gap-5">
+          {stations.length > 0 && selected ? (<>
+              <JourneyLine projectId={project.id} stations={stations} today={today} plain showWork={false} selected={selected} onSelect={setPicked}/>
+              <MilestoneFocus stations={stations} selected={selected} onSelect={setPicked} nextId={nextId} updates={updates} photos={tagged} today={today} onOpenPhoto={(list, index) => setViewer({ list, index })}/>
+            </>) : <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Your milestones will appear here once your project manager sets them.</p>}
         </div>
+        <aside aria-label="What's new" className="grid gap-5 lg:sticky lg:top-[calc(var(--frame-h,0px)+1.5rem)]">
+          {baseline ? <SinceLastVisit projectId={project.id} count={fresh.size} label={sinceLabel(baseline, today)}/> : null}
+          {all[0] ? <LatestPhoto photo={all[0]} onOpen={() => setViewer({ list: all, index: 0 })}/> : null}
+          <RecentUpdates projectId={project.id} updates={updates} milestones={milestones} fresh={fresh}/>
+        </aside>
       </div>
       {viewerNode}
     </div>);
