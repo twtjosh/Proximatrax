@@ -1,5 +1,5 @@
 import type { WorkflowGateContext } from "@/lib/milestone-task-gates";
-import { priorPhasesBlockingTask } from "@/lib/milestone-task-gates";
+import { priorPhasesBlockingTask } from "./milestone-task-gates.ts";
 import type { TaskStage, UserRole } from "@/types/enums";
 export type { WorkflowGateContext };
 export type BoardColumnStage = Exclude<TaskStage, "backlog">;
@@ -94,6 +94,8 @@ export function normalizeBoardStage(stage: TaskStage): BoardColumnStage {
 export function validateStageTransition(task: TaskForGate, from: BoardColumnStage, to: BoardColumnStage, viewerRole: UserRole, gateContext?: WorkflowGateContext): {
     ok: true;
     claimAssignee?: string;
+    /** The PM is starting work ahead of an earlier milestone; the UI confirms first. */
+    warning?: string;
 } | {
     ok: false;
     failures: GateFailure[];
@@ -101,25 +103,6 @@ export function validateStageTransition(task: TaskForGate, from: BoardColumnStag
     const delta = stageDelta(from, to);
     if (delta === 0)
         return { ok: true };
-    if (delta > 0 && gateContext && task.milestone_id) {
-        const phaseBlock = priorPhasesBlockingTask({
-            id: task.id ?? "",
-            milestone_id: task.milestone_id,
-            stage: task.stage,
-        }, gateContext.tasks, gateContext.milestones);
-        if (phaseBlock.blocked) {
-            return {
-                ok: false,
-                failures: [
-                    {
-                        code: "prior_phase",
-                        message: phaseBlock.message ??
-                            "Finish earlier milestone tasks before advancing this work.",
-                    },
-                ],
-            };
-        }
-    }
     if (delta < 0) {
         if (viewerRole !== "project_manager") {
             return {
@@ -146,21 +129,26 @@ export function validateStageTransition(task: TaskForGate, from: BoardColumnStag
         };
     }
     if (from === "to_do" && to === "in_progress") {
-        if (!task.assigned_to) {
-            if (viewerRole === "middleman") {
-                return { ok: true, claimAssignee: "self" };
-            }
+        if (!task.assigned_to && viewerRole !== "middleman") {
             return {
                 ok: false,
-                failures: [
-                    {
-                        code: "assignee",
-                        message: "Assign an owner before starting work — unassigned tasks stay in Ready.",
-                    },
-                ],
+                failures: [{ code: "assignee", message: "Assign someone before starting this task." }],
             };
         }
-        return { ok: true };
+        // The milestone order guards starting new work only; work already under way can always finish.
+        const phaseBlock = gateContext && task.milestone_id
+            ? priorPhasesBlockingTask({ id: task.id ?? "", milestone_id: task.milestone_id, stage: task.stage }, gateContext.tasks, gateContext.milestones)
+            : { blocked: false as const };
+        const claim = !task.assigned_to && viewerRole === "middleman" ? { claimAssignee: "self" } : {};
+        if (phaseBlock.blocked) {
+            if (viewerRole === "project_manager")
+                return { ok: true, ...claim, warning: `Start before ${phaseBlock.milestone?.title ?? "the earlier milestone"} is finished?` };
+            return {
+                ok: false,
+                failures: [{ code: "prior_phase", message: phaseBlock.message ?? "Finish the earlier milestone first." }],
+            };
+        }
+        return { ok: true, ...claim };
     }
     if (from === "in_progress" && to === "review") {
         return { ok: true };
@@ -172,7 +160,7 @@ export function validateStageTransition(task: TaskForGate, from: BoardColumnStag
                 failures: [
                     {
                         code: "pm_only",
-                        message: "Only the project manager can accept work into Done — submit for inspection and wait for sign-off.",
+                        message: "Only the project manager can accept work. Submit it for review.",
                     },
                 ],
             };
@@ -193,7 +181,8 @@ export function nextHandoffAction(task: TaskForGate & {
     if (viewerRole === "client")
         return null;
     function forwardAction(action: NextHandoffAction): NextHandoffAction | null {
-        if (!gateContext || !task.milestone_id)
+        // Only starting is gated by the milestone order.
+        if (!gateContext || !task.milestone_id || stage !== "to_do")
             return action;
         const phaseBlock = priorPhasesBlockingTask({
             id: task.id ?? "",
@@ -241,14 +230,14 @@ export function nextHandoffAction(task: TaskForGate & {
 }
 export function taskBlockedReason(task: TaskForGate, viewerRole: UserRole, gateContext?: WorkflowGateContext): string | null {
     const stage = normalizeBoardStage(task.stage);
-    if (gateContext && task.milestone_id && stage !== "done") {
+    if (gateContext && task.milestone_id && stage === "to_do") {
         const phaseBlock = priorPhasesBlockingTask({
             id: task.id ?? "",
             milestone_id: task.milestone_id,
             stage: task.stage,
         }, gateContext.tasks, gateContext.milestones);
         if (phaseBlock.blocked && phaseBlock.milestone) {
-            return `Finish ${phaseBlock.milestone.title} first`;
+            return `Waits for ${phaseBlock.milestone.title}`;
         }
     }
     if (stage === "to_do" && !task.assigned_to) {
