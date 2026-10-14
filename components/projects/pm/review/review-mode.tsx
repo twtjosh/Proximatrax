@@ -165,7 +165,7 @@ export function ReviewMode({ projectId, tasks, attachments, initialTask }: {
         <button type="button" onClick={leave} aria-label="Close review" className={cn("press grid size-10 cursor-pointer place-items-center rounded-full bg-surface-sunken hover:bg-line", focusRing)}><X className="size-5" aria-hidden/></button>
       </header>
 
-      {queue.length === 0 ? (<CaughtUp onLeave={leave}/>) : (<div className="grid min-h-0 flex-1 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      {queue.length === 0 ? (<CaughtUp onLeave={leave}/>) : (<div className="grid min-h-0 flex-1 max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[20rem_minmax(0,1fr)]">
           <nav aria-label="Waiting for review" className="min-h-0 overflow-y-auto border-line p-3 max-lg:flex max-lg:gap-2 max-lg:overflow-x-auto max-lg:border-b lg:border-r">
             <ul className="grid gap-1.5 max-lg:flex">
               {queue.map((t) => {

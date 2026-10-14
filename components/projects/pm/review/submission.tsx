@@ -184,7 +184,7 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/90 px-4 py-3 backdrop-blur-xl lg:left-[20rem]">
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-4xl sm:px-4">
           {sending ? (<form onSubmit={(e) => { e.preventDefault(); submitSendBack(); }} className="grid gap-2.5">
               <div className="flex flex-wrap gap-1.5">
                 {REASONS.map((r) => <button key={r} type="button" onClick={() => setReason(r)} className={cn("press h-8 cursor-pointer rounded-full px-3 text-xs font-medium", reason === r ? "bg-ink text-white" : "bg-surface-sunken text-ink-secondary hover:text-ink", focusRing)}>{r}</button>)}
