@@ -22,7 +22,8 @@ export type ProjectBoardQuery = {
     assignee?: string;
     mine?: "1";
     q?: string;
-    view?: "all";
+    view?: "all" | "list";
+    late?: "1";
 };
 export const projectBoardPath = (id: string, query?: ProjectBoardQuery) => {
     const base = `${projectPath(id)}/board`;
@@ -41,6 +42,8 @@ export const projectBoardPath = (id: string, query?: ProjectBoardQuery) => {
         params.set("q", query.q);
     if (query.view)
         params.set("view", query.view);
+    if (query.late)
+        params.set("late", query.late);
     const qs = params.toString();
     return qs ? `${base}?${qs}` : base;
 };
