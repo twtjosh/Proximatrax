@@ -49,13 +49,16 @@ export function PmOverview({ data, viewerId }: {
       {stage === "ready" ? <CloseoutCard projectId={project.id} title={project.title} statement={project.completion_statement} milestones={milestones.length} tasks={tasks.length} pmId={viewerId}/> : null}
       <StatusStrip projectId={project.id} update={data.update} accepted={load.stages.done} total={load.tasksTotal} end={project.end_date} forecast={forecastHandover(project.start_date, project.end_date, tasks, today)} late={load.overdue} inReview={load.stages.review} today={today} closed={closedNow} by={team.find((m) => m.id === data.update?.by)?.name ?? null}/>
       <JourneyLine projectId={project.id} stations={stations} today={today}/>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <ProjectNeedsYou projectId={project.id} needs={projectNeeds(milestones, tasks, today)} team={team} today={today}/>
-        <ProgressChart points={progressSeries(project.start_date, project.end_date, tasks, today)} total={load.tasksTotal}/>
-      </div>
-      <div className="grid items-start gap-5 lg:grid-cols-2">
-        <OnSiteNow projectId={project.id} tasks={tasks} team={team} today={today}/>
-        <RecentActivity projectId={project.id} rows={data.activity} today={today}/>
+      {/* Two stacked columns, not two rows: a long activity log no longer leaves a hole beside a short card. The last card in each column stretches so both end level. */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-5">
+          <ProjectNeedsYou projectId={project.id} needs={projectNeeds(milestones, tasks, today)} team={team} today={today}/>
+          <OnSiteNow projectId={project.id} tasks={tasks} team={team} today={today}/>
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
+          <ProgressChart points={progressSeries(project.start_date, project.end_date, tasks, today)} total={load.tasksTotal}/>
+          <RecentActivity projectId={project.id} rows={data.activity} today={today}/>
+        </div>
       </div>
     </div>);
 }

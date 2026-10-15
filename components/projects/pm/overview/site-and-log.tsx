@@ -23,7 +23,7 @@ export function OnSiteNow({ projectId, tasks, team, today }: {
 }) {
     const groups = onSiteNow(tasks);
     const person = (id: string | null) => team.find((m) => m.id === id);
-    return (<OverviewCard id="on-site" title="On site now" count={groups.reduce((n, g) => n + g.tasks.length, 0)} aside={<Link href={projectBoardPath(projectId, { stage: "in_progress" })} className={cn("rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Board</Link>} className="materialize" style={stagger(5)}>
+    return (<OverviewCard id="on-site" title="On site now" count={groups.reduce((n, g) => n + g.tasks.length, 0)} aside={<Link href={projectBoardPath(projectId, { stage: "in_progress" })} className={cn("rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Board</Link>} className="materialize flex-1" style={stagger(5)}>
       {groups.length === 0 ? <p className="px-6 pt-1 pb-6 text-sm text-ink-tertiary">No one has work under way. Start a task, or check who is free on Team.</p> : (<ul className="pb-2">
           {groups.map((g) => {
                 const p = person(g.person);
@@ -56,7 +56,7 @@ export function RecentActivity({ projectId, rows, today }: {
     rows: ActivityWithActor[];
     today: string;
 }) {
-    return (<OverviewCard id="recent-activity" title="Recent activity" aside={<Link href={projectActivityPath(projectId)} className={cn("inline-flex items-center gap-0.5 rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Full log<ArrowUpRight className="size-3.5" aria-hidden/></Link>} className="materialize" style={stagger(6)}>
+    return (<OverviewCard id="recent-activity" title="Recent activity" aside={<Link href={projectActivityPath(projectId)} className={cn("inline-flex items-center gap-0.5 rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Full log<ArrowUpRight className="size-3.5" aria-hidden/></Link>} className="materialize flex-1" style={stagger(6)}>
       {rows.length === 0 ? <p className="px-6 pt-1 pb-6 text-sm text-ink-tertiary">Nothing has happened yet.</p> : (<ol className="pb-2">
           {rows.slice(0, 7).map((r) => {
                 const detail = logDetail(r);
