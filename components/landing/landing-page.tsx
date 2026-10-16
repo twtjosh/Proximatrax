@@ -215,7 +215,8 @@ function Stop({ index, reached, current, nodeRef }: {
         </h3>
         <p className="mt-5 max-w-[34rem] text-[17px] leading-relaxed text-pretty text-land-ink-2">{stop.body}</p>
       </div>
-      <div className="relative mt-10 -ml-14 sm:-ml-20 lg:hidden">
+      {/* Pulled left only to just past the track (17px / 23px), so the line runs beside the window, not under it. */}
+      <div className="relative mt-10 -ml-6 sm:-ml-10 lg:hidden">
         <Window play={seen}/>
         <WindowCaption index={index}/>
       </div>
