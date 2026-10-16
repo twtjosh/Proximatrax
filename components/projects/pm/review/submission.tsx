@@ -187,7 +187,7 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
           </ul>) : null}
         {task.description ? <p className="max-w-prose text-[15px] leading-relaxed text-ink-secondary">{task.description}</p> : null}
         {files.length > 0 ? (<ul className="flex flex-wrap gap-2">
-            {files.map((f) => (<li key={f.id}><a href={publicTaskAttachmentUrl(f.storage_path)} target="_blank" rel="noopener noreferrer" className={cn(softAction, "h-9")}><FileText aria-hidden/>{f.file_name}</a></li>))}
+            {files.map((f) => (<li key={f.id} className="min-w-0 max-w-full"><a href={publicTaskAttachmentUrl(f.storage_path)} target="_blank" rel="noopener noreferrer" title={f.file_name} className={cn(softAction, "h-9 max-w-full")}><FileText className="shrink-0" aria-hidden/><span className="truncate">{f.file_name}</span></a></li>))}
           </ul>) : null}
       </div>
 

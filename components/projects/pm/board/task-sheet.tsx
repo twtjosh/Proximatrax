@@ -188,7 +188,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
                 setCount(n);
                 onCommentCount(task.id, n);
             }}/>
-        </div>) : tab === "history" ? (<div className="flex-1 overflow-y-auto px-6 py-5"><TaskHistory projectId={projectId} taskId={task.id}/></div>) : (<div className="grid flex-1 content-start gap-6 overflow-y-auto px-6 py-5">
+        </div>) : tab === "history" ? (<div className="flex-1 overflow-y-auto px-6 py-5"><TaskHistory projectId={projectId} taskId={task.id}/></div>) : (<div className="grid flex-1 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-6 py-5">
         {fix ? (<p className="flex items-start gap-2 rounded-2xl bg-danger-soft px-3.5 py-3 text-sm text-danger"><RotateCcw className="mt-0.5 size-4 shrink-0" aria-hidden/><span><b className="font-semibold">Sent back:</b> {fix}</span></p>) : null}
         {blocked && blocked !== "Needs owner" ? (<p className="flex items-center gap-2 rounded-2xl bg-warning-soft px-3.5 py-3 text-sm text-warning"><Lock className="size-4 shrink-0" aria-hidden/>{blocked}. You can still start it; you&apos;ll be asked first.</p>) : null}
 
@@ -258,7 +258,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
             </form>) : null}
         </section>
 
-        <section aria-label="Photos and files" className="grid gap-2">
+        <section aria-label="Photos and files" className="grid grid-cols-[minmax(0,1fr)] gap-2">
           <h3 className="flex items-center justify-between text-xs font-medium text-ink-secondary">Photos and files
             {!closed ? (<button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className={cn(softAction, "h-7")}>{uploading ? <Loader2 className="animate-spin" aria-hidden/> : <Camera aria-hidden/>}{uploading ? "Uploading…" : "Add"}</button>) : null}
           </h3>
@@ -273,7 +273,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
                   {!locked ? <button type="button" aria-label={`Remove photo ${i + 1}`} onClick={() => void removeFile(p)} className={cn("absolute top-1.5 right-1.5 grid size-7 cursor-pointer place-items-center rounded-full bg-surface/90 text-ink-secondary opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger focus-visible:opacity-100", focusRing)}><Trash2 className="size-3.5" aria-hidden/></button> : null}
                 </li>))}
             </ul>) : null}
-          {docs.length > 0 ? (<ul className="grid gap-1">
+          {docs.length > 0 ? (<ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
               {docs.map((d) => (<li key={d.id} className="group flex items-center gap-2 rounded-xl px-1 py-1 hover:bg-surface-sunken">
                   <FileText className="size-4 shrink-0 text-ink-tertiary" aria-hidden/>
                   <a href={publicTaskAttachmentUrl(d.storage_path)} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm hover:underline">{d.file_name}</a>
