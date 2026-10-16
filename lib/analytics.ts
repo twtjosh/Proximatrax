@@ -1,5 +1,5 @@
 import type { Milestone, Project, Task } from "../types/database";
-import { daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
+import { addDays, daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
 
 /**
  * Pure derivations behind the owner's Overview and the PM's Analytics page.
@@ -143,3 +143,143 @@ export function inquiryYear(rows: { id: string; status: string; created_at: stri
         unopened: mine.filter((r) => !seen.has(r.id)).length,
     };
 }
+
+export type MilestoneRecord = { completed: number; onTime: number; overdue: number; ticks: ("on_time" | "late")[] };
+
+/**
+ * A completed milestone is on time when it was completed on or before its due
+ * date; one with no recorded date counts as on time. Overdue counts open
+ * milestones past their date. `ticks` follow due-date order.
+ */
+export function milestoneRecord(milestones: AMilestone[], today: string): MilestoneRecord {
+    const done = milestones.filter((m) => m.completed).sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const ticks = done.map((m) => (!m.completed_at || dateOf(m.completed_at) <= m.due_date ? "on_time" as const : "late" as const));
+    return {
+        completed: done.length,
+        onTime: ticks.filter((t) => t === "on_time").length,
+        overdue: milestones.filter((m) => !m.completed && m.due_date < today).length,
+        ticks,
+    };
+}
+
+export type TaskCounts = { ongoing: number; dueSoon: number; completed: number };
+
+/** Ongoing is in progress or in review; due soon is open work due from today through `horizonDays - 1` days ahead. */
+export function taskCounts(tasks: ATask[], today: string, horizonDays = 14): TaskCounts {
+    const last = addDays(today, horizonDays - 1);
+    return {
+        ongoing: tasks.filter((t) => t.stage === "in_progress" || t.stage === "review").length,
+        dueSoon: tasks.filter((t) => t.stage !== "done" && t.due_date !== null && t.due_date >= today && t.due_date <= last).length,
+        completed: tasks.filter((t) => t.stage === "done").length,
+    };
+}
+
+/** Late is open work past its due date; work in review waits on the PM, so it is never late (as in `lib/people-load.ts`). */
+const isLate = (t: ATask, today: string) => t.stage !== "done" && t.stage !== "review" && t.due_date !== null && t.due_date < today;
+
+export type OpenLoad = { open: number; late: number; review: number };
+
+export function openLoad(tasks: ATask[], today: string): OpenLoad {
+    const open = tasks.filter((t) => t.stage !== "done");
+    return { open: open.length, late: open.filter((t) => isLate(t, today)).length, review: open.filter((t) => t.stage === "review").length };
+}
+
+export type Waiting = { task: ATask; since: string; days: number };
+
+/** Tasks in review, oldest submission first. A submission dates from the task's latest move into review, else its last update. */
+export function waitingForReview(tasks: ATask[], moves: TaskMove[], today: string): Waiting[] {
+    const submitted = new Map<string, string>();
+    for (const m of moves) {
+        if (m.to === "review" && (submitted.get(m.task_id) ?? "") < m.at)
+            submitted.set(m.task_id, m.at);
+    }
+    return tasks
+        .filter((t) => t.stage === "review")
+        .map((task) => {
+            const since = submitted.get(task.id) ?? task.updated_at;
+            return { task, since, days: Math.max(0, daysBetween(dateOf(since), today)) };
+        })
+        .sort((a, b) => a.since.localeCompare(b.since));
+}
+
+/**
+ * Mean days from a submission to the PM's answer (accepted or sent back), over
+ * submissions made in the last `windowDays`, to one decimal. Submissions still
+ * waiting are left out; null when none was answered.
+ */
+export function reviewTurnaround(moves: TaskMove[], today: string, windowDays = 90): number | null {
+    const from = addDays(today, -(windowDays - 1));
+    const sorted = [...moves].sort((a, b) => a.at.localeCompare(b.at));
+    const waits: number[] = [];
+    // ponytail: scans forward per submission (O(n²)); index moves by task if a PM's log grows past a few thousand.
+    sorted.forEach((m, i) => {
+        if (m.to !== "review" || dateOf(m.at) < from)
+            return;
+        const answer = sorted.slice(i + 1).find((n) => n.task_id === m.task_id && n.from === "review");
+        if (answer)
+            waits.push((Date.parse(answer.at) - Date.parse(m.at)) / 86_400_000);
+    });
+    return waits.length > 0 ? Math.round((waits.reduce((s, w) => s + w, 0) / waits.length) * 10) / 10 : null;
+}
+
+export type Person = { id: string; name: string; avatarUrl: string | null };
+export type CrewRow = Person & OpenLoad & { finished: number; finishedOnTime: number; sentBack: number; submissions: number };
+
+/**
+ * Each person's record across `tasks`: open work, lateness, finished work
+ * (on time when it has no due date or was completed by it), and how often
+ * their submissions came back. Moves count for the task's current assignee.
+ * People with no tasks are left out. Most late first, then busiest.
+ */
+export function crewRecord(people: Person[], tasks: ATask[], moves: TaskMove[], today: string): CrewRow[] {
+    const assignee = new Map(tasks.map((t) => [t.id, t.assigned_to]));
+    return people
+        .map((p) => {
+            const mine = tasks.filter((t) => t.assigned_to === p.id);
+            const done = mine.filter((t) => t.stage === "done");
+            const theirs = moves.filter((m) => assignee.get(m.task_id) === p.id);
+            return {
+                ...p,
+                ...openLoad(mine, today),
+                finished: done.length,
+                finishedOnTime: done.filter((t) => !t.due_date || !t.completed_at || dateOf(t.completed_at) <= t.due_date).length,
+                submissions: theirs.filter((m) => m.to === "review").length,
+                sentBack: theirs.filter((m) => m.from === "review" && m.to === "in_progress").length,
+            };
+        })
+        .filter((r) => r.open + r.finished > 0)
+        .sort((a, b) => b.late - a.late || b.open - a.open || a.name.localeCompare(b.name));
+}
+
+export type ProjectRow = {
+    project: AProject;
+    result: ProjectResult;
+    milestones: { done: number; onTime: number; overdue: number };
+    tasks: { done: number; total: number };
+};
+
+/** One row per project: active ones newest start first, delivered ones newest delivery first. */
+export function projectRows(projects: AProject[], milestones: AMilestone[], tasks: ATask[], today: string): { active: ProjectRow[]; delivered: ProjectRow[] } {
+    const row = (project: AProject): ProjectRow => {
+        const ms = milestoneRecord(milestones.filter((m) => m.project_id === project.id), today);
+        const ts = tasks.filter((t) => t.project_id === project.id);
+        return {
+            project,
+            result: projectResult(project, milestones, today),
+            milestones: { done: ms.completed, onTime: ms.onTime, overdue: ms.overdue },
+            tasks: { done: ts.filter((t) => t.stage === "done").length, total: ts.length },
+        };
+    };
+    return {
+        active: projects.filter(isActive).sort((a, b) => b.start_date.localeCompare(a.start_date)).map(row),
+        delivered: projects
+            .filter((p) => !isActive(p))
+            .sort((a, b) => (b.completed_at ?? b.end_date).localeCompare(a.completed_at ?? a.end_date))
+            .map(row),
+    };
+}
+
+/** "today", "1 day", "5 days": how long something has waited. */
+export const agePhrase = (days: number) => (days === 0 ? "today" : plural(days, "day"));
+/** Waiting is quiet for a day, a warning from two, late from three. */
+export const ageTone = (days: number): "late" | "warn" | "quiet" => (days >= 3 ? "late" : days >= 2 ? "warn" : "quiet");
