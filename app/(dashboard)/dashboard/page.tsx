@@ -2,13 +2,14 @@ import { redirect } from "next/navigation";
 import { ClientPortalHome } from "@/components/client-portal/client-portal-home";
 import { PmDashboard } from "@/components/dashboard/pm-dashboard";
 import { ProjectInvitationsInbox } from "@/components/projects/project-invitations-inbox";
-import { SuperAdminAnalyticsDashboard } from "@/components/superadmin/super-admin-analytics-dashboard";
+import { OwnerOverview } from "@/components/analytics/owner-overview";
+import { inquiryYear } from "@/lib/analytics";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { greeting, isoDateIn, type DashboardMilestone, type DashboardTask } from "@/lib/dashboard";
 import { getViewer } from "@/lib/supabase/server";
 import { listPendingInvitationsForUser } from "@/services/project-invitation-service";
 import { listProjects } from "@/services/project-service";
-import { fetchSuperAdminAnalytics } from "@/services/super-admin-analytics-service";
+import { loadOwnerAnalytics } from "@/services/analytics-service";
 import { getSuperAdminInquirySummaries, getSuperAdminViewedInquiryIds } from "@/lib/data/inquiry-shell";
 import { triageCounts } from "@/lib/inquiry-triage";
 import { loadProjectContext } from "@/lib/data/project-context";
@@ -25,11 +26,11 @@ export default async function DashboardPage() {
     const firstName = resolvedProfile?.full_name?.split(" ")[0];
     if (role === "super_admin") {
         const [analytics, inquiries, viewed] = await Promise.all([
-            fetchSuperAdminAnalytics(supabase),
+            loadOwnerAnalytics(supabase, today),
             getSuperAdminInquirySummaries().catch(() => []),
             getSuperAdminViewedInquiryIds(user.id).catch(() => []),
         ]);
-        return (<SuperAdminAnalyticsDashboard greeting={`${greeting(now)}, ${firstName ?? "there"}`} today={today} analytics={analytics} unopenedInquiries={triageCounts(inquiries, viewed).totalUnopened}/>);
+        return (<OwnerOverview greeting={`${greeting(now)}, ${firstName ?? "there"}`} today={today} analytics={analytics} inquiries={inquiryYear(inquiries, viewed, today.slice(0, 4))} unopenedInquiries={triageCounts(inquiries, viewed).totalUnopened}/>);
     }
     if (role === "project_manager") {
         const projects = await listProjects(supabase, { lifecycle: "active" });

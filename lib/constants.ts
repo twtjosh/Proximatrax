@@ -14,8 +14,11 @@ export const ROUTES = {
     MIDDLEMAN_ACCOUNT: "/middleman/account",
     INQUIRIES: "/inquiries",
     SETTINGS: "/settings",
+    ANALYTICS: "/analytics",
 } as const;
 export const projectPath = (id: string) => `${ROUTES.PROJECTS}/${id}`;
+/** A project manager's Analytics page as the owner sees it. */
+export const analyticsManagerPath = (id: string) => `${ROUTES.ANALYTICS}/${id}`;
 export type ProjectBoardQuery = {
     stage?: string;
     milestone?: string;
