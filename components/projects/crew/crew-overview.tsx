@@ -132,6 +132,6 @@ export function CrewOverview({ data, viewerId, openTask }: {
         {mineCount > 0 ? <WorkLanes lanes={lanes} today={today} open={open} onToggle={(id) => setOpen((o) => (o === id ? null : id))} photoCount={photoCount} workbench={workbench}/> : null}
         {pool.length > 0 ? <OpenWork tasks={pool} today={today} busy={busy} disabled={paused} onTake={(t) => void take(t)}/> : null}
       </div>
-      <SiteCard projectId={project.id} next={next} team={data.team} viewerId={viewerId}/>
+      <SiteCard next={next} team={data.team} viewerId={viewerId}/>
     </div>);
 }

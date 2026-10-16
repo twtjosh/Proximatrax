@@ -1,16 +1,13 @@
 "use client";
-import { MessageSquare } from "lucide-react";
-import { Face, OverviewCard, softAction } from "@/components/dashboard/overview-kit";
-import { OpenChatButton } from "@/components/messenger/open-chat-button";
+import { Face, OverviewCard } from "@/components/dashboard/overview-kit";
 import type { SiteNext } from "@/lib/crew-project";
 import type { TeamMember } from "@/lib/data/project-context";
 import { formatDate, plural } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 import { ROLE_TERMS } from "@/lib/vocabulary";
 
-/** The site around the viewer's work: the next milestone and how their tasks feed it, then who is on the project. */
-export function SiteCard({ projectId, next, team, viewerId }: {
-    projectId: string;
+/** The site around the viewer's work: the next milestone and how their tasks feed it, then who is on the project. The header's Message button reaches the PM. */
+export function SiteCard({ next, team, viewerId }: {
     next: SiteNext | null;
     team: TeamMember[];
     viewerId: string;
@@ -36,7 +33,6 @@ export function SiteCard({ projectId, next, team, viewerId }: {
                 <span className="block truncate text-sm font-medium text-ink">{pm.name}</span>
                 <span className="block text-xs text-ink-tertiary">{pm.role}</span>
               </span>
-              <OpenChatButton projectId={projectId} className={cn(softAction, "h-9")}><MessageSquare aria-hidden/>Message</OpenChatButton>
             </li>) : null}
           {crew.map((m) => (<li key={m.id} className="flex items-center gap-3 py-2">
               <Face person={m} size={34}/>
