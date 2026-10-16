@@ -175,7 +175,7 @@ export function NewProjectForm({ today, clients, middlemen }: {
             </p>) : null}
           <div className="hidden border-t border-line px-5 pt-4 pb-5 lg:block">
             {action}
-            <p className="mt-2.5 text-center text-[12.5px] text-ink-tertiary">{blocker ?? <>Press <kbd className="rounded border border-b-2 border-line-strong px-1 font-sans text-[11px]">Ctrl</kbd> <kbd className="rounded border border-b-2 border-line-strong px-1 font-sans text-[11px]">Enter</kbd> to create</>}</p>
+            <p className="mt-2.5 text-center text-[12.5px] text-ink-tertiary">{blocker ?? <>Press <kbd className="rounded border border-line-strong px-1 shadow-[inset_0_-1px_0_var(--color-line-strong)] font-sans text-[11px]">Ctrl</kbd> <kbd className="rounded border border-line-strong px-1 shadow-[inset_0_-1px_0_var(--color-line-strong)] font-sans text-[11px]">Enter</kbd> to create</>}</p>
           </div>
         </aside>
       </div>
