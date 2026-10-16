@@ -51,6 +51,8 @@ export interface Milestone {
     title: string;
     due_date: string;
     completed: boolean;
+    /** Set by the database when the milestone is marked complete; cleared if reopened. */
+    completed_at: string | null;
     created_at: string;
 }
 export interface Task {
@@ -63,6 +65,8 @@ export interface Task {
     assigned_to: string | null;
     priority: TaskPriority;
     due_date: string | null;
+    /** Set by the database when the task enters "done"; cleared if it leaves. */
+    completed_at: string | null;
     /** When work is planned to begin; the Timeline draws the task from here to its due date. */
     start_date: string | null;
     checklist: unknown;
