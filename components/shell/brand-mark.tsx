@@ -2,18 +2,17 @@ import { cn } from "@/lib/utils";
 import { COMPANY_NAME } from "@/lib/vocabulary";
 
 /**
- * The ProximaTrax mark: a progress orbit with the tracked point at its
- * leading edge, the same ring the overview draws for the portfolio.
+ * The ProximaTrax logo on a white tile. The logo's navy and white facets
+ * would vanish on the midnight rail or a white page, so it always sits on
+ * its own tile, like an app icon. Size it with a `size-*` class.
  */
 export function BrandMark({ className }: {
     className?: string;
 }) {
-    return (<svg viewBox="0 0 24 24" className={cn("size-6 shrink-0", className)} aria-hidden>
-      <rect width="24" height="24" rx="6.5" fill="var(--brand)"/>
-      <circle cx="12" cy="12" r="6" fill="none" stroke="rgb(255 255 255 / 0.28)" strokeWidth="2"/>
-      <path d="M12 6a6 6 0 0 1 5.2 9" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="17.2" cy="15" r="1.9" fill="#FFFFFF"/>
-    </svg>);
+    return (<span className={cn("inline-grid size-6 shrink-0 place-items-center rounded-[28%] bg-white shadow-[inset_0_0_0_1px_rgb(14_18_34/0.08),0_1px_2px_rgb(0_0_0/0.22)]", className)} aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a 128px static mark; the optimizer adds nothing at this size */}
+      <img src="/brand/proximatrax-mark.png" alt="" width={128} height={128} draggable={false} className="size-[94%] object-contain"/>
+    </span>);
 }
 
 export function BrandLockup({ className }: {
