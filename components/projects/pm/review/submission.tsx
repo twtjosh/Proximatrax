@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
-import { Camera, Check, Expand, FileText, Loader2, RotateCcw, Send, ShieldCheck } from "lucide-react";
+import { Camera, Check, Expand, FileText, Film, Loader2, RotateCcw, Send, ShieldCheck } from "lucide-react";
 import { Face, focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { useTouch } from "@/components/middleman/task-workbench";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
@@ -44,7 +44,8 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
     const reduce = useReducedMotion();
     const touch = useTouch();
     const photos = attachments.filter((a) => a.media_kind === "photo");
-    const files = attachments.filter((a) => a.media_kind !== "photo");
+    const videos = attachments.filter((a) => a.media_kind === "video");
+    const files = attachments.filter((a) => a.media_kind !== "photo" && a.media_kind !== "video");
     const [excluded, setExcluded] = React.useState<Set<string>>(() => new Set());
     const [shown, setShown] = React.useState(0);
     const [viewer, setViewer] = React.useState<number | null>(null);
@@ -129,8 +130,8 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
             {/* eslint-disable-next-line @next/next/no-img-element -- site photo from storage */}
             <img key={current.id} src={publicTaskAttachmentUrl(current.storage_path)} alt={current.file_name} draggable={false} className={cn("materialize aspect-[4/3] w-full object-cover transition-[filter,opacity] duration-500 sm:aspect-[16/10]", excluded.has(current.id) && "opacity-55 grayscale")}/>
             <span className="absolute top-3 right-3 grid size-9 place-items-center rounded-full bg-surface/90 text-ink opacity-0 shadow-card transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden><Expand className="size-4"/></span>
-          </button>) : (<div className="grid aspect-[16/7] place-items-center bg-warning-soft text-warning">
-            <span className="grid justify-items-center gap-2 text-sm font-medium"><Camera className="size-7" aria-hidden/>No photos were attached</span>
+          </button>) : videos[0] ? (<SiteVideo item={videos[0]} className="aspect-4/3 sm:aspect-16/10"/>) : (<div className="grid aspect-16/7 place-items-center bg-warning-soft text-warning">
+            <span className="grid justify-items-center gap-2 text-sm font-medium"><Camera className="size-7" aria-hidden/>No photos or videos were attached</span>
           </div>)}
         {stamp ? (<motion.span initial={{ opacity: 0, scale: 1.8, rotate: -14 }} animate={{ opacity: 1, scale: 1, rotate: -8 }} transition={{ type: "spring", bounce: 0.35, duration: 0.45 }} className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-4 border-stage-done bg-surface/85 px-6 py-2 text-2xl font-black tracking-[0.08em] text-success uppercase backdrop-blur-sm">
             Accepted
@@ -155,6 +156,13 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
                     </button>
                   </li>);
                 })}
+          </ul>
+        </div>) : null}
+
+      {videos.length > (current ? 0 : 1) ? (<div className="relative grid gap-2">
+          <p className="text-xs font-medium text-ink-secondary"><Film className="mr-1 inline size-3.5 align-[-2px]" aria-hidden/>{current ? `${videos.length} ${videos.length === 1 ? "video" : "videos"}` : `${videos.length - 1} more ${videos.length === 2 ? "video" : "videos"}`} · stays between you and the crew</p>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {videos.slice(current ? 0 : 1).map((v) => <li key={v.id}><SiteVideo item={v} className="aspect-video rounded-2xl"/></li>)}
           </ul>
         </div>) : null}
 
@@ -212,4 +220,9 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
 
       <PhotoViewer photos={photos.map((p, i) => ({ id: p.id, url: publicTaskAttachmentUrl(p.storage_path), caption: `${task.title} · photo ${i + 1}${excluded.has(p.id) ? " · kept from the client" : ""}` }))} index={viewer} onIndex={setViewer} onClose={() => setViewer(null)}/>
     </motion.article>);
+}
+
+/** A site video the PM can play in place. Pointer presses stay on the player, so scrubbing never swipes the card. */
+function SiteVideo({ item, className }: { item: { storage_path: string; file_name: string }; className?: string }) {
+    return (<video src={publicTaskAttachmentUrl(item.storage_path)} controls preload="metadata" playsInline aria-label={item.file_name} onPointerDownCapture={(e) => e.stopPropagation()} className={cn("block w-full bg-ink object-contain", className)}/>);
 }

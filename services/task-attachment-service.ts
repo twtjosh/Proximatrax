@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mediaKindFromMime, type MediaKind } from "@/lib/media-kind";
+import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { TaskAttachment } from "@/types/database";
 const TASK_BUCKET = "project-tasks";
@@ -60,6 +60,9 @@ export async function approveAttachmentsForClient(ids: string[], approvedAt: str
         throw error;
 }
 export async function uploadTaskAttachment(projectId: string, taskId: string, file: File, client?: SupabaseClient): Promise<TaskAttachment> {
+    const tooBig = uploadTooBig(file);
+    if (tooBig)
+        throw new Error(tooBig);
     const sb = resolveClient(client);
     const { data: { user }, } = await sb.auth.getUser();
     if (!user)

@@ -20,3 +20,14 @@ export function uploadTooBig(file: { size: number; type: string }): string | nul
         return null;
     return `${MEDIA_KIND_LABELS[mediaKindFromMime(file.type)]} can be up to ${MAX_UPLOAD_MB} MB. This one is ${mb.toFixed(1)} MB.`;
 }
+/** A task can go for review once it has a photo or a video of the work; a PDF alone isn't proof. */
+export function hasSiteEvidence(attachments: { media_kind: string }[]): boolean {
+    return attachments.some((a) => a.media_kind === "photo" || a.media_kind === "video");
+}
+/** "2 photos · 1 video"; other files are left out. */
+export function mediaCountPhrase(attachments: { media_kind: string }[]): string {
+    const n = (kind: string) => attachments.filter((a) => a.media_kind === kind).length;
+    const photos = n("photo"), videos = n("video");
+    const parts = [photos ? `${photos} ${photos === 1 ? "photo" : "photos"}` : "", videos ? `${videos} ${videos === 1 ? "video" : "videos"}` : ""].filter(Boolean);
+    return parts.length > 0 ? parts.join(" · ") : "No photos or videos";
+}

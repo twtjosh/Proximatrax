@@ -1,9 +1,12 @@
 "use client";
 import * as React from "react";
-import { Camera, Check, Film, Hourglass, ImagePlus, Loader2, Paperclip, Play, Send } from "lucide-react";
+import { Camera, Check, Film, Hourglass, ImagePlus, Images, Loader2, Paperclip, Play, Send, Upload, Video } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing } from "@/components/dashboard/overview-kit";
+import { UploadTray, type StagedFile } from "@/components/middleman/upload-tray";
 import { nextHandoffAction, normalizeBoardStage, parseChecklist, type ChecklistItem } from "@/lib/board-workflow";
+import { hasSiteEvidence, uploadTooBig } from "@/lib/media-kind";
+import { traySummary } from "@/lib/upload-tray";
 import { cn } from "@/lib/utils";
 import { publicTaskAttachmentUrl, uploadTaskAttachment } from "@/services/task-attachment-service";
 import type { TaskWithRelations } from "@/services/task-service";
@@ -20,9 +23,12 @@ export function useTouch() {
     return React.useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
 }
 
+const pickButton = cn("press inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-brand-soft px-4 text-sm font-semibold text-brand ring-1 ring-copper/30 hover:bg-brand-soft/70 hover:ring-copper disabled:opacity-50", focusRing);
+
 /**
- * The working part of a task for the person doing it: its checklist, site
- * photos (camera first on phones) and the next step in reach of a thumb.
+ * The working part of a task for the person doing it: its checklist, the
+ * site photos and videos (camera first on phones) and the next step in reach
+ * of a thumb. Picked files wait in a tray to be checked before they upload.
  * Shared by Today's focus card and the project page's work lanes, so a task
  * behaves the same everywhere. `disabledReason` turns every action off and
  * says why.
@@ -42,37 +48,75 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
     const handoff = disabledReason ? null : nextHandoffAction(task, "middleman", viewerId);
     const checklist = parseChecklist(task.checklist);
     const done = checklist.filter((c) => c.done).length;
-    const photos = attachments.filter((a) => a.media_kind === "photo").length;
     const editable = stage !== "review" && stage !== "done" && !disabledReason;
-    const cameraRef = React.useRef<HTMLInputElement>(null);
+    const photoRef = React.useRef<HTMLInputElement>(null);
+    const videoRef = React.useRef<HTMLInputElement>(null);
     const libraryRef = React.useRef<HTMLInputElement>(null);
+    const [staged, setStaged] = React.useState<StagedFile[]>([]);
     const [uploading, setUploading] = React.useState(false);
-    const needsPhoto = handoff?.variant === "submit" && photos === 0;
+    const [dragging, setDragging] = React.useState(false);
     const touch = useTouch();
-    const PhotoIcon = touch ? Camera : ImagePlus;
+    const needsMedia = handoff?.variant === "submit" && !hasSiteEvidence(attachments);
+    const pending = traySummary(staged.map((s) => ({ size: s.file.size, type: s.file.type, status: s.status }))).sendable;
 
-    async function upload(files: FileList | null) {
-        if (!files?.length)
+    // Local previews are object URLs; let them go when the card goes.
+    const stagedRef = React.useRef(staged);
+    React.useEffect(() => {
+        stagedRef.current = staged;
+    }, [staged]);
+    React.useEffect(() => () => stagedRef.current.forEach((s) => URL.revokeObjectURL(s.url)), []);
+
+    function add(files: FileList | File[] | null) {
+        const list = Array.from(files ?? []);
+        if (list.length === 0)
+            return;
+        setStaged((s) => [...s, ...list.map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), status: "ready" as const }))]);
+        [photoRef, videoRef, libraryRef].forEach((r) => { if (r.current) r.current.value = ""; });
+    }
+    function remove(id: string) {
+        setStaged((s) => {
+            const gone = s.find((x) => x.id === id);
+            if (gone)
+                URL.revokeObjectURL(gone.url);
+            return s.filter((x) => x.id !== id);
+        });
+    }
+    function clear() {
+        staged.forEach((s) => URL.revokeObjectURL(s.url));
+        setStaged([]);
+    }
+
+    /** Sends every file that can go, one at a time; failures stay in the tray with their reason. */
+    async function uploadAll() {
+        const queue = staged.filter((s) => (s.status === "ready" || s.status === "failed") && !uploadTooBig(s.file));
+        if (queue.length === 0)
             return;
         setUploading(true);
         const added: TaskAttachment[] = [];
-        try {
-            for (const file of Array.from(files))
-                added.push(await uploadTaskAttachment(task.project_id, task.id, file));
+        let failed = 0;
+        for (const item of queue) {
+            setStaged((s) => s.map((x) => (x.id === item.id ? { ...x, status: "uploading", error: undefined } : x)));
+            try {
+                added.push(await uploadTaskAttachment(task.project_id, task.id, item.file));
+                URL.revokeObjectURL(item.url);
+                setStaged((s) => s.filter((x) => x.id !== item.id));
+            }
+            catch (e) {
+                failed += 1;
+                const error = e instanceof Error ? e.message : "Check your signal and try again.";
+                setStaged((s) => s.map((x) => (x.id === item.id ? { ...x, status: "failed", error } : x)));
+            }
+        }
+        if (added.length > 0)
             onUploaded(added);
-            toast.success(added.length === 1 ? "Photo added" : `${added.length} files added`);
-        }
-        catch (e) {
-            toast.error(e instanceof Error ? e.message : "Upload failed. Check your signal and try again.");
-        }
-        finally {
-            setUploading(false);
-            if (cameraRef.current)
-                cameraRef.current.value = "";
-            if (libraryRef.current)
-                libraryRef.current.value = "";
-        }
+        setUploading(false);
+        if (failed === 0)
+            toast.success(added.length === 1 ? "Uploaded" : `${added.length} files uploaded`);
+        else
+            toast.error(added.length > 0 ? `${added.length} uploaded, ${failed} didn’t. They’re still in the tray.` : "Nothing uploaded. Check your signal and try again.");
     }
+
+    const openPicker = () => (touch ? photoRef : libraryRef).current?.click();
 
     return (<>
       <div className="px-5 pb-5 sm:px-7 sm:pb-7">
@@ -96,20 +140,40 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
             </ul>
           </div>) : null}
 
-        {attachments.length > 0 || editable ? (<div className="mt-6 first:mt-0">
-            <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-semibold text-ink">Site photos {attachments.length > 0 ? <span className="font-normal text-ink-tertiary tabular">{attachments.length}</span> : null}</h3>
-              {editable && touch ? (<button type="button" onClick={() => libraryRef.current?.click()} className={cn("rounded-sm text-xs font-medium text-brand hover:underline", focusRing)}>Upload from gallery</button>) : null}
-            </div>
-            <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
-              {attachments.map((a) => <Thumb key={a.id} item={a}/>)}
-              {editable ? (<button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className={cn("press grid size-20 shrink-0 cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-copper/45 bg-brand-soft/60 text-brand hover:border-copper hover:bg-brand-soft", focusRing)} aria-label={touch ? "Take a site photo" : "Add a file"}>
-                  {uploading ? <Loader2 className="size-6 animate-spin" aria-hidden/> : <span className="flex flex-col items-center gap-1 text-[11px] font-semibold"><PhotoIcon className="size-6" aria-hidden/>{touch ? "Take photo" : "Add"}</span>}
-                </button>) : null}
-            </div>
+        {attachments.length > 0 || editable ? (<div className={cn("mt-6 rounded-2xl transition-[box-shadow,background-color] first:mt-0", dragging && "bg-brand-soft/50 ring-2 ring-copper ring-offset-4 ring-offset-surface")} onDragOver={(e) => {
+                if (!editable || !e.dataTransfer.types.includes("Files"))
+                    return;
+                e.preventDefault();
+                setDragging(true);
+            }} onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                    setDragging(false);
+            }} onDrop={(e) => {
+                if (!editable)
+                    return;
+                e.preventDefault();
+                setDragging(false);
+                add(e.dataTransfer.files);
+            }}>
+            <h3 className="text-sm font-semibold text-ink">Photos and videos {attachments.length > 0 ? <span className="font-normal text-ink-tertiary tabular">{attachments.length}</span> : null}</h3>
+            {attachments.length > 0 ? (<div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+                {attachments.map((a) => <Thumb key={a.id} item={a}/>)}
+              </div>) : editable ? <p className="mt-1 text-[13px] text-ink-tertiary">Show the work: a photo or a short video is enough to submit.</p> : null}
+            {editable ? (<div className="mt-3 flex flex-wrap items-center gap-2">
+                {touch ? (<>
+                    <button type="button" disabled={uploading} onClick={() => photoRef.current?.click()} className={pickButton}><Camera className="size-4" aria-hidden/>Take photo</button>
+                    <button type="button" disabled={uploading} onClick={() => videoRef.current?.click()} className={pickButton}><Video className="size-4" aria-hidden/>Record video</button>
+                    <button type="button" disabled={uploading} onClick={() => libraryRef.current?.click()} className={pickButton}><Images className="size-4" aria-hidden/>From gallery</button>
+                  </>) : (<>
+                    <button type="button" disabled={uploading} onClick={() => libraryRef.current?.click()} className={pickButton}><ImagePlus className="size-4" aria-hidden/>Add photos or videos</button>
+                    <span className="text-xs text-ink-tertiary">or drop files here · up to 50 MB each</span>
+                  </>)}
+              </div>) : null}
+            {staged.length > 0 ? <UploadTray items={staged} uploading={uploading} onRemove={remove} onClear={clear} onUpload={() => void uploadAll()}/> : null}
           </div>) : null}
-        <input ref={cameraRef} type="file" accept={touch ? "image/*" : "image/*,video/*,.pdf"} capture={touch ? "environment" : undefined} multiple={!touch} className="hidden" onChange={(e) => void upload(e.target.files)}/>
-        <input ref={libraryRef} type="file" accept="image/*,video/*,.pdf" multiple className="hidden" onChange={(e) => void upload(e.target.files)}/>
+        <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => add(e.target.files)}/>
+        <input ref={videoRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => add(e.target.files)}/>
+        <input ref={libraryRef} type="file" accept={touch ? "image/*,video/*" : "image/*,video/*,.pdf"} multiple className="hidden" onChange={(e) => add(e.target.files)}/>
       </div>
 
       {/* The next step stays in reach of a thumb while the task is on screen. */}
@@ -117,9 +181,9 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
         {disabledReason ? (<p className="flex min-h-14 items-center justify-center rounded-full bg-neutral-soft px-4 text-center text-sm font-medium text-ink-secondary">{disabledReason}</p>) : stage === "review" ? (<p className="flex h-14 items-center justify-center gap-2 rounded-full bg-warning-soft text-[15px] font-medium text-warning">
             <Hourglass className="size-4" aria-hidden/>
             Waiting for your project manager to accept
-          </p>) : handoff ? (<button type="button" disabled={busy || uploading} onClick={needsPhoto ? () => cameraRef.current?.click() : onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
-            {busy || uploading ? <Loader2 className="size-5 animate-spin" aria-hidden/> : needsPhoto ? <PhotoIcon className="size-5" aria-hidden/> : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
-            {uploading ? "Uploading…" : needsPhoto ? (touch ? "Take a photo to submit" : "Add a photo to submit") : handoff.variant === "submit" ? "Submit for review" : "Start work"}
+          </p>) : handoff ? (<button type="button" disabled={busy || uploading} onClick={pending > 0 ? () => void uploadAll() : needsMedia ? openPicker : onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
+            {busy || uploading ? <Loader2 className="size-5 animate-spin" aria-hidden/> : pending > 0 ? <Upload className="size-5" aria-hidden/> : needsMedia ? (touch ? <Camera className="size-5" aria-hidden/> : <ImagePlus className="size-5" aria-hidden/>) : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
+            {uploading ? "Uploading…" : pending > 0 ? `Upload ${pending} to continue` : needsMedia ? "Add a photo or video to submit" : handoff.variant === "submit" ? "Submit for review" : "Start work"}
           </button>) : null}
         {footer}
       </div>
@@ -132,6 +196,9 @@ function Thumb({ item }: {
     const url = publicTaskAttachmentUrl(item.storage_path);
     return (<a href={url} target="_blank" rel="noopener noreferrer" className={cn("press relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-surface-sunken text-ink-tertiary", focusRing)} title={item.file_name}>
       {/* eslint-disable-next-line @next/next/no-img-element -- site photos from storage, shown small */}
-      {item.media_kind === "photo" ? <img src={url} alt={item.file_name} className="size-full object-cover"/> : item.media_kind === "video" ? <Film className="size-6" aria-hidden/> : <Paperclip className="size-6" aria-hidden/>}
+      {item.media_kind === "photo" ? <img src={url} alt={item.file_name} className="size-full object-cover"/> : item.media_kind === "video" ? (<>
+          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="size-full object-cover" aria-label={item.file_name}/>
+          <span className="absolute grid size-7 place-items-center rounded-full bg-ink/60 text-white" aria-hidden><Film className="size-3.5"/></span>
+        </>) : <Paperclip className="size-6" aria-hidden/>}
     </a>);
 }

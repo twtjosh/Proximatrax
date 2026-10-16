@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeBoardStage, parseChecklist, validateStageTransition, type BoardColumnStage, type WorkflowGateContext, } from "@/lib/board-workflow";
+import { hasSiteEvidence } from "@/lib/media-kind";
 import { toGateTasks } from "@/lib/milestone-task-gates";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { logActivity } from "@/services/activity-service";
@@ -26,9 +27,9 @@ async function buildWorkflowGateContext(projectId: string, client?: SupabaseClie
         tasks: toGateTasks(tasks),
     };
 }
-export function taskNeedsSitePhoto(attachments: TaskAttachment[], minPhotos = 1): boolean {
-    const photos = attachments.filter((a) => a.media_kind === "photo").length;
-    return photos >= minPhotos;
+/** Submitting needs proof of the work: at least one site photo or video. */
+export function taskNeedsSitePhoto(attachments: TaskAttachment[]): boolean {
+    return hasSiteEvidence(attachments);
 }
 export async function moveTaskToStage(task: TaskWithRelations, targetStage: BoardColumnStage, viewerRole: UserRole, viewerId: string, projectId: string, options?: {
     claimAssigneeId?: string;
@@ -57,7 +58,7 @@ export async function moveTaskToStage(task: TaskWithRelations, targetStage: Boar
             .eq("task_id", task.id);
         const attachments = (data ?? []) as TaskAttachment[];
         if (!taskNeedsSitePhoto(attachments)) {
-            throw new Error("Upload at least one site photo before submitting for review.");
+            throw new Error("Upload at least one site photo or video before submitting for review.");
         }
     }
     await updateTask({

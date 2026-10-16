@@ -3,12 +3,13 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Camera, X } from "lucide-react";
+import { Camera, Film, X } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing } from "@/components/dashboard/overview-kit";
 import { projectPath } from "@/lib/constants";
 import { SPRING } from "@/lib/motion";
 import { reviewQueue } from "@/lib/review-queue";
+import { hasSiteEvidence, mediaCountPhrase } from "@/lib/media-kind";
 import { cn } from "@/lib/utils";
 import { acceptTaskDeliverable, sendTaskBackToActive } from "@/lib/work-task-flow";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
@@ -169,19 +170,21 @@ export function ReviewMode({ projectId, tasks, attachments, initialTask }: {
           <nav aria-label="Waiting for review" className="min-h-0 overflow-y-auto border-line p-3 max-lg:flex max-lg:gap-2 max-lg:overflow-x-auto max-lg:border-b lg:border-r">
             <ul className="grid gap-1.5 max-lg:flex">
               {queue.map((t) => {
-                    const photos = (byTask.get(t.id) ?? []).filter((a) => a.media_kind === "photo");
+                    const media = byTask.get(t.id) ?? [];
+                    const photos = media.filter((a) => a.media_kind === "photo");
+                    const proof = hasSiteEvidence(media);
                     const active = t.id === task?.id;
                     return (<li key={t.id} className="max-lg:w-60 max-lg:shrink-0">
                     <button type="button" onClick={() => { setOutcome("none"); setSelectedId(t.id); }} aria-current={active} className={cn("relative isolate flex w-full cursor-pointer items-center gap-3 rounded-2xl p-2.5 text-left transition-colors duration-300", active ? "text-ink" : "text-ink-secondary hover:bg-surface-sunken", focusRing)}>
                       {active ? <motion.span layoutId="review-current" transition={SPRING} aria-hidden className="absolute inset-0 -z-10 rounded-2xl bg-surface shadow-card ring-1 ring-line"/> : null}
                       <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-sunken text-ink-tertiary">
                         {/* eslint-disable-next-line @next/next/no-img-element -- site photo thumbnail */}
-                        {photos[0] ? <img src={publicTaskAttachmentUrl(photos[0].storage_path)} alt="" className="size-full object-cover"/> : <Camera className="size-5" aria-hidden/>}
+                        {photos[0] ? <img src={publicTaskAttachmentUrl(photos[0].storage_path)} alt="" className="size-full object-cover"/> : proof ? <Film className="size-5" aria-hidden/> : <Camera className="size-5" aria-hidden/>}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{t.title}</span>
-                        <span className={cn("block truncate text-xs", photos.length === 0 ? "font-medium text-warning" : "text-ink-tertiary")}>
-                          {t.assignee?.full_name.split(" ")[0] ?? "Unassigned"} · {photos.length === 0 ? "No photos" : `${photos.length} ${photos.length === 1 ? "photo" : "photos"}`}
+                        <span className={cn("block truncate text-xs", proof ? "text-ink-tertiary" : "font-medium text-warning")}>
+                          {t.assignee?.full_name.split(" ")[0] ?? "Unassigned"} · {mediaCountPhrase(media)}
                         </span>
                       </span>
                     </button>
