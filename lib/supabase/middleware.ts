@@ -144,6 +144,17 @@ export async function updateSession(request: NextRequest) {
             return NextResponse.redirect(url);
         }
         if (isAuthRoute) {
+            // Claims outlive a revoked session or a deleted profile, which the pages
+            // reject via getUser(); bouncing home then loops /dashboard <-> /login.
+            // Confirm here and drop the stale cookies so the login page renders.
+            const { data: { user: verified } } = await supabase.auth.getUser();
+            if (!verified || !profile) {
+                request.cookies.getAll()
+                    .filter(({ name }) => name.startsWith("sb-"))
+                    .forEach(({ name }) => response.cookies.delete(name));
+                applyAuthCacheHeaders(response);
+                return response;
+            }
             const url = request.nextUrl.clone();
             url.pathname = getRoleHomePath(role);
             url.search = "";
