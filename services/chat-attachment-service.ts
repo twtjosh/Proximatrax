@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mediaKindFromMime, type MediaKind } from "@/lib/media-kind";
+import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { ChatMessageAttachment } from "@/types/database";
 const CHAT_BUCKET = "project-chat";
@@ -30,6 +30,10 @@ export async function uploadChatAttachment(projectId: string, file: File, option
     messageId: string;
     attachment: ChatMessageAttachment;
 }> {
+    // Turn away an oversized file before a message row exists or a byte is sent.
+    const tooBig = uploadTooBig(file);
+    if (tooBig)
+        throw new Error(tooBig);
     const sb = resolveClient(options?.client);
     const { data: { user }, } = await sb.auth.getUser();
     if (!user)
