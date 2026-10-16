@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { shouldAutoCompleteMilestone, shouldAutoReopenMilestone, toGateTasks, } from "@/lib/milestone-task-gates";
+import { templateMilestones } from "@/lib/milestone-template";
 import { assessProjectClosureReadiness, DEFAULT_COMPLETION_STATEMENT, isProjectArchived, } from "@/lib/project-lifecycle";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { throwIfSupabaseError } from "@/lib/utils";
@@ -458,34 +459,13 @@ export async function syncMilestoneFromLinkedTasks(projectId: string, milestoneI
     }
     return { completed: false, reopened: false };
 }
-export const DEFAULT_LIFECYCLE_TEMPLATE = [
-    "Site Survey",
-    "Design Approval",
-    "Site Preparation",
-    "Construction",
-    "Handover",
-] as const;
-function toIsoDate(d: Date): string {
-    return d.toISOString().slice(0, 10);
-}
+export { DEFAULT_LIFECYCLE_TEMPLATE } from "@/lib/milestone-template";
 export async function seedDefaultMilestones(projectId: string, startDate: string, endDate: string, client?: SupabaseClient): Promise<Milestone[]> {
-    const start = new Date(`${startDate}T00:00:00Z`);
-    const end = new Date(`${endDate}T00:00:00Z`);
-    const totalMs = end.getTime() - start.getTime();
-    if (Number.isNaN(totalMs) || totalMs < 0) {
+    const milestones = templateMilestones(startDate, endDate);
+    if (!milestones) {
         throw new Error("Cannot seed milestones: invalid project date range.");
     }
-    const titles = DEFAULT_LIFECYCLE_TEMPLATE;
-    const rows = titles.map((title, i) => {
-        const fraction = (i + 1) / titles.length;
-        const due = new Date(start.getTime() + fraction * totalMs);
-        return {
-            project_id: projectId,
-            title,
-            due_date: toIsoDate(due),
-            completed: false,
-        };
-    });
+    const rows = milestones.map((m) => ({ project_id: projectId, title: m.title, due_date: m.due_date, completed: false }));
     const sb = resolveClient(client);
     const { data, error } = await sb
         .from("milestones")
