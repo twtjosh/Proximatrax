@@ -10,10 +10,12 @@ import {
     deliveryRecord,
     inquiryYear,
     lastMonths,
+    managingCount,
     milestoneRecord,
     openLoad,
     overrun,
     overrunFact,
+    peopleCount,
     projectResult,
     projectRows,
     resultPhrase,
@@ -236,4 +238,13 @@ test("agePhrase and ageTone", () => {
     assert.equal(ageTone(1), "quiet");
     assert.equal(ageTone(2), "warn");
     assert.equal(ageTone(3), "late");
+});
+
+test("peopleCount: the people line counts managers, crew and clients, not the super admin", () => {
+    assert.deepEqual(peopleCount(["super_admin", "project_manager", "project_manager", "middleman", "client"]), { total: 4, pm: 2, crew: 1, client: 1 });
+});
+
+test("managingCount: managers with at least one active project", () => {
+    const ps = [project({ id: "a", pm_id: "marco" }), project({ id: "b", pm_id: "marco" }), project({ id: "c", pm_id: "bea" }), done("d", "D", "2026-03-01", "2026-03-01")];
+    assert.equal(managingCount(ps.map((p, i) => (i === 3 ? { ...p, pm_id: "andrea" } : p))), 2);
 });

@@ -49,7 +49,7 @@ export function OwnerOverview({ greeting, today, analytics: a, inquiries, unopen
           </Link>}/>
 
       <p className="materialize mt-7 max-w-[30em] text-[20px] leading-[1.35] font-[450] tracking-[-0.022em] text-pretty text-ink-secondary sm:text-[26px] [&_b]:font-semibold [&_b]:text-ink" style={stagger(1)}>
-        <b>{plural(a.activeCount, "project")}</b> {a.activeCount === 1 ? "is" : "are"} running under <b>{plural(a.managers.length, "project manager")}</b>.{" "}
+        <b>{plural(a.activeCount, "project")}</b> {a.activeCount === 1 ? "is" : "are"} running under <b>{plural(a.managing, "project manager")}</b>.{" "}
         {a.behind.length > 0
             ? (<><a href="#behind-heading" className={cn("font-semibold text-danger underline decoration-danger/35 decoration-[1.5px] underline-offset-4 hover:decoration-danger", focusRing)}>{a.behind.length} {a.behind.length === 1 ? "is" : "are"} behind schedule</a>{owners.length === 1 ? `, ${whose(owners[0], a.behind.length)}` : ""}.</>)
             : "Every project is on schedule."}{" "}
@@ -148,6 +148,7 @@ export function OwnerOverview({ greeting, today, analytics: a, inquiries, unopen
             <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-late" aria-hidden/>Late</span>
             <span className="hidden md:inline">One block per project · point at a manager to see theirs</span>
           </span>} className="materialize mt-5" style={stagger(6)}>
+        {a.months.every((mo) => mo.deliveries.length === 0) ? <p className={quiet}>Nothing delivered in the last 12 months.</p> : (<>
         <div className="grid grid-cols-12 items-end gap-1.5 px-4 pt-3 sm:gap-2.5 sm:px-6" style={{ height: tallest * 30 + 12 }}>
           {a.months.map((mo) => (<div key={mo.key} role="img" aria-label={`${MONTHS[mo.month]} ${mo.year}: ${plural(mo.deliveries.length, "project")} delivered`} className="flex h-full flex-col-reverse items-center gap-1">
               {mo.deliveries.map((d, j) => (<span key={j} title={`${d.title} · ${d.pmName} · ${deliveryPhrase(d.late)}`} className={cn("block h-[26px] w-full max-w-[34px] rounded-[6px] transition-[opacity,scale] duration-300 ease-[var(--ease-spring)]", d.late > 0 ? "bg-stage-late" : "bg-stage-done", lit !== null && lit !== d.pmId && "opacity-20", lit === d.pmId && "scale-105")}/>))}
@@ -156,6 +157,7 @@ export function OwnerOverview({ greeting, today, analytics: a, inquiries, unopen
         <div className="grid grid-cols-12 gap-1.5 px-4 pt-1.5 pb-5 text-center text-[11px] text-ink-tertiary sm:gap-2.5 sm:px-6" aria-hidden>
           {a.months.map((mo) => <span key={mo.key} className={mo.month === 0 ? "font-medium text-ink-secondary" : undefined}>{mo.month === 0 ? mo.year : MONTHS[mo.month]}</span>)}
         </div>
+        </>)}
       </OverviewCard>
     </div>);
 }

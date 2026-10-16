@@ -283,3 +283,13 @@ export function projectRows(projects: AProject[], milestones: AMilestone[], task
 export const agePhrase = (days: number) => (days === 0 ? "today" : plural(days, "day"));
 /** Waiting is quiet for a day, a warning from two, late from three. */
 export const ageTone = (days: number): "late" | "warn" | "quiet" => (days >= 3 ? "late" : days >= 2 ? "warn" : "quiet");
+
+/** Accounts for the owner's people line. The super admin is not one of the people it lists, so it is not counted. */
+export function peopleCount(roles: string[]) {
+    const n = (role: string) => roles.filter((r) => r === role).length;
+    const pm = n("project_manager"), crew = n("middleman"), client = n("client");
+    return { total: pm + crew + client, pm, crew, client };
+}
+
+/** Managers running at least one active project. */
+export const managingCount = (projects: AProject[]) => new Set(projects.filter(isActive).map((p) => p.pm_id)).size;

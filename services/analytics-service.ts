@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { behindSchedule, crewRecord, deliveries, deliveryRecord, lastMonths, milestoneRecord, openLoad, projectRows, reviewTurnaround, taskCounts, waitingForReview, type AMilestone, type AProject, type ATask, type CrewRow, type DeliveryRecord, type MilestoneRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskCounts, type TaskMove, type Waiting } from "@/lib/analytics";
+import { behindSchedule, crewRecord, deliveries, deliveryRecord, lastMonths, managingCount, milestoneRecord, openLoad, peopleCount, projectRows, reviewTurnaround, taskCounts, waitingForReview, type AMilestone, type AProject, type ATask, type CrewRow, type DeliveryRecord, type MilestoneRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskCounts, type TaskMove, type Waiting } from "@/lib/analytics";
+import { readAll } from "@/lib/paged";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { UserRole } from "@/types/enums";
 
@@ -30,6 +31,8 @@ export type ManagerLane = Person & {
 
 export type OwnerAnalytics = {
     activeCount: number;
+    /** Managers running at least one active project. */
+    managing: number;
     behind: (Overrun & { project: AProject; pm: Person })[];
     people: { total: number; pm: number; crew: number; client: number };
     /** This year's deliveries across every manager. */
@@ -44,10 +47,10 @@ export type OwnerAnalytics = {
  */
 export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string): Promise<OwnerAnalytics> {
     const [profilesRes, projectsRes, tasksRes, milestonesRes] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, role, avatar_url"),
-        supabase.from("projects").select(PROJECT_COLS),
-        supabase.from("tasks").select(TASK_COLS).neq("stage", "done"),
-        supabase.from("milestones").select(MILESTONE_COLS).eq("completed", false),
+        readAll((from, to) => supabase.from("profiles").select("id, full_name, role, avatar_url").order("id").range(from, to)),
+        readAll((from, to) => supabase.from("projects").select(PROJECT_COLS).order("id").range(from, to)),
+        readAll((from, to) => supabase.from("tasks").select(TASK_COLS).neq("stage", "done").order("id").range(from, to)),
+        readAll((from, to) => supabase.from("milestones").select(MILESTONE_COLS).eq("completed", false).order("id").range(from, to)),
     ]);
     for (const r of [profilesRes, projectsRes, tasksRes, milestonesRes])
         throwIfSupabaseError(r.error);
@@ -59,7 +62,7 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
     // Only submissions still waiting need a date, so only their moves are read.
     const reviewIds = tasks.filter((t) => t.stage === "review").map((t) => t.id);
     const movesRes = reviewIds.length > 0
-        ? await supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").eq("details->>to", "review").in("details->>task_id", reviewIds)
+        ? await readAll((from, to) => supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").eq("details->>to", "review").in("details->>task_id", reviewIds).order("created_at").order("id").range(from, to))
         : { data: [], error: null };
     throwIfSupabaseError(movesRes.error);
     const moves = toMoves(movesRes.data ?? []);
@@ -69,7 +72,6 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
     const active = projects.filter((p) => p.status !== "completed");
     const delivered = deliveries(projects);
     const thisYear = delivered.filter((d) => d.date.startsWith(today.slice(0, 4)));
-    const count = (role: UserRole) => profiles.filter((p) => p.role === role).length;
 
     const managers: ManagerLane[] = profiles
         .filter((p) => p.role === "project_manager")
@@ -92,8 +94,9 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
 
     return {
         activeCount: active.length,
+        managing: managingCount(projects),
         behind: behindSchedule(active, milestones, today).map((b) => ({ ...b, pm: pmOf(b.project.pm_id) })),
-        people: { total: profiles.length, pm: count("project_manager"), crew: count("middleman"), client: count("client") },
+        people: peopleCount(profiles.map((p) => p.role)),
         year: deliveryRecord(thisYear),
         managers,
         months: lastMonths(today).map((m) => ({
@@ -130,9 +133,9 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
     const ids = projects.map((p) => p.id);
     const [tasksRes, milestonesRes, movesRes] = ids.length > 0
         ? await Promise.all([
-            supabase.from("tasks").select(TASK_COLS).in("project_id", ids),
-            supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids),
-            supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").in("project_id", ids),
+            readAll((from, to) => supabase.from("tasks").select(TASK_COLS).in("project_id", ids).order("id").range(from, to)),
+            readAll((from, to) => supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids).order("id").range(from, to)),
+            readAll((from, to) => supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").in("project_id", ids).order("created_at").order("id").range(from, to)),
         ])
         : [none, none, none];
     for (const r of [tasksRes, milestonesRes, movesRes])
