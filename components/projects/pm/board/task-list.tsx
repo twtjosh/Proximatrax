@@ -2,28 +2,30 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronRight, Flag, Loader2, MessageSquare, Paperclip, RotateCcw, Trash2, UserRound, X } from "lucide-react";
+import { ChevronRight, Flag, Keyboard, ListChecks, Loader2, MessageSquare, Paperclip, RotateCcw, SquareCheck, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { checklistProgress, normalizeBoardStage, type BoardColumnStage } from "@/lib/board-workflow";
-import { daysBetween, formatDate } from "@/lib/dashboard";
+import { formatDate } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
+import { agendaCounts, agendaGroups, bucketNote, matchesAgendaFilter, relativeDue, type AgendaFilter, type AgendaKey } from "@/lib/task-agenda";
 import { cn } from "@/lib/utils";
 import { deleteTask, updateTask, type TaskWithRelations, type UpdateTaskInput } from "@/services/task-service";
 import type { Milestone, Profile } from "@/types/database";
-import { COLUMNS, fixReason, isLate } from "./board-meta";
+import { COLUMNS, fixReason } from "./board-meta";
 
-export type GroupBy = "milestone" | "person" | "stage" | "none";
-type SortKey = "due" | "title" | "stage" | "person";
-const GROUPS: { key: GroupBy; label: string }[] = [
-    { key: "milestone", label: "Milestone" },
-    { key: "person", label: "Person" },
-    { key: "stage", label: "Stage" },
-    { key: "none", label: "None" },
-];
-const STAGE_ORDER: Record<BoardColumnStage, number> = { to_do: 0, in_progress: 1, review: 2, done: 3 };
 const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
+const MONTH = (iso: string) => formatDate(iso, { month: "short" });
+const DAY = (iso: string) => formatDate(iso, { day: "numeric" });
+/** Soft pill colours per stage; the dot keeps the board's stage hue. */
+const STAGE_PILL: Record<BoardColumnStage, string> = {
+    to_do: "bg-surface-sunken text-ink-secondary",
+    in_progress: "bg-info-soft text-info",
+    review: "bg-warning-soft text-warning",
+    done: "bg-success-soft text-success",
+};
+const TONE: Partial<Record<AgendaKey, string>> = { late: "text-danger", review: "text-warning" };
 
 type Props = {
     tasks: TaskWithRelations[];
@@ -31,8 +33,6 @@ type Props = {
     milestones: Milestone[];
     today: string;
     closed: boolean;
-    group: GroupBy;
-    onGroup: (g: GroupBy) => void;
     fileCounts: Map<string, number>;
     comments: Record<string, number>;
     onOpen: (task: TaskWithRelations) => void;
@@ -42,47 +42,43 @@ type Props = {
 };
 
 /**
- * Every task as a row, grouped (by milestone unless chosen otherwise) and
- * sortable. Who, when and stage change in place; ticking rows brings up a bar
- * that changes them all at once. Keys: J/K move, X ticks, Enter opens.
+ * Every task as an agenda: late first, then what waits on the PM, then the
+ * calendar, with accepted work folded away. The counts on top filter it.
+ * Stage, who and when change in place; ticking rows (hover, focus, or Select
+ * on touch) brings up a bar that changes them all at once.
  */
-export function TaskList({ tasks, people, milestones, today, closed, group, onGroup, fileCounts, comments, onOpen, onMove, onPatch, onRemoved }: Props) {
+export function TaskList({ tasks, people, milestones, today, closed, fileCounts, comments, onOpen, onMove, onPatch, onRemoved }: Props) {
     const router = useRouter();
     const reduce = useReducedMotion();
-    const [sort, setSort] = React.useState<{ key: SortKey; dir: 1 | -1 }>({ key: "due", dir: 1 });
+    const [filter, setFilter] = React.useState<AgendaFilter>(null);
     const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
-    const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set());
+    const [selecting, setSelecting] = React.useState(false);
+    const [collapsed, setCollapsed] = React.useState<Set<AgendaKey>>(() => new Set(["done"]));
     const [busy, setBusy] = React.useState(false);
     const [confirmDelete, setConfirmDelete] = React.useState(false);
-    const rowRefs = React.useRef(new Map<string, HTMLTableRowElement>());
-    const name = (id: string | null) => people.find((p) => p.id === id)?.full_name ?? "No one";
+    const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
 
     // A row that left the list (filtered, deleted) can't stay ticked.
     const ids = new Set(tasks.map((t) => t.id));
     const ticked = [...selected].filter((id) => ids.has(id));
-
-    const sorted = [...tasks].sort((a, b) => {
-        const by = sort.key === "title" ? a.title.localeCompare(b.title)
-            : sort.key === "stage" ? STAGE_ORDER[normalizeBoardStage(a.stage)] - STAGE_ORDER[normalizeBoardStage(b.stage)]
-                : sort.key === "person" ? name(a.assigned_to).localeCompare(name(b.assigned_to))
-                    : (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999");
-        return by * sort.dir || a.position - b.position;
-    });
-    const groups = groupTasks(sorted, group, milestones, people);
+    const counts = agendaCounts(tasks, today);
+    const shown = tasks.filter((t) => matchesAgendaFilter(t, filter, today));
+    const groups = agendaGroups(shown, today);
     const flat = groups.flatMap((g) => (collapsed.has(g.key) ? [] : g.tasks));
 
-    function toggle(id: string, on?: boolean) {
+    function toggle(id: string) {
         setSelected((s) => {
             const next = new Set(s);
-            if (on ?? !next.has(id))
-                next.add(id);
-            else
+            if (next.has(id))
                 next.delete(id);
+            else
+                next.add(id);
             return next;
         });
     }
-    function sortBy(key: SortKey) {
-        setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }));
+    function clearSelection() {
+        setSelected(new Set());
+        setSelecting(false);
     }
 
     async function saveOne(task: TaskWithRelations, patch: Omit<UpdateTaskInput, "id">, local: Partial<TaskWithRelations>) {
@@ -115,7 +111,7 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
                     },
                 },
             });
-            setSelected(new Set());
+            clearSelection();
             router.refresh();
         }
         catch (e) {
@@ -139,7 +135,7 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
         try {
             await Promise.all(rows.map((t) => deleteTask(t.id)));
             onRemoved(rows.map((t) => t.id));
-            setSelected(new Set());
+            clearSelection();
             toast.success(`Deleted ${rows.length} ${rows.length === 1 ? "task" : "tasks"}`);
             router.refresh();
         }
@@ -166,138 +162,139 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
         else if (e.key === "Enter")
             onOpen(task);
         else if (e.key === "Escape" && ticked.length)
-            setSelected(new Set());
+            clearSelection();
         else
             return;
         e.preventDefault();
     }
 
-    const crew = people;
-    const allTicked = flat.length > 0 && flat.every((t) => selected.has(t.id));
+    const chips: { key: Exclude<AgendaFilter, null>; n: number; label: string; tone?: string }[] = [
+        { key: "late", n: counts.late, label: "late", tone: "text-danger" },
+        { key: "review", n: counts.review, label: "waiting for your review", tone: "text-warning" },
+        { key: "week", n: counts.week, label: "due this week" },
+        { key: "unassigned", n: counts.unassigned, label: "with no one" },
+    ];
+    const showChecks = selecting || ticked.length > 0;
 
     return (<div className="grid gap-3">
-      <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-        <span>Group by</span>
-        <div role="radiogroup" aria-label="Group by" className="flex rounded-full bg-surface-sunken p-0.5">
-          {GROUPS.map((g) => (<button key={g.key} type="button" role="radio" aria-checked={group === g.key} onClick={() => onGroup(g.key)} className={cn("relative isolate h-7 cursor-pointer rounded-full px-3 font-medium transition-colors duration-300", group === g.key ? "text-ink" : "hover:text-ink", focusRing)}>
-              {group === g.key ? <motion.span layoutId="group-pick" transition={SPRING} className="absolute inset-0 -z-10 rounded-full bg-surface shadow-card"/> : null}
-              {g.label}
-            </button>))}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Show only" className="flex flex-wrap gap-2">
+          {chips.filter((c) => c.n > 0 || filter === c.key).map((c) => {
+              const on = filter === c.key;
+              return (<button key={c.key} type="button" aria-pressed={on} onClick={() => setFilter(on ? null : c.key)} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium", on ? "bg-ink text-white" : "bg-surface text-ink-secondary shadow-card ring-1 ring-line hover:ring-line-strong", focusRing)}>
+                <b className={cn("font-bold tabular", on ? "text-white" : (c.tone ?? "text-ink"))}>{c.n}</b>{c.label}
+                {on ? <X className="size-3.5 opacity-70" aria-hidden/> : null}
+              </button>);
+          })}
         </div>
-        <span className="ml-auto max-md:hidden"><kbd className="rounded bg-surface-sunken px-1 font-sans font-semibold">J</kbd> <kbd className="rounded bg-surface-sunken px-1 font-sans font-semibold">K</kbd> move · <kbd className="rounded bg-surface-sunken px-1 font-sans font-semibold">X</kbd> select · <kbd className="rounded bg-surface-sunken px-1 font-sans font-semibold">Enter</kbd> open</span>
+        <div className="ml-auto flex items-center gap-2">
+          {closed ? null : (<button type="button" aria-pressed={showChecks} onClick={() => (showChecks ? clearSelection() : setSelecting(true))} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium", showChecks ? "bg-ink text-white" : "bg-surface-sunken text-ink hover:bg-line", focusRing)}>
+              <SquareCheck className="size-4" aria-hidden/>{showChecks ? "Done selecting" : "Select"}
+            </button>)}
+          <DropdownMenu>
+            <DropdownMenuTrigger aria-label="Keyboard shortcuts" className={cn("grid size-9 cursor-pointer place-items-center rounded-full bg-surface-sunken text-ink-secondary hover:bg-line max-md:hidden", focusRing)}>
+              <Keyboard className="size-4" aria-hidden/>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60 p-3 text-[12.5px] text-ink-secondary">
+              {[["Move between tasks", "J  K"], ["Select a task", "X"], ["Open a task", "Enter"], ["Clear the selection", "Esc"]].map(([what, keys]) => (<div key={what} className="flex items-center justify-between py-1">
+                  {what}
+                  <span className="flex gap-1">{keys.split("  ").map((k) => <kbd key={k} className="rounded border border-line-strong px-1.5 font-sans text-[11px] font-semibold text-ink shadow-[inset_0_-1px_0_var(--color-line-strong)]">{k}</kbd>)}</span>
+                </div>))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <div className="materialize overflow-hidden rounded-[22px] material">
-        <table className="w-full table-auto border-collapse text-sm sm:table-fixed">
-          <thead className="sticky top-[var(--frame-stick,0px)] z-10 bg-surface/95 backdrop-blur-xl">
-            <tr className="border-b border-line text-left text-xs text-ink-tertiary">
-              <th className="w-11 py-2.5 pl-4">
-                <Check on={allTicked} label="Select every task shown" onClick={() => setSelected(allTicked ? new Set() : new Set(flat.map((t) => t.id)))}/>
-              </th>
-              <Th label="Task" k="title" sort={sort} onSort={sortBy}/>
-              <Th label="Stage" k="stage" sort={sort} onSort={sortBy} className="w-36 max-sm:hidden"/>
-              <Th label="Who" k="person" sort={sort} onSort={sortBy} className="w-44 max-md:hidden"/>
-              <Th label="Due" k="due" sort={sort} onSort={sortBy} className="w-32 max-sm:hidden"/>
-              <th className="w-28 pr-4 font-medium max-lg:hidden"><span className="sr-only">Progress</span></th>
-            </tr>
-          </thead>
-          {groups.map((g) => {
-            const open = !collapsed.has(g.key);
-            const done = g.tasks.filter((t) => t.stage === "done").length;
-            return (<tbody key={g.key}>
-                {group !== "none" ? (<tr className="border-b border-line bg-surface-subtle">
-                    <td colSpan={6} className="p-0">
-                      <button type="button" onClick={() => setCollapsed((c) => {
-                        const next = new Set(c);
-                        if (open)
-                            next.add(g.key);
-                        else
-                            next.delete(g.key);
-                        return next;
-                    })} aria-expanded={open} className={cn("flex w-full cursor-pointer items-center gap-2.5 px-4 py-2 text-left", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")}>
-                        <ChevronRight className={cn("size-4 text-ink-tertiary transition-transform duration-300 ease-spring", open && "rotate-90")} aria-hidden/>
-                        {g.dot ? <span className={cn("size-2 rounded-full", g.dot)} aria-hidden/> : null}
-                        <span className="truncate text-[13px] font-semibold text-ink">{g.label}</span>
-                        <span className="text-xs text-ink-tertiary tabular">{g.tasks.length}</span>
-                        {g.tasks.length > 0 ? (<span className="ml-auto flex items-center gap-2 text-xs text-ink-tertiary tabular">
-                            <span className="h-1 w-16 overflow-hidden rounded-full bg-line max-sm:hidden"><span className="block h-full rounded-full bg-stage-done" style={{ width: `${(done / g.tasks.length) * 100}%` }}/></span>
-                            {done}/{g.tasks.length}
-                          </span>) : null}
-                      </button>
-                    </td>
-                  </tr>) : null}
-                {open ? g.tasks.map((t) => {
+      {groups.length === 0 ? (<p className="materialize rounded-[22px] px-6 py-10 text-center text-sm text-ink-tertiary material">
+          {tasks.length === 0 ? "No tasks match. Add one above, or clear the filters." : "Nothing here right now."}
+        </p>) : groups.map((g) => {
+          const open = !collapsed.has(g.key);
+          return (<section key={g.key} aria-labelledby={`agenda-${g.key}`} className="materialize overflow-clip rounded-[22px] material">
+            <button type="button" id={`agenda-${g.key}`} aria-expanded={open} onClick={() => setCollapsed((c) => {
+                const next = new Set(c);
+                if (open)
+                    next.add(g.key);
+                else
+                    next.delete(g.key);
+                return next;
+            })} className={cn("flex w-full cursor-pointer items-center gap-2 px-5 py-3.5 text-left", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")}>
+              <ChevronRight className={cn("size-4 text-ink-tertiary transition-transform duration-300 ease-spring", open && "rotate-90")} aria-hidden/>
+              <span className={cn("text-[13.5px] font-semibold", TONE[g.key] ?? "text-ink")}>{g.label}</span>
+              <span className="truncate text-xs text-ink-tertiary"><span className="tabular">{g.tasks.length}</span> {g.tasks.length === 1 ? "task" : "tasks"} · {bucketNote(g.key, today)}</span>
+            </button>
+            {open ? (<div role="list">
+                {g.tasks.map((t) => {
                     const stage = normalizeBoardStage(t.stage);
                     const col = COLUMNS.find((c) => c.stage === stage)!;
-                    const late = isLate(t, today);
+                    const late = g.key === "late";
                     const fix = stage === "in_progress" ? fixReason(t) : null;
                     const steps = checklistProgress(t.checklist);
                     const on = selected.has(t.id);
                     const locked = closed || stage === "done";
-                    return (<motion.tr key={t.id} ref={(el) => {
+                    return (<motion.div key={t.id} role="listitem" ref={(el) => {
                             if (el)
                                 rowRefs.current.set(t.id, el);
                             else
                                 rowRefs.current.delete(t.id);
-                        }} layout={reduce ? false : "position"} transition={SPRING} tabIndex={0} onKeyDown={(e) => onRowKey(e, t)} aria-selected={on} className={cn("group border-b border-line last:border-b-0 transition-colors duration-200 outline-none focus-visible:bg-brand-soft/40", on ? "bg-brand-soft/50" : "hover:bg-surface-subtle")}>
-                        <td className="py-2 pl-4 align-middle"><Check on={on} label={`Select ${t.title}`} onClick={() => toggle(t.id)}/></td>
-                        <td className="min-w-0 py-2 pr-3">
-                          <button type="button" tabIndex={-1} onClick={() => onOpen(t)} className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 text-left">
-                            {t.priority === "high" ? <Flag className="size-3.5 shrink-0 fill-stage-late text-stage-late" aria-label="High priority"/> : null}
-                            <span className={cn("truncate font-medium group-hover:underline", stage === "done" ? "text-ink-tertiary" : "text-ink")}>{t.title}</span>
-                            {fix ? <span title={`Fix: ${fix}`} className="inline-flex shrink-0 max-sm:hidden items-center gap-1 rounded-full bg-danger-soft px-1.5 py-px text-[10px] font-semibold text-danger"><RotateCcw className="size-2.5" aria-hidden/>Sent back</span> : null}
-                          </button>
-                          {group !== "milestone" && t.milestone ? <span className="block truncate text-[11px] text-ink-tertiary max-sm:hidden">{t.milestone.title}</span> : null}
-                          <span className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-tertiary sm:hidden">
-                            <span className="inline-flex items-center gap-1"><span className={cn("size-1.5 rounded-full", col.dot)} aria-hidden/>{col.label}</span>
-                            {t.due_date ? <span className={cn("tabular", late && "font-semibold text-danger")}>{late ? `${daysBetween(t.due_date, today)}d late` : short(t.due_date)}</span> : null}
-                            {fix ? <span className="font-semibold text-danger">Sent back</span> : null}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-3 max-sm:hidden">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger disabled={closed} className={cn("inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-medium hover:bg-surface-sunken disabled:cursor-default", focusRing)}>
-                              <span className={cn("size-2 rounded-full", col.dot)} aria-hidden/>{col.label}
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-44">
-                              {COLUMNS.map((c) => <DropdownMenuItem key={c.stage} disabled={c.stage === stage} onClick={() => onMove(t, c.stage)}><span className={cn("size-2 rounded-full", c.dot)} aria-hidden/>{c.label}</DropdownMenuItem>)}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                        <td className="py-2 pr-3 max-md:hidden">
-                          <label className="relative flex items-center gap-2">
-                            <span className="sr-only">Who does {t.title}</span>
-                            {t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={22}/> : <span className="grid size-[22px] shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>}
-                            <select disabled={locked} value={t.assigned_to ?? ""} onChange={(e) => {
-                                const p = crew.find((x) => x.id === e.target.value);
-                                void saveOne(t, { assigned_to: p?.id ?? null }, { assigned_to: p?.id ?? null, assignee: p ? { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null });
-                            }} className={cn("min-w-0 flex-1 cursor-pointer appearance-none truncate rounded-md bg-transparent py-1 text-[13px] hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", t.assignee ? "text-ink" : "text-ink-tertiary", focusRing)}>
-                              <option value="">No one</option>
-                              {crew.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                            </select>
-                          </label>
-                        </td>
-                        <td className="py-2 pr-3 max-sm:hidden">
-                          <label className={cn("relative inline-flex items-center gap-1.5 rounded-md text-[13px] tabular", late ? "font-semibold text-danger" : t.due_date ? "text-ink-secondary" : "text-ink-tertiary")}>
-                            <CalendarDays className="size-3.5 shrink-0" aria-hidden/>
-                            {t.due_date ? (late ? `${daysBetween(t.due_date, today)}d late` : short(t.due_date)) : "Set date"}
-                            <input type="date" disabled={locked} value={t.due_date ?? ""} aria-label={`Due date for ${t.title}`} onChange={(e) => void saveOne(t, { due_date: e.target.value || null }, { due_date: e.target.value || null })} className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:size-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"/>
-                          </label>
-                        </td>
-                        <td className="py-2 pr-4 max-lg:hidden">
-                          <span className="flex items-center justify-end gap-2.5 text-xs text-ink-tertiary tabular">
-                            {steps.total > 0 ? <span className={cn(steps.done === steps.total && "text-success")}>{steps.done}/{steps.total}</span> : null}
-                            {comments[t.id] ? <span className="inline-flex items-center gap-0.5"><MessageSquare className="size-3" aria-hidden/>{comments[t.id]}</span> : null}
-                            {fileCounts.get(t.id) ? <span className="inline-flex items-center gap-0.5"><Paperclip className="size-3" aria-hidden/>{fileCounts.get(t.id)}</span> : null}
-                          </span>
-                        </td>
-                      </motion.tr>);
-                }) : null}
-              </tbody>);
-        })}
-        </table>
-        {tasks.length === 0 ? <p className="px-6 py-10 text-center text-sm text-ink-tertiary">No tasks match. Add one above, or clear the filters.</p> : null}
-      </div>
+                        }} layout={reduce ? false : "position"} transition={SPRING} tabIndex={0} onKeyDown={(e) => onRowKey(e, t)} className={cn("group grid items-center", showChecks && !closed ? "grid-cols-[auto_auto_minmax(0,1fr)]" : "grid-cols-[auto_minmax(0,1fr)]", " gap-x-3.5 border-t border-line px-5 py-2.5 outline-none transition-colors duration-200 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] focus-visible:bg-brand-soft/40", on ? "bg-brand-soft/50" : "hover:bg-surface-subtle")}>
+                      <span className={cn((closed || !showChecks) && "max-sm:hidden", !closed && !showChecks && "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100")}>
+                        {closed ? <span className="block w-5"/> : <Check on={on} label={`Select ${t.title}`} onClick={() => toggle(t.id)}/>}
+                      </span>
+
+                      <label className={cn("relative grid size-12 shrink-0 place-content-center rounded-[13px] text-center leading-none", late ? "bg-danger-soft text-danger" : "bg-surface-subtle text-ink ring-1 ring-line ring-inset", !locked && "cursor-pointer hover:ring-line-strong")}>
+                        {t.due_date ? (<>
+                            <span className={cn("text-[10px] font-semibold tracking-[0.04em] uppercase", late ? "text-danger" : "text-ink-tertiary")}>{MONTH(t.due_date)}</span>
+                            <span className="mt-0.5 text-lg font-semibold tracking-[-0.02em] tabular">{DAY(t.due_date)}</span>
+                          </>) : <span className="px-1 text-[10.5px] font-medium text-ink-tertiary">No date</span>}
+                        <input type="date" disabled={locked} value={t.due_date ?? ""} aria-label={`Due date for ${t.title}${t.due_date ? `, ${short(t.due_date)}` : ""}`} onChange={(e) => void saveOne(t, { due_date: e.target.value || null }, { due_date: e.target.value || null })} className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:size-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"/>
+                      </label>
+
+                      <button type="button" tabIndex={-1} onClick={() => onOpen(t)} className="min-w-0 cursor-pointer text-left">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {t.priority === "high" ? <Flag className="size-3.5 shrink-0 fill-stage-late text-stage-late" aria-label="High priority"/> : null}
+                          <span className={cn("truncate text-[14.5px] font-medium group-hover:underline", stage === "done" ? "text-ink-tertiary" : "text-ink")}>{t.title}</span>
+                          {fix ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-danger-soft px-2 py-px text-[11px] font-semibold text-danger"><RotateCcw className="size-3" aria-hidden/>Sent back</span> : null}
+                        </span>
+                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-ink-tertiary">
+                          {t.milestone ? <span className="inline-flex items-center gap-1.5 text-ink-secondary"><span className="size-2 rotate-45 rounded-[2px] bg-copper" aria-hidden/>{t.milestone.title}</span> : <span>No milestone</span>}
+                          <span aria-hidden>·</span>
+                          <span className={cn(late && "font-medium text-danger")}>{relativeDue(t.due_date, stage, today)}</span>
+                          {fix ? <span className="truncate text-danger">· Fix: {fix}</span> : null}
+                          <span className="inline-flex items-center gap-1 sm:hidden"><span className={cn("size-1.5 rounded-full", col.dot)} aria-hidden/>{col.label}{t.assignee ? ` · ${t.assignee.full_name.split(" ")[0]}` : ""}</span>
+                        </span>
+                      </button>
+
+                      <span className="flex items-center gap-3 max-sm:hidden">
+                        <span className="flex items-center gap-2.5 text-xs text-ink-tertiary tabular max-lg:hidden">
+                          {steps.total > 0 ? <span className={cn("inline-flex items-center gap-0.5", steps.done === steps.total && "text-success")} title="Checklist"><ListChecks className="size-3.5" aria-hidden/>{steps.done}/{steps.total}</span> : null}
+                          {comments[t.id] ? <span className="inline-flex items-center gap-0.5" title="Comments"><MessageSquare className="size-3" aria-hidden/>{comments[t.id]}</span> : null}
+                          {fileCounts.get(t.id) ? <span className="inline-flex items-center gap-0.5" title="Files"><Paperclip className="size-3" aria-hidden/>{fileCounts.get(t.id)}</span> : null}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger disabled={closed} aria-label={`Stage of ${t.title}: ${col.label}`} className={cn("inline-flex h-7 w-[7.5rem] cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-medium disabled:cursor-default", STAGE_PILL[stage], focusRing)}>
+                            <span className={cn("size-2 rounded-full", col.dot)} aria-hidden/>{col.label}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-44">
+                            {COLUMNS.map((c) => <DropdownMenuItem key={c.stage} disabled={c.stage === stage} onClick={() => onMove(t, c.stage)}><span className={cn("size-2 rounded-full", c.dot)} aria-hidden/>{c.label}</DropdownMenuItem>)}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger disabled={locked} aria-label={`Who does ${t.title}: ${t.assignee?.full_name ?? "no one"}`} className={cn("inline-flex h-8 w-40 cursor-pointer items-center gap-2 rounded-full pr-2.5 pl-1 text-[13px] hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent max-md:w-auto", focusRing)}>
+                            {t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={24}/> : <span className="grid size-6 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>}
+                            <span className={cn("truncate max-md:hidden", t.assignee ? "text-ink" : "text-ink-tertiary")}>{t.assignee?.full_name ?? "No one yet"}</span>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="max-h-72 min-w-48 overflow-y-auto">
+                            {people.map((p) => <DropdownMenuItem key={p.id} disabled={p.id === t.assigned_to} onClick={() => void saveOne(t, { assigned_to: p.id }, { assigned_to: p.id, assignee: { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } })}>{p.full_name}</DropdownMenuItem>)}
+                            <DropdownMenuSeparator/>
+                            <DropdownMenuItem disabled={!t.assigned_to} onClick={() => void saveOne(t, { assigned_to: null }, { assigned_to: null, assignee: null })}>No one</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </span>
+                    </motion.div>);
+                })}
+              </div>) : null}
+          </section>);
+      })}
 
       <AnimatePresence>
         {ticked.length > 0 ? (<motion.div role="toolbar" aria-label="Change selected tasks" initial={{ y: 24, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 16, opacity: 0, transition: { duration: 0.15 } }} transition={SPRING} className="fixed inset-x-0 bottom-5 z-30 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl bg-ink p-1.5 pl-4 text-sm text-white shadow-[0_24px_48px_-16px_rgb(14_18_34/0.55)]">
@@ -324,26 +321,10 @@ export function TaskList({ tasks, people, milestones, today, closed, group, onGr
                 <button type="button" disabled={busy} onClick={() => void removeTicked()} className={cn("inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-medium transition-colors duration-200", confirmDelete ? "bg-danger text-white" : "text-[#ff9c9c] hover:bg-white/10")}><Trash2 className="size-4" aria-hidden/>{confirmDelete ? `Delete ${ticked.length}?` : "Delete"}</button>
               </>)}
             {busy ? <Loader2 className="mx-1 size-4 animate-spin" aria-hidden/> : null}
-            <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-xl hover:bg-white/10"><X className="size-4" aria-hidden/></button>
+            <button type="button" onClick={clearSelection} aria-label="Clear selection" className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-xl hover:bg-white/10"><X className="size-4" aria-hidden/></button>
           </motion.div>) : null}
       </AnimatePresence>
     </div>);
-}
-
-function Th({ label, k, sort, onSort, className }: {
-    label: string;
-    k: SortKey;
-    sort: { key: SortKey; dir: 1 | -1 };
-    onSort: (k: SortKey) => void;
-    className?: string;
-}) {
-    const on = sort.key === k;
-    const Icon = sort.dir === 1 ? ArrowUp : ArrowDown;
-    return (<th className={cn("py-1.5 pr-3 font-medium", className)} aria-sort={on ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
-      <button type="button" onClick={() => onSort(k)} className={cn("inline-flex cursor-pointer items-center gap-1 rounded-md py-1 hover:text-ink", on && "text-ink", focusRing)}>
-        {label}{on ? <Icon className="size-3" aria-hidden/> : null}
-      </button>
-    </th>);
 }
 
 function Check({ on, label, onClick }: {
@@ -351,7 +332,7 @@ function Check({ on, label, onClick }: {
     label: string;
     onClick: () => void;
 }) {
-    return (<button type="button" role="checkbox" aria-checked={on} aria-label={label} tabIndex={-1} onClick={onClick} className={cn("grid size-[18px] cursor-pointer place-items-center rounded-[5px] transition-colors duration-200", on ? "bg-brand text-white" : "border-[1.5px] border-line-strong bg-surface hover:border-ink-tertiary", focusRing)}>
+    return (<button type="button" role="checkbox" aria-checked={on} aria-label={label} tabIndex={-1} onClick={onClick} className={cn("grid size-5 cursor-pointer place-items-center rounded-[6px] transition-colors duration-200", on ? "bg-brand text-white" : "border-[1.5px] border-line-strong bg-surface hover:border-ink-tertiary", focusRing)}>
       {on ? <svg viewBox="0 0 12 12" className="size-3" aria-hidden><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> : null}
     </button>);
 }
@@ -365,25 +346,4 @@ function BulkMenu({ label, disabled, children }: {
       <DropdownMenuTrigger disabled={disabled} className="inline-flex h-8 shrink-0 cursor-pointer items-center rounded-xl px-3 font-medium hover:bg-white/10 disabled:opacity-50">{label}</DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="center" className="max-h-72 min-w-48 overflow-y-auto">{children}</DropdownMenuContent>
     </DropdownMenu>);
-}
-
-type Group = { key: string; label: string; dot?: string; tasks: TaskWithRelations[] };
-
-/** Milestones in date order (then "No milestone"); people by name (then "No one"); stages in flow order. */
-function groupTasks(tasks: TaskWithRelations[], by: GroupBy, milestones: Milestone[], people: Profile[]): Group[] {
-    if (by === "none")
-        return [{ key: "all", label: "All tasks", tasks }];
-    if (by === "stage")
-        return COLUMNS.map((c) => ({ key: c.stage, label: c.label, dot: c.dot, tasks: tasks.filter((t) => normalizeBoardStage(t.stage) === c.stage) }));
-    if (by === "person") {
-        const list: Group[] = [...people].sort((a, b) => a.full_name.localeCompare(b.full_name))
-            .map((p) => ({ key: p.id, label: p.full_name, tasks: tasks.filter((t) => t.assigned_to === p.id) }))
-            .filter((g) => g.tasks.length > 0);
-        const none = tasks.filter((t) => !t.assigned_to || !people.some((p) => p.id === t.assigned_to));
-        return none.length ? [...list, { key: "none", label: "No one", tasks: none }] : list;
-    }
-    const list: Group[] = [...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date))
-        .map((m) => ({ key: m.id, label: `${m.title} · due ${short(m.due_date)}`, dot: m.completed ? "bg-stage-done" : "bg-copper", tasks: tasks.filter((t) => t.milestone_id === m.id) }));
-    const none = tasks.filter((t) => !t.milestone_id);
-    return none.length ? [...list, { key: "none", label: "No milestone", tasks: none }] : list;
 }

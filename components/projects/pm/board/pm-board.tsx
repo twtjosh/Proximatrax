@@ -18,7 +18,7 @@ import { createTask, type TaskWithRelations } from "@/services/task-service";
 import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { COLUMNS, fixReason, isLate } from "./board-meta";
-import { TaskList, type GroupBy } from "./task-list";
+import { TaskList } from "./task-list";
 import { TaskSheet } from "./task-sheet";
 import { setQuery as setParams, useTaskActions } from "./use-task-actions";
 
@@ -65,7 +65,6 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const lateOnly = params.get("late") === "1";
     const focusStage = params.get("stage");
     const view = params.get("view") === "list" ? "list" : "board";
-    const group = (["milestone", "person", "stage", "none"].includes(params.get("group") ?? "") ? params.get("group") : "milestone") as GroupBy;
 
     const needle = query.trim().toLowerCase();
     const visible = items.filter((t) => (!assignee || (assignee === "none" ? !t.assigned_to : t.assigned_to === assignee))
@@ -140,7 +139,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
         </div>
       </div>
 
-      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} group={group} onGroup={(g) => setParams({ group: g === "milestone" ? null : g })} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
+      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
 
       {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
         <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
