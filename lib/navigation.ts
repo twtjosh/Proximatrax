@@ -1,4 +1,4 @@
-import { ClipboardList, FolderKanban, Inbox, LayoutDashboard, Users, UserCog, type LucideIcon } from "lucide-react";
+import { ChartColumn, ClipboardList, FolderKanban, Inbox, LayoutDashboard, Users, UserCog, type LucideIcon } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { UserRole } from "@/types/enums";
 
@@ -39,6 +39,7 @@ export function primaryNavFor(role: UserRole): NavItem[] {
                 { href: ROUTES.DASHBOARD, label: "Overview", icon: LayoutDashboard },
                 { href: ROUTES.PROJECTS, label: "Projects", icon: FolderKanban, nested: true },
                 { href: ROUTES.TEAM, label: "Team", icon: Users, nested: true },
+                { href: ROUTES.ANALYTICS, label: "Analytics", icon: ChartColumn, nested: true },
             ];
     }
 }

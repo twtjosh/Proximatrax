@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
     "/projects",
     "/activity",
     "/team",
+    "/analytics",
     "/files",
     "/account",
     ROUTES.MIDDLEMAN_HOME,
@@ -44,6 +45,7 @@ function middlemanForbiddenRedirect(pathname: string): string | null {
         { prefix: "/dashboard", redirect: ROUTES.MIDDLEMAN_HOME },
         { prefix: "/activity", redirect: ROUTES.MIDDLEMAN_HOME },
         { prefix: "/team", redirect: ROUTES.MIDDLEMAN_HOME },
+        { prefix: "/analytics", redirect: ROUTES.MIDDLEMAN_HOME },
         { prefix: "/files", redirect: ROUTES.MIDDLEMAN_HOME },
         { prefix: "/account", redirect: ROUTES.MIDDLEMAN_ACCOUNT },
     ];

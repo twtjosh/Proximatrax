@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { behindSchedule, deliveries, deliveryRecord, lastMonths, openLoad, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type TaskMove } from "@/lib/analytics";
+import { behindSchedule, crewRecord, deliveries, deliveryRecord, lastMonths, milestoneRecord, openLoad, projectRows, reviewTurnaround, taskCounts, waitingForReview, type AMilestone, type AProject, type ATask, type CrewRow, type DeliveryRecord, type MilestoneRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskCounts, type TaskMove, type Waiting } from "@/lib/analytics";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { UserRole } from "@/types/enums";
 
@@ -101,6 +101,71 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
             deliveries: delivered
                 .filter((d) => d.date.startsWith(m.key))
                 .map((d) => ({ title: d.project.title, pmId: d.project.pm_id, pmName: pmOf(d.project.pm_id).name, late: d.late })),
+        })),
+    };
+}
+
+export type PmAnalytics = {
+    pm: Person & { firstName: string };
+    firstDelivery: string | null;
+    rows: { active: ProjectRow[]; delivered: ProjectRow[] };
+    clientNames: Record<string, string>;
+    record: DeliveryRecord;
+    dots: { title: string; late: number }[];
+    milestones: MilestoneRecord;
+    tasks: TaskCounts;
+    behind: string[];
+    crew: CrewRow[];
+    turnaround: number | null;
+    waiting: (Waiting & { projectTitle: string; crewName: string | null })[];
+};
+
+const none = { data: [], error: null };
+
+/** Everything on one project manager's Analytics page, all time. RLS scopes a PM to their own projects. */
+export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string; full_name: string; avatar_url?: string | null }, today: string): Promise<PmAnalytics> {
+    const projectsRes = await supabase.from("projects").select(PROJECT_COLS).eq("pm_id", pm.id);
+    throwIfSupabaseError(projectsRes.error);
+    const projects = (projectsRes.data ?? []) as AProject[];
+    const ids = projects.map((p) => p.id);
+    const [tasksRes, milestonesRes, movesRes] = ids.length > 0
+        ? await Promise.all([
+            supabase.from("tasks").select(TASK_COLS).in("project_id", ids),
+            supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids),
+            supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").in("project_id", ids),
+        ])
+        : [none, none, none];
+    for (const r of [tasksRes, milestonesRes, movesRes])
+        throwIfSupabaseError(r.error);
+    const tasks = (tasksRes.data ?? []) as ATask[];
+    const milestones = (milestonesRes.data ?? []) as AMilestone[];
+    const moves = toMoves(movesRes.data ?? []);
+
+    const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id)])];
+    const peopleRes = peopleIds.length > 0 ? await supabase.from("profiles").select("id, full_name, role, avatar_url").in("id", peopleIds) : none;
+    throwIfSupabaseError(peopleRes.error);
+    const people = (peopleRes.data ?? []) as ProfileRow[];
+    const nameOf = new Map(people.map((p) => [p.id, p.full_name]));
+    const titleOf = new Map(projects.map((p) => [p.id, p.title]));
+
+    const ds = deliveries(projects);
+    const rows = projectRows(projects, milestones, tasks, today);
+    return {
+        pm: { id: pm.id, name: pm.full_name, avatarUrl: pm.avatar_url ?? null, firstName: pm.full_name.split(" ")[0] },
+        firstDelivery: ds[0]?.date ?? null,
+        rows,
+        clientNames: Object.fromEntries(projects.map((p) => [p.id, nameOf.get(p.client_id) ?? "Client"])),
+        record: deliveryRecord(ds),
+        dots: ds.map((d) => ({ title: d.project.title, late: d.late })),
+        milestones: milestoneRecord(milestones, today),
+        tasks: taskCounts(tasks, today),
+        behind: rows.active.filter((r) => r.result.kind === "past_end" || r.result.kind === "milestone_late").map((r) => r.project.title),
+        crew: crewRecord(people.filter((p) => p.role === "middleman").map(person), tasks, moves, today),
+        turnaround: reviewTurnaround(moves, today),
+        waiting: waitingForReview(tasks, moves, today).map((w) => ({
+            ...w,
+            projectTitle: titleOf.get(w.task.project_id) ?? "",
+            crewName: w.task.assigned_to ? nameOf.get(w.task.assigned_to) ?? null : null,
         })),
     };
 }
