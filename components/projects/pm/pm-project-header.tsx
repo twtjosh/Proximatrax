@@ -9,7 +9,7 @@ import { FaceStack, focusRing, HEALTH_TONE, ProgressRing, softAction } from "@/c
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { TeamMember } from "@/lib/data/project-context";
 import { agoPhrase, isoDateIn, type HealthTone } from "@/lib/dashboard";
-import { projectReportPath, projectTeamPath, ROUTES } from "@/lib/constants";
+import { projectTeamPath, ROUTES } from "@/lib/constants";
 import { HEALTH, type StatusUpdate } from "@/lib/project-log";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ import { HEALTH_STYLE, postUpdate } from "./status-update-dialog";
  * the page is scrolled, by scale and fade only: its height never changes, so
  * scrolling can't make it jump.
  */
-export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, update, calendar, team, unread, compact, reviewCount, reviewHref, closed, onSettings }: {
+export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, update, calendar, team, unread, compact, reviewCount, reviewHref, closed, onSettings, onReport }: {
     projectId: string;
     title: string;
     client: string;
@@ -43,6 +43,7 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
     reviewHref: string;
     closed: boolean;
     onSettings: (section?: "close" | "delete") => void;
+    onReport: () => void;
 }) {
     const router = useRouter();
     const liveUnread = useLiveUnread(projectId, unread);
@@ -109,7 +110,7 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             {!closed ? <DropdownMenuItem onClick={postUpdate}><Megaphone aria-hidden/>Post status update<span className="ml-auto text-xs text-ink-tertiary">U</span></DropdownMenuItem> : null}
-            <DropdownMenuItem onClick={() => router.push(projectReportPath(projectId))}><FileText aria-hidden/>Project report</DropdownMenuItem>
+            <DropdownMenuItem onClick={onReport}><FileText aria-hidden/>Project report</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings()}><Settings2 aria-hidden/>Project settings<span className="ml-auto text-xs text-ink-tertiary">,</span></DropdownMenuItem>
             <DropdownMenuItem onClick={() => onSettings("close")}><Lock aria-hidden/>{closed ? "Reopen project" : "Close project"}</DropdownMenuItem>
             <DropdownMenuSeparator/>

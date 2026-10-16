@@ -57,7 +57,6 @@ export const projectChatPath = (id: string) => `${projectPath(id)}/chat`;
 export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`;
 export const projectAnalyticsPath = (id: string) => `${projectPath(id)}/analytics`;
 export const projectTeamPath = (id: string) => `${projectPath(id)}/team`;
-export const projectReportPath = (id: string) => `${projectPath(id)}/report`;
 export const projectPhotosPath = (id: string) => `${projectPath(id)}/photos`;
 export type ProjectsListView = "active" | "completed";
 export const projectsListPath = (view: ProjectsListView = "active") => {

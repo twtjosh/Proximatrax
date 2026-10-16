@@ -11,14 +11,16 @@ import { projectWorkspaceTabs } from "@/lib/project-view-policy";
 import { PmProjectHeader } from "./pm-project-header";
 import { PmTabs } from "./pm-tabs";
 import { ProjectShortcuts } from "./project-shortcuts";
+import { ReportDialog } from "./report/report-dialog";
 import { SettingsPanel } from "./settings-panel";
 import { StatusUpdateDialog } from "./status-update-dialog";
 
 /**
  * The project manager's frame around every project tab: the shared project
  * frame with the PM's header and six tabs, plus what opens over any tab:
- * Settings as a side panel (kept in the URL as ?panel=, so links and Back
- * work), the status update composer, and keyboard shortcuts.
+ * Settings as a side panel and the report as a print preview (both kept in
+ * the URL as ?panel=, so links and Back work), the status update composer,
+ * and keyboard shortcuts.
  */
 export function PmProjectShell({ data, viewerId, children }: {
     data: PmProjectData;
@@ -34,7 +36,7 @@ export function PmProjectShell({ data, viewerId, children }: {
     const health = projectHealth(project, load, today, load.overdue);
     const panel = params.get("panel");
 
-    const setPanel = React.useCallback((next: "settings" | null, section?: string) => {
+    const setPanel = React.useCallback((next: "settings" | "report" | null, section?: string) => {
         const q = new URLSearchParams(params.toString());
         if (next)
             q.set("panel", next);
@@ -50,10 +52,11 @@ export function PmProjectShell({ data, viewerId, children }: {
     const openSettings = React.useCallback(() => setPanel("settings"), [setPanel]);
 
     return (<>
-      <ProjectFrame channel={`pm-project-${project.id}`} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} tasksFailed={data.loadFailed} health={health} update={data.update} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact} reviewCount={load.inReview.length} reviewHref={projectReviewPath(project.id)} closed={project.status === "completed"} onSettings={(section) => setPanel("settings", section)}/>} banner={<ProjectClosedBanner project={project} variant="pm"/>}>
+      <ProjectFrame channel={`pm-project-${project.id}`} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <PmProjectHeader projectId={project.id} title={project.title} client={project.client?.full_name ?? "No client yet"} accepted={load.stages.done} total={load.tasksTotal} tasksFailed={data.loadFailed} health={health} update={data.update} calendar={calendarPhrase(project.start_date, project.end_date, today)} team={data.team} unread={data.unread} compact={compact} reviewCount={load.inReview.length} reviewHref={projectReviewPath(project.id)} closed={project.status === "completed"} onSettings={(section) => setPanel("settings", section)} onReport={() => setPanel("report")}/>} banner={<ProjectClosedBanner project={project} variant="pm"/>}>
         {children}
       </ProjectFrame>
       <SettingsPanel open={panel === "settings"} onOpenChange={(o) => setPanel(o ? "settings" : null)} section={params.get("section")} project={project} milestones={milestones} tasks={tasks} viewerId={viewerId}/>
+      <ReportDialog open={panel === "report"} onOpenChange={(o) => setPanel(o ? "report" : null)} data={data}/>
       <StatusUpdateDialog projectId={project.id} last={data.update} suggested={health.tone === "late" || health.tone === "brand" ? "at_risk" : "on_track"}/>
       <ProjectShortcuts tabs={tabs} reviewHref={projectReviewPath(project.id)} boardHref={projectBoardPath(project.id)} onSettings={openSettings}/>
     </>);
