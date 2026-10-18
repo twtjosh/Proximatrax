@@ -8,6 +8,7 @@ import { ArrowUpRight, CalendarDays, MessageSquare, Plus } from "lucide-react";
 import { LiveRefresh } from "@/components/dashboard/live-refresh";
 import { deadlineHref, NeedsYou } from "@/components/dashboard/needs-you";
 import { CountUp } from "@/components/dashboard/count-up";
+import { ownOpenTasks, YourTasks } from "@/components/dashboard/your-tasks";
 import { Face, FaceStack, focusRing, HEALTH_TONE, OverviewCard, OverviewHeader, primaryAction, ProgressRing, softAction, stagger, trackSpotlight } from "@/components/dashboard/overview-kit";
 import { describeStages } from "@/components/system/stage-meter";
 import { projectBoardPath, projectPath, projectsListPath, projectTimelinePath, ROUTES } from "@/lib/constants";
@@ -36,6 +37,8 @@ type PmDashboardProps = {
     loadFailed: boolean;
     /** ISO date (Manila) the server treats as today; overdue is measured against it. */
     today: string;
+    /** The signed-in PM, whose own tasks get their own card. */
+    viewerId: string;
 };
 
 /**
@@ -43,7 +46,7 @@ type PmDashboardProps = {
  * projects say how each is going, Needs you holds only what the PM acts on,
  * and the week holds only dates. Pointing at a project shows who works on it.
  */
-export function PmDashboard({ greeting, projects, closedCount, tasks, milestones, context, loadFailed, today }: PmDashboardProps) {
+export function PmDashboard({ greeting, projects, closedCount, tasks, milestones, context, loadFailed, today, viewerId }: PmDashboardProps) {
     const view = React.useMemo(() => {
         const loads = projectLoads(projects.map((p) => p.id), tasks, milestones, today);
         const { overdue, upcoming } = partitionDeadlines(openDeadlines(tasks, milestones), today, WEEK_DAYS - 1);
@@ -52,14 +55,18 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
         const lateCount = new Map<string, number>();
         for (const d of overdue)
             lateCount.set(d.project_id, (lateCount.get(d.project_id) ?? 0) + 1);
+        const mine = ownOpenTasks(tasks, viewerId);
+        const mineIds = new Set(mine.map((t) => t.id));
         return {
-            loads, overdue, upcoming, readyToClose, lateCount,
+            loads, overdue, upcoming, readyToClose, lateCount, mine,
+            /** The PM's own late tasks show in Your tasks, so Needs you leaves them out. */
+            othersOverdue: overdue.filter((d) => !(d.kind === "task" && mineIds.has(d.id))),
             /** The first deadline beyond the week, for when the week itself is empty. */
             later: open.find((d) => d.due_date > addDays(today, WEEK_DAYS - 1)),
             portfolio: portfolioStages(loads.values()),
             ordered: sortByAttention(projects, loads),
         };
-    }, [projects, tasks, milestones, today]);
+    }, [projects, tasks, milestones, today, viewerId]);
     const [litProjects, setLitProjects] = React.useState<Set<string> | null>(null);
     const [openTile, setOpenTile] = React.useState<string | null>(null);
     // A tap anywhere outside the open tile closes it (touch has no pointer-leave).
@@ -97,7 +104,10 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
 
           {/* Few projects: the work sits beside them. Many: below, in two columns. */}
           <div className={cn("grid items-start gap-5", !few && "lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]")}>
-            <NeedsYou overdue={view.overdue} projects={projects} loads={view.loads} readyToClose={view.readyToClose} titleOf={titleOf} today={today}/>
+            <div className="grid min-w-0 gap-5">
+              <YourTasks mine={view.mine} titleOf={titleOf} today={today}/>
+              <NeedsYou overdue={view.othersOverdue} projects={projects} loads={view.loads} readyToClose={view.readyToClose} titleOf={titleOf} today={today}/>
+            </div>
             <Week upcoming={view.upcoming} overdue={view.overdue} later={view.later} today={today} titleOf={titleOf} onLight={setLitProjects}/>
           </div>
         </div>)}

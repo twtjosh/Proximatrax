@@ -49,7 +49,7 @@ export default async function DashboardPage() {
                     .in("project_id", projectIds),
             ])
             : Promise.resolve([{ data: [], error: null }, { data: [], error: null }] as const), loadProjectContext(supabase, projects, user.id)]);
-        return (<PmDashboard greeting={`${greeting(now)}, ${firstName ?? "there"}`} context={context} projects={projects} closedCount={closedCount} tasks={(taskResult.data ?? []) as DashboardTask[]} milestones={(milestoneResult.data ?? []) as DashboardMilestone[]} loadFailed={!!(taskResult.error || milestoneResult.error)} today={today}/>);
+        return (<PmDashboard greeting={`${greeting(now)}, ${firstName ?? "there"}`} context={context} projects={projects} closedCount={closedCount} tasks={(taskResult.data ?? []) as DashboardTask[]} milestones={(milestoneResult.data ?? []) as DashboardMilestone[]} loadFailed={!!(taskResult.error || milestoneResult.error)} today={today} viewerId={user.id}/>);
     }
     if (role !== "client")
         redirect(getRoleHomePath(role));

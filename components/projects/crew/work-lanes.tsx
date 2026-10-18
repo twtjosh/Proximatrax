@@ -3,6 +3,7 @@ import * as React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, ChevronDown } from "lucide-react";
 import { focusRing, OverviewCard } from "@/components/dashboard/overview-kit";
+import { STAGE_LOOK, StageGlyph, StageHeading, type StageLook } from "@/components/system/stage-glyph";
 import { checklistProgress } from "@/lib/board-workflow";
 import type { CrewLanes } from "@/lib/crew-project";
 import { daysBetween, duePhrase, plural } from "@/lib/dashboard";
@@ -11,26 +12,12 @@ import { cn } from "@/lib/utils";
 import { TASK_STAGE_TERMS } from "@/lib/vocabulary";
 import type { TaskWithRelations } from "@/services/task-service";
 
-// band: the lane's tinted header strip; glyph: its stage marker colour and how full it reads.
 const LANES = [
-    { key: "sentBack", title: "Sent back", hint: "Fix and resubmit", band: "bg-brand-soft text-brand", glyph: "text-copper", fill: 0.5 },
-    { key: "inProgress", title: TASK_STAGE_TERMS.in_progress.label, hint: null, band: "bg-info-soft text-info", glyph: "text-stage-progress", fill: 0.5 },
-    { key: "review", title: TASK_STAGE_TERMS.review.label, hint: "Waiting on your project manager", band: "bg-warning-soft text-warning", glyph: "text-stage-review", fill: 0.75 },
-    { key: "toDo", title: TASK_STAGE_TERMS.to_do.label, hint: null, band: "bg-neutral-soft text-ink-secondary", glyph: "text-ink-tertiary", fill: 0 },
+    { key: "sentBack", title: "Sent back", hint: "Fix and resubmit", look: STAGE_LOOK.sent_back },
+    { key: "inProgress", title: TASK_STAGE_TERMS.in_progress.label, hint: null, look: STAGE_LOOK.in_progress },
+    { key: "review", title: TASK_STAGE_TERMS.review.label, hint: "Waiting on your project manager", look: STAGE_LOOK.review },
+    { key: "toDo", title: TASK_STAGE_TERMS.to_do.label, hint: null, look: STAGE_LOOK.to_do },
 ] as const;
-type Lane = (typeof LANES)[number];
-
-/** A ring that fills as work moves along: empty to do, half in progress, three quarters in review, full accepted. */
-function StageGlyph({ lane, className }: {
-    lane: { glyph: string; fill: number };
-    className?: string;
-}) {
-    const a = 2 * Math.PI * lane.fill;
-    return (<svg viewBox="0 0 16 16" className={cn("size-4 shrink-0", lane.glyph, className)} aria-hidden>
-      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-      {lane.fill >= 1 ? <circle cx="8" cy="8" r="3.5" fill="currentColor"/> : lane.fill > 0 ? <path d={`M8 8V4.5A3.5 3.5 0 ${lane.fill > 0.5 ? 1 : 0} 1 ${8 + 3.5 * Math.sin(a)} ${8 - 3.5 * Math.cos(a)}Z`} fill="currentColor"/> : null}
-    </svg>);
-}
 
 /**
  * The viewer's work on this project, by what it needs from them. A row opens
@@ -49,19 +36,14 @@ export function WorkLanes({ lanes, today, open, onToggle, photoCount, workbench 
     return (<OverviewCard id="my-work" title="My work here" count={openCount} className="materialize">
       <div className="pb-2">
         {LANES.map((lane) => lanes[lane.key].length > 0 ? (<section key={lane.key} aria-label={lane.title} className="mt-4 first:mt-1">
-            <h3 className={cn("flex items-center gap-2.5 border-y border-line px-5 py-2 text-[13px] font-semibold sm:px-6", lane.band)}>
-              <StageGlyph lane={lane}/>
-              <span>{lane.title}</span>
-              <span className="min-w-5 rounded-full bg-white px-1.5 text-center text-[11px] leading-5 tabular shadow-[0_1px_2px_rgb(14_18_34/0.08)]">{lanes[lane.key].length}</span>
-              {lane.hint ? <span className="truncate font-normal">{lane.hint}</span> : null}
-            </h3>
+            <StageHeading look={lane.look} title={lane.title} count={lanes[lane.key].length} hint={lane.hint}/>
             <ul>
-              {lanes[lane.key].map((t) => <Row key={t.id} lane={lane} task={t} today={today} open={open === t.id} onToggle={() => onToggle(t.id)} photos={photoCount(t.id)} workbench={workbench}/>)}
+              {lanes[lane.key].map((t) => <Row key={t.id} look={lane.look} task={t} today={today} open={open === t.id} onToggle={() => onToggle(t.id)} photos={photoCount(t.id)} workbench={workbench}/>)}
             </ul>
           </section>) : null)}
         {lanes.accepted.length > 0 ? (<div className="mt-2 border-t border-line px-5 pt-1 sm:px-6">
             <button type="button" aria-expanded={showAccepted} onClick={() => setShowAccepted((v) => !v)} className={cn("flex min-h-11 w-full items-center gap-2 rounded-lg text-xs font-medium text-ink-tertiary hover:text-ink", focusRing)}>
-              <StageGlyph lane={{ glyph: "text-stage-done", fill: 1 }}/>
+              <StageGlyph look={STAGE_LOOK.done}/>
               <span className="text-ink-secondary">{TASK_STAGE_TERMS.done.label}</span>
               <span className="tabular">{lanes.accepted.length}</span>
               <ChevronDown className={cn("ml-auto size-4 transition-transform duration-300 ease-spring", showAccepted && "rotate-180")} aria-hidden/>
@@ -74,8 +56,8 @@ export function WorkLanes({ lanes, today, open, onToggle, photoCount, workbench 
     </OverviewCard>);
 }
 
-function Row({ lane, task, today, open, onToggle, photos, workbench }: {
-    lane: Lane;
+function Row({ look, task, today, open, onToggle, photos, workbench }: {
+    look: StageLook;
     task: TaskWithRelations;
     today: string;
     open: boolean;
@@ -89,7 +71,7 @@ function Row({ lane, task, today, open, onToggle, photos, workbench }: {
     const region = `workbench-${task.id}`;
     return (<li id={`task-${task.id}`} className={cn("scroll-mt-[calc(var(--frame-h,0px)+1rem)] border-t border-line first:border-t-0 transition-colors duration-300", open && "bg-surface-subtle")}>
       <button type="button" aria-expanded={open} aria-controls={region} onClick={onToggle} className={cn("group flex min-h-14 w-full items-center gap-3 px-5 py-2.5 text-left transition-colors duration-300 ease-spring hover:bg-surface-subtle sm:px-6", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")}>
-        <StageGlyph lane={lane} className="self-start mt-0.5"/>
+        <StageGlyph look={look} className="self-start mt-0.5"/>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-ink">{task.title}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-xs text-ink-tertiary">

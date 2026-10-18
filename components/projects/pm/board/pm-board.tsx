@@ -74,6 +74,8 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const filtered = visible.length !== items.length;
     const lateCount = items.filter((t) => isLate(t, today)).length;
     const crew = people.filter((p) => p.role === "middleman");
+    const mineOn = params.get("mine") === "1";
+    const mineCount = items.filter((t) => t.assigned_to === viewerId).length;
 
     function onDragEnd({ source, destination, draggableId }: DropResult) {
         const task = items.find((t) => t.id === draggableId);
@@ -101,7 +103,10 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
           <span className="sr-only">Search tasks</span>
           <input value={query} onChange={(e) => setQuery(e.target.value)} onBlur={() => setParams({ q: query.trim() || null })} placeholder="Search" className="h-9 w-full rounded-full border border-line bg-surface pr-3 pl-9 text-sm placeholder:text-ink-tertiary focus:border-brand focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none"/>
         </label>
-        {crew.length > 0 ? (<div className="flex items-center gap-1 rounded-full bg-surface-sunken p-1" role="group" aria-label="Show one person's work">
+        {crew.length > 0 || mineCount > 0 || mineOn ? (<div className="flex items-center gap-1 rounded-full bg-surface-sunken p-1" role="group" aria-label="Show one person's work">
+            {mineCount > 0 || mineOn ? (<button type="button" aria-pressed={mineOn} onClick={() => setParams({ mine: mineOn ? null : "1", assignee: null })} className={cn("press inline-flex h-[26px] cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors duration-300", mineOn ? "bg-ink text-white" : "text-ink-secondary hover:text-ink", focusRing)}>
+                Mine<span className={cn("tabular", mineOn ? "text-white/70" : "text-ink-tertiary")}>{mineCount}</span>
+              </button>) : null}
             {crew.map((p) => {
                 const on = assignee === p.id;
                 return (<button key={p.id} type="button" aria-pressed={on} title={p.full_name} onClick={() => setParams({ assignee: on ? null : p.id, mine: null })} className={cn("press grid cursor-pointer place-items-center rounded-full ring-2 transition-[box-shadow,opacity] duration-300", on ? "ring-brand" : "ring-transparent", assignee && !on && "opacity-45 hover:opacity-100", focusRing)}>
