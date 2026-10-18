@@ -17,7 +17,7 @@ const when = (iso: string) => new Intl.DateTimeFormat("en-PH", { month: "short",
  * measurements, decisions, kept with the work instead of lost in the project
  * chat. Live: a reply from site appears without a reload. Clients don't see it.
  */
-export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, onCount, disabled }: {
+export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, onCount, disabled, scrollOnLoad = true }: {
     taskId: string;
     projectId: string;
     taskTitle: string;
@@ -26,6 +26,8 @@ export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, o
     isPm: boolean;
     onCount?: (n: number) => void;
     disabled?: boolean;
+    /** False where the thread sits below other content: only new comments scroll it into view. */
+    scrollOnLoad?: boolean;
 }) {
     const reduce = useReducedMotion();
     const [comments, setComments] = React.useState<TaskCommentWithAuthor[] | null>(null);
@@ -64,12 +66,15 @@ export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, o
         };
     }, [taskId]);
 
+    const loaded = React.useRef(false);
     React.useEffect(() => {
         if (comments) {
             onCountRef.current?.(comments.length);
-            end.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+            if (loaded.current || scrollOnLoad)
+                end.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+            loaded.current = true;
         }
-    }, [comments, reduce]);
+    }, [comments, reduce, scrollOnLoad]);
 
     async function send() {
         const body = text.trim();

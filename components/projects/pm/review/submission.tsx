@@ -1,10 +1,11 @@
 "use client";
 import * as React from "react";
 import { motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
-import { Camera, Check, Expand, FileText, Film, Loader2, RotateCcw, Send, ShieldCheck } from "lucide-react";
+import { Camera, Check, Expand, FileText, Film, Loader2, MessagesSquare, RotateCcw, Send, ShieldCheck } from "lucide-react";
 import { Face, focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { useTouch } from "@/components/middleman/task-workbench";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
+import { TaskDiscussion } from "@/components/projects/shared/task-discussion";
 import { parseChecklist } from "@/lib/board-workflow";
 import { BUSINESS_TIME_ZONE } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
@@ -31,9 +32,11 @@ const variants = {
  * client), what was done, and the decision. Keys: A accept, S send back,
  * J / K move. On a phone the card swipes: right accepts, left sends back.
  */
-export function Submission({ task, attachments, outcome, position, onAccept, onSendBack, onStep }: {
+export function Submission({ task, attachments, projectId, viewerId, outcome, position, onAccept, onSendBack, onStep }: {
     task: TaskWithRelations;
     attachments: TaskAttachment[];
+    projectId: string;
+    viewerId: string;
     /** How the previous card left; drives its exit. */
     outcome: Outcome;
     position: string;
@@ -190,6 +193,12 @@ export function Submission({ task, attachments, outcome, position, onAccept, onS
             {files.map((f) => (<li key={f.id} className="min-w-0 max-w-full"><a href={publicTaskAttachmentUrl(f.storage_path)} target="_blank" rel="noopener noreferrer" title={f.file_name} className={cn(softAction, "h-9 max-w-full")}><FileText className="shrink-0" aria-hidden/><span className="truncate">{f.file_name}</span></a></li>))}
           </ul>) : null}
       </div>
+
+      {/* Pointer presses stay in the thread, so selecting or typing never swipes the card. */}
+      <section aria-label="Discussion" onPointerDownCapture={(e) => e.stopPropagation()} className="relative grid gap-3 border-t border-line pt-5">
+        <h3 className="flex items-center gap-2 text-sm font-semibold"><MessagesSquare className="size-4 text-ink-tertiary" aria-hidden/>Discussion</h3>
+        <TaskDiscussion taskId={task.id} projectId={projectId} taskTitle={task.title} viewerId={viewerId} isPm scrollOnLoad={false}/>
+      </section>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface/90 px-4 py-3 backdrop-blur-xl lg:left-[20rem]">
         <div className="mx-auto max-w-4xl sm:px-4">

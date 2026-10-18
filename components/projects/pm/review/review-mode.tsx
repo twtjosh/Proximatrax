@@ -27,10 +27,11 @@ const UNDO_MS = 4000;
  * the photos the PM keeps; Send back returns it with a reason the crew sees
  * on the task's checklist. Esc leaves; leaving commits any pending Accept.
  */
-export function ReviewMode({ projectId, tasks, attachments, initialTask }: {
+export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTask }: {
     projectId: string;
     tasks: TaskWithRelations[];
     attachments: TaskAttachment[];
+    viewerId: string;
     /** `?task=<id>`: open on this submission. */
     initialTask: string | null;
 }) {
@@ -194,7 +195,7 @@ export function ReviewMode({ projectId, tasks, attachments, initialTask }: {
           </nav>
           <main className="min-h-0 overflow-y-auto">
             <AnimatePresence mode="popLayout" initial={false} custom={outcome}>
-              {task ? <Submission key={task.id} task={task} attachments={byTask.get(task.id) ?? []} outcome={outcome} position={`${index + 1} of ${queue.length}`} onAccept={(ids) => accept(task, ids)} onSendBack={(reason) => void sendBack(task, reason)} onStep={step}/> : null}
+              {task ? <Submission key={task.id} task={task} attachments={byTask.get(task.id) ?? []} projectId={projectId} viewerId={viewerId} outcome={outcome} position={`${index + 1} of ${queue.length}`} onAccept={(ids) => accept(task, ids)} onSendBack={(reason) => void sendBack(task, reason)} onStep={step}/> : null}
             </AnimatePresence>
           </main>
         </div>)}
