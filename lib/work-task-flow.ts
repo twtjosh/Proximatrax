@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeBoardStage, parseChecklist, validateStageTransition, type BoardColumnStage, type WorkflowGateContext, } from "@/lib/board-workflow";
+import { noteOwnMove } from "@/lib/live-changes";
 import { hasSiteEvidence } from "@/lib/media-kind";
 import { toGateTasks } from "@/lib/milestone-task-gates";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -61,6 +62,7 @@ export async function moveTaskToStage(task: TaskWithRelations, targetStage: Boar
             throw new Error("Upload at least one site photo or video before submitting for review.");
         }
     }
+    noteOwnMove(task.id);
     await updateTask({
         id: task.id,
         stage: targetStage as TaskStage,

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { normalizeBoardStage, validateStageTransition, type BoardColumnStage, type WorkflowGateContext } from "@/lib/board-workflow";
 import { projectReviewPath } from "@/lib/constants";
+import { changedTaskIds } from "@/lib/live-changes";
 import { toGateTasks } from "@/lib/milestone-task-gates";
 import { moveTaskToStage } from "@/lib/work-task-flow";
 import type { TaskWithRelations } from "@/services/task-service";
@@ -47,12 +48,23 @@ export function useTaskActions({ projectId, viewerId, closed, milestones, tasks,
     const [files, setFiles] = React.useState(attachments);
     const [counts, setCounts] = React.useState(comments);
     const [seen, setSeen] = React.useState({ tasks, attachments, comments });
+    // Tasks the server changed under us (someone else's move, a new submission), flashed briefly.
+    const [fresh, setFresh] = React.useState<ReadonlySet<string>>(() => new Set());
     if (seen.tasks !== tasks || seen.attachments !== attachments || seen.comments !== comments) {
+        const changed = seen.tasks !== tasks ? changedTaskIds(items, tasks) : [];
         setSeen({ tasks, attachments, comments });
         setItems(tasks);
         setFiles(attachments);
         setCounts(comments);
+        if (changed.length)
+            setFresh(new Set(changed));
     }
+    React.useEffect(() => {
+        if (fresh.size === 0)
+            return;
+        const t = setTimeout(() => setFresh(new Set()), 2400);
+        return () => clearTimeout(t);
+    }, [fresh]);
 
     const gate: WorkflowGateContext = { milestones, tasks: toGateTasks(items) };
     const byTask = React.useMemo(() => {
@@ -140,5 +152,5 @@ export function useTaskActions({ projectId, viewerId, closed, milestones, tasks,
         },
     };
 
-    return { items, setItems, byTask, counts, gate, open, openTask, show, patchTask, requestMove, sheet };
+    return { items, setItems, byTask, counts, gate, open, openTask, show, patchTask, requestMove, sheet, fresh };
 }

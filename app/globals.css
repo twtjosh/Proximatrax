@@ -624,6 +624,19 @@ body {
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
+/* Work someone else just changed glows once, so the eye finds it on a live board. */
+@keyframes live-flash {
+  from {
+    outline-color: var(--brand);
+    background-color: var(--brand-soft);
+  }
+}
+.live-flash {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  animation: live-flash 2.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   @keyframes materialize-fade {
     from {

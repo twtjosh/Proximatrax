@@ -22,8 +22,9 @@ const TRAVEL = 28;
  * scroll margins); `--frame-stick` is the `top` that puts other sticky
  * content right under it.
  */
-export function ProjectFrame({ channel, tabs, header, renderTabs, banner, children }: {
-    channel: string;
+export function ProjectFrame({ live, tabs, header, renderTabs, banner, children }: {
+    /** What this role's live view listens to and announces. */
+    live: React.ComponentProps<typeof LiveRefresh>;
     tabs: ProjectWorkspaceTab[];
     header: (compact: boolean) => React.ReactNode;
     renderTabs: (active: number) => React.ReactNode;
@@ -76,7 +77,7 @@ export function ProjectFrame({ channel, tabs, header, renderTabs, banner, childr
     }, []);
 
     return (<div ref={root} className="mx-auto w-full max-w-360">
-      <LiveRefresh channel={channel}/>
+      <LiveRefresh {...live}/>
       <div ref={sentinel} aria-hidden className="-mb-6 h-6"/>
       <header ref={head} className="sticky top-[calc(var(--frame-pad,0px)*-1)] z-20 -mx-4 border-b border-line bg-canvas/85 px-4 pt-1 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         {header(compact)}

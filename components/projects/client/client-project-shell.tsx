@@ -31,7 +31,7 @@ export function ClientProjectShell({ data, children }: {
       {" · "}
       {calendarPhrase(project.start_date, project.end_date, today)}
     </>);
-    return (<ProjectFrame channel={`client-project-${project.id}`} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <RoleProjectHeader projectId={project.id} title={project.title} share={value} done={value >= 1} status={status} team={data.team} unread={data.unread} compact={compact} home={ROUTES.DASHBOARD} messageLabel="Message your PM"/>} banner={<ProjectClosedBanner project={project} variant="client"/>}>
+    return (<ProjectFrame live={{ channel: "client-project", projectId: project.id }} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <RoleProjectHeader projectId={project.id} title={project.title} share={value} done={value >= 1} status={status} team={data.team} unread={data.unread} compact={compact} home={ROUTES.DASHBOARD} messageLabel="Message your PM"/>} banner={<ProjectClosedBanner project={project} variant="client"/>}>
       {children}
     </ProjectFrame>);
 }

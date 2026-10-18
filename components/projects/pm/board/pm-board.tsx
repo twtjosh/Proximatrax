@@ -59,7 +59,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const router = useRouter();
     const params = useSearchParams();
     const reduce = useReducedMotion();
-    const { items, setItems, byTask, counts, gate, show, patchTask, requestMove, sheet } = useTaskActions({ projectId, viewerId, closed, milestones, tasks, attachments, comments });
+    const { items, setItems, byTask, counts, gate, show, patchTask, requestMove, sheet, fresh } = useTaskActions({ projectId, viewerId, closed, milestones, tasks, attachments, comments });
     const [query, setQuery] = React.useState(params.get("q") ?? "");
     const [allAccepted, setAllAccepted] = React.useState(false);
     const assignee = params.get("mine") === "1" ? viewerId : params.get("assignee");
@@ -164,7 +164,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                   {(drop, dropState) => (<ul ref={drop.innerRef} {...drop.droppableProps} className={cn("grid min-h-24 flex-1 content-start gap-2 rounded-2xl p-0.5 transition-colors duration-300", dropState.isDraggingOver && "bg-brand-soft/60")}>
                       {shown.map((t, i) => (<Draggable key={t.id} draggableId={t.id} index={i} isDragDisabled={closed || col.stage === "done"} disableInteractiveElementBlocking>
                           {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style}>
-                              <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} onOpen={() => show(t)}/>
+                              <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} fresh={fresh.has(t.id)} onOpen={() => show(t)}/>
                             </li>)}
                         </Draggable>))}
                       {drop.placeholder}
@@ -194,7 +194,7 @@ function EmptyColumn({ stage, filtered }: {
 }
 
 /** A card says what matters at a glance: who, when, why it is stuck, and if it came back. */
-function Card({ handle, task, comments, today, files, blocked, dragging, onOpen }: {
+function Card({ handle, task, comments, today, files, blocked, dragging, fresh, onOpen }: {
     /** The drag handle is the card itself, so it is one tab stop: Enter opens, Space lifts. */
     handle: DraggableProvidedDragHandleProps | null;
     task: TaskWithRelations;
@@ -203,6 +203,8 @@ function Card({ handle, task, comments, today, files, blocked, dragging, onOpen 
     files: TaskAttachment[];
     blocked: string | null;
     dragging: boolean;
+    /** Someone else just changed it. */
+    fresh: boolean;
     onOpen: () => void;
 }) {
     const stage = normalizeBoardStage(task.stage);
@@ -210,7 +212,7 @@ function Card({ handle, task, comments, today, files, blocked, dragging, onOpen 
     const steps = checklistProgress(task.checklist);
     const fix = stage === "in_progress" ? fixReason(task) : null;
     const photo = stage === "review" ? files.find((a) => a.media_kind === "photo") : undefined;
-    return (<button type="button" {...handle} onClick={onOpen} className={cn("group grid w-full cursor-pointer gap-2 rounded-2xl bg-surface p-3.5 text-left shadow-card ring-1 ring-line transition-[box-shadow,transform,rotate] duration-300 ease-spring hover:ring-line-strong", dragging && "rotate-[1.5deg] shadow-[0_18px_40px_-12px_rgb(14_18_34/0.35)] ring-brand/40", focusRing)}>
+    return (<button type="button" {...handle} onClick={onOpen} className={cn("group grid w-full cursor-pointer gap-2 rounded-2xl bg-surface p-3.5 text-left shadow-card ring-1 ring-line transition-[box-shadow,transform,rotate] duration-300 ease-spring hover:ring-line-strong", dragging && "rotate-[1.5deg] shadow-[0_18px_40px_-12px_rgb(14_18_34/0.35)] ring-brand/40", focusRing, fresh && "live-flash")}>
       {photo ? (<span className="-mx-1.5 -mt-1.5 block overflow-hidden rounded-xl">
           {/* eslint-disable-next-line @next/next/no-img-element -- submitted site photo */}
           <img src={publicTaskAttachmentUrl(photo.storage_path)} alt="" draggable={false} className="h-24 w-full object-cover transition-transform duration-500 ease-spring group-hover:scale-[1.03]"/>

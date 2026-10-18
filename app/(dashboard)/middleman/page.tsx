@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { LiveRefresh } from "@/components/dashboard/live-refresh";
 import { OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
 import { FieldToday } from "@/components/middleman/field-today";
 import { ProjectInvitationsInbox } from "@/components/projects/project-invitations-inbox";
@@ -32,6 +33,7 @@ export default async function MiddlemanHomePage() {
     const today = isoDateIn(now);
 
     return (<div className="mx-auto w-full max-w-6xl pb-12">
+      <LiveRefresh channel="middleman-home" announce="crew" viewerId={user.id}/>
       <OverviewHeader title={`${greeting(now)}, ${me.full_name?.split(" ")[0] ?? "there"}`} sub={<>
           {formatDate(today, { weekday: "long", month: "long", day: "numeric" })}
           {assignedTasks.length > 0 ? <> · <b>{plural(assignedTasks.length, "task")}</b> on your list</> : " · Your list is clear"}
