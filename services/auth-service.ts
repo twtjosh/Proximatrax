@@ -70,22 +70,28 @@ export async function createUser(payload: CreateUserPayload): Promise<void> {
         throw new Error(message);
     }
 }
-export async function deleteUser(userId: string): Promise<void> {
+/** Throws an Error; `reassignable` is true when the user's managed projects need a new PM first. */
+export async function deleteUser(userId: string, reassignTo?: string): Promise<void> {
     const response = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reassignTo }),
     });
     if (!response.ok) {
         let message = "Unable to delete account.";
+        let reassignable = false;
         try {
             const data = (await response.json()) as {
                 error?: string;
+                reassignable?: boolean;
             };
             if (data.error)
                 message = data.error;
+            reassignable = data.reassignable === true;
         }
         catch {
         }
-        throw new Error(message);
+        throw Object.assign(new Error(message), { reassignable });
     }
 }
 export async function logout() {

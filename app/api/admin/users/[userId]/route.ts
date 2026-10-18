@@ -13,7 +13,7 @@ function getAdminClient() {
         auth: { autoRefreshToken: false, persistSession: false },
     });
 }
-export async function DELETE(_request: Request, context: {
+export async function DELETE(request: Request, context: {
     params: Promise<{
         userId: string;
     }>;
@@ -58,26 +58,58 @@ export async function DELETE(_request: Request, context: {
     if (!DELETABLE_ROLES.includes(targetRole)) {
         return NextResponse.json({ error: "SuperAdmin accounts cannot be deleted from this panel." }, { status: 400 });
     }
+    // Optional body: { reassignTo } hands the user's managed projects to another PM before deleting.
+    const { reassignTo } = (await request.json().catch(() => ({}))) as {
+        reassignTo?: string;
+    };
     const { data: linkedProjects, error: projectsError } = await adminClient
         .from("projects")
-        .select("id, title")
+        .select("id, title, pm_id, client_id")
         .or(`pm_id.eq.${userId},client_id.eq.${userId}`);
     if (projectsError) {
         return NextResponse.json({ error: projectsError.message }, { status: 500 });
     }
-    if ((linkedProjects ?? []).length > 0) {
-        const names = (linkedProjects ?? [])
-            .slice(0, 3)
-            .map((p) => (p as {
-            title: string;
-        }).title)
-            .join(", ");
-        const extra = (linkedProjects ?? []).length > 3
-            ? ` and ${(linkedProjects ?? []).length - 3} more`
-            : "";
+    const linked = (linkedProjects ?? []) as {
+        title: string;
+        pm_id: string;
+        client_id: string;
+    }[];
+    const listTitles = (list: typeof linked) => list.slice(0, 3).map((p) => p.title).join(", ") +
+        (list.length > 3 ? ` and ${list.length - 3} more` : "");
+    const clientProjects = linked.filter((p) => p.client_id === userId);
+    if (clientProjects.length > 0) {
         return NextResponse.json({
-            error: `This user is assigned to active project(s): ${names}${extra}. Reassign or remove those projects first.`,
+            error: `This user is the client on active project(s): ${listTitles(clientProjects)}. Remove those projects first.`,
         }, { status: 409 });
+    }
+    const managedProjects = linked.filter((p) => p.pm_id === userId);
+    if (managedProjects.length > 0) {
+        if (!reassignTo) {
+            return NextResponse.json({
+                error: `This user manages ${managedProjects.length} project(s): ${listTitles(managedProjects)}. Pick another project manager to take them over.`,
+                reassignable: true,
+            }, { status: 409 });
+        }
+        if (reassignTo === userId) {
+            return NextResponse.json({ error: "Pick a different project manager." }, { status: 400 });
+        }
+        const { data: newPm } = await adminClient
+            .from("profiles")
+            .select("role")
+            .eq("id", reassignTo)
+            .maybeSingle();
+        if ((newPm as {
+            role?: string;
+        } | null)?.role !== "project_manager") {
+            return NextResponse.json({ error: "Projects can only be handed to a project manager." }, { status: 400 });
+        }
+        const { error: reassignError } = await adminClient
+            .from("projects")
+            .update({ pm_id: reassignTo })
+            .eq("pm_id", userId);
+        if (reassignError) {
+            return NextResponse.json({ error: reassignError.message }, { status: 500 });
+        }
     }
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteError) {

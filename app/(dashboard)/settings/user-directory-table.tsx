@@ -5,6 +5,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { ROLE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { deleteUser } from "@/services/auth-service";
@@ -15,12 +16,23 @@ type UserDirectoryTableProps = {
     currentUserId: string;
 };
 const DELETABLE_ROLES: UserRole[] = ["project_manager", "middleman", "client"];
+const selectClass = "h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-400/25";
 export function UserDirectoryTable({ profiles, currentUserId, }: UserDirectoryTableProps) {
     const router = useRouter();
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [confirmTarget, setConfirmTarget] = useState<Profile | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // Set once the server says this PM still manages projects; a successor must be picked.
+    const [needsReassign, setNeedsReassign] = useState(false);
+    const [reassignTo, setReassignTo] = useState("");
+    const successors = profiles.filter((p) => p.role === "project_manager" && p.id !== confirmTarget?.id);
+    function closeDialog() {
+        setConfirmTarget(null);
+        setError(null);
+        setNeedsReassign(false);
+        setReassignTo("");
+    }
     function canDelete(profile: Profile) {
         if (profile.id === currentUserId)
             return false;
@@ -33,12 +45,16 @@ export function UserDirectoryTable({ profiles, currentUserId, }: UserDirectoryTa
         setIsDeleting(true);
         setPendingId(confirmTarget.id);
         try {
-            await deleteUser(confirmTarget.id);
-            setConfirmTarget(null);
+            await deleteUser(confirmTarget.id, needsReassign ? reassignTo : undefined);
+            closeDialog();
             router.refresh();
         }
         catch (err) {
             setError(err instanceof Error ? err.message : "Unable to delete account.");
+            if ((err as {
+                reassignable?: boolean;
+            }).reassignable)
+                setNeedsReassign(true);
         }
         finally {
             setIsDeleting(false);
@@ -91,7 +107,7 @@ export function UserDirectoryTable({ profiles, currentUserId, }: UserDirectoryTa
                   </td>
                   <td className="px-6 py-3.5 text-right">
                     {deletable ? (<Button type="button" variant="ghost" size="sm" disabled={pendingId === p.id} onClick={() => {
-                        setError(null);
+                        closeDialog();
                         setConfirmTarget(p);
                     }} className={cn("h-8 gap-1.5 rounded-lg px-2.5 text-xs text-red-700 hover:bg-red-50 hover:text-red-800")}>
                         {pendingId === p.id ? (<Loader2 className="h-3.5 w-3.5 animate-spin"/>) : (<Trash2 className="h-3.5 w-3.5"/>)}
@@ -105,10 +121,8 @@ export function UserDirectoryTable({ profiles, currentUserId, }: UserDirectoryTa
       </div>
 
       <Dialog open={confirmTarget !== null} onOpenChange={(open) => {
-            if (!open && !isDeleting) {
-                setConfirmTarget(null);
-                setError(null);
-            }
+            if (!open && !isDeleting)
+                closeDialog();
         }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -123,22 +137,35 @@ export function UserDirectoryTable({ profiles, currentUserId, }: UserDirectoryTa
             </DialogDescription>
           </DialogHeader>
 
-          {error ? (<p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {error ? (<p className={cn("rounded-lg border px-3 py-2 text-sm", needsReassign ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-800")}>
               {error}
             </p>) : null}
 
+          {needsReassign ? (successors.length > 0 ? (<div className="space-y-2">
+                <Label htmlFor="reassign-pm" className="text-zinc-700">
+                  Hand their projects to
+                </Label>
+                <select id="reassign-pm" value={reassignTo} disabled={isDeleting} onChange={(e) => setReassignTo(e.target.value)} className={selectClass}>
+                  <option value="" disabled>
+                    Choose a project manager…
+                  </option>
+                  {successors.map((pm) => (<option key={pm.id} value={pm.id}>
+                      {pm.full_name || "Unnamed project manager"}
+                    </option>))}
+                </select>
+              </div>) : (<p className="text-sm text-zinc-600">
+                There&apos;s no other project manager to take over. Create one first, then try again.
+              </p>)) : null}
+
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={isDeleting} onClick={() => {
-            setConfirmTarget(null);
-            setError(null);
-        }}>
+            <Button type="button" variant="outline" disabled={isDeleting} onClick={closeDialog}>
               Cancel
             </Button>
-            <Button type="button" disabled={isDeleting} onClick={() => void handleConfirmDelete()} className="bg-red-600 text-white hover:bg-red-700">
+            <Button type="button" disabled={isDeleting || (needsReassign && !reassignTo)} onClick={() => void handleConfirmDelete()} className="bg-red-600 text-white hover:bg-red-700">
               {isDeleting ? (<>
                   <Loader2 className="h-4 w-4 animate-spin"/>
                   Deleting…
-                </>) : ("Delete account")}
+                </>) : needsReassign ? ("Reassign & delete") : ("Delete account")}
             </Button>
           </DialogFooter>
         </DialogContent>
