@@ -12,7 +12,7 @@ import { listProjects } from "@/services/project-service";
 import { loadOwnerAnalytics } from "@/services/analytics-service";
 import { getSuperAdminInquirySummaries, getSuperAdminViewedInquiryIds } from "@/lib/data/inquiry-shell";
 import { triageCounts } from "@/lib/inquiry-triage";
-import { loadProjectContext } from "@/lib/data/project-context";
+import { loadProjectContext, projectContext } from "@/lib/data/project-context";
 import { listApprovedAttachmentsForProject, publicTaskAttachmentUrl } from "@/services/task-attachment-service";
 import type { Profile } from "@/types/database";
 export default async function DashboardPage() {
@@ -33,23 +33,23 @@ export default async function DashboardPage() {
         return (<OwnerOverview greeting={`${greeting(now)}, ${firstName ?? "there"}`} today={today} analytics={analytics} inquiries={inquiryYear(inquiries, viewed, today.slice(0, 4))} unopenedInquiries={triageCounts(inquiries, viewed).totalUnopened}/>);
     }
     if (role === "project_manager") {
-        const projects = await listProjects(supabase, { lifecycle: "active" });
-        const projectIds = projects.map((p) => p.id);
+        // One round trip: tasks and milestones filter on their project's status instead of waiting for the project list.
+        const [projects, taskResult, milestoneResult, rows] = await Promise.all([
+            listProjects(supabase, { lifecycle: "active" }),
+            supabase.from("tasks")
+                .select("id, title, project_id, stage, due_date, client_visible_at, updated_at, assigned_to, project:projects!inner(status)")
+                .neq("project.status", "completed"),
+            supabase.from("milestones")
+                .select("id, title, project_id, due_date, completed, project:projects!inner(status)")
+                .neq("project.status", "completed"),
+            loadProjectContext(supabase),
+        ]);
+        // RLS can show a task outside the PM's projects (one assigned to them); keep the Overview to its projects.
+        const ids = new Set(projects.map((p) => p.id));
+        const own = <T extends { project_id: string }>(list: T[] | null) => (list ?? []).filter((r) => ids.has(r.project_id));
         // Only the welcome screen needs this: "all closed" or "first project".
         const closedCount = projects.length > 0 ? 0 : (await supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "completed")).count ?? 0;
-        const [[taskResult, milestoneResult], context] = await Promise.all([projectIds.length > 0
-            ? Promise.all([
-                supabase
-                    .from("tasks")
-                    .select("id, title, project_id, stage, due_date, client_visible_at, updated_at, assigned_to")
-                    .in("project_id", projectIds),
-                supabase
-                    .from("milestones")
-                    .select("id, title, project_id, due_date, completed")
-                    .in("project_id", projectIds),
-            ])
-            : Promise.resolve([{ data: [], error: null }, { data: [], error: null }] as const), loadProjectContext(supabase, projects, user.id)]);
-        return (<PmDashboard greeting={`${greeting(now)}, ${firstName ?? "there"}`} context={context} projects={projects} closedCount={closedCount} tasks={(taskResult.data ?? []) as DashboardTask[]} milestones={(milestoneResult.data ?? []) as DashboardMilestone[]} loadFailed={!!(taskResult.error || milestoneResult.error)} today={today} viewerId={user.id}/>);
+        return (<PmDashboard greeting={`${greeting(now)}, ${firstName ?? "there"}`} context={projectContext(projects, rows)} projects={projects} closedCount={closedCount} tasks={own(taskResult.data) as DashboardTask[]} milestones={own(milestoneResult.data) as DashboardMilestone[]} loadFailed={!!(taskResult.error || milestoneResult.error)} today={today} viewerId={user.id}/>);
     }
     if (role !== "client")
         redirect(getRoleHomePath(role));

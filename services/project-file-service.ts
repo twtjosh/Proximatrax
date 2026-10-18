@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import { throwIfSupabaseError } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import type { ProjectFile, ProjectFileFolder } from "@/types/database";
@@ -22,7 +22,7 @@ export async function listProjectFiles(projectId: string, client?: SupabaseClien
 
 export async function uploadProjectFile(projectId: string, folder: ProjectFileFolder, file: File, client?: SupabaseClient): Promise<ProjectFile> {
     const sb = resolveClient(client);
-    const { data: { user } } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         throw new Error("Not signed in.");
     const mimeType = file.type || "application/octet-stream";

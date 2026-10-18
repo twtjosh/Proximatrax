@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { ChatMessageAttachment } from "@/types/database";
 const CHAT_BUCKET = "project-chat";
 function resolveClient(client?: SupabaseClient): SupabaseClient {
@@ -35,7 +35,7 @@ export async function uploadChatAttachment(projectId: string, file: File, option
     if (tooBig)
         throw new Error(tooBig);
     const sb = resolveClient(options?.client);
-    const { data: { user }, } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         throw new Error("Not authenticated.");
     const caption = options?.caption?.trim() || file.name;

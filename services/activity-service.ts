@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { ActivityActionType } from "@/types/enums";
 import type { ActivityFeedItem, Profile } from "@/types/database";
@@ -32,12 +32,12 @@ export async function logActivity(input: {
     details?: Record<string, unknown>;
 }, client?: SupabaseClient): Promise<void> {
     const sb = resolveClient(client);
-    const { data: { user }, } = await sb.auth.getUser();
-    if (!user)
+    const userId = (await signedInUser(sb))?.id;
+    if (!userId)
         return;
     const { error } = await sb.from("activity_feed").insert({
         project_id: input.project_id,
-        user_id: user.id,
+        user_id: userId,
         action_type: input.action_type,
         details: input.details ?? {},
     });

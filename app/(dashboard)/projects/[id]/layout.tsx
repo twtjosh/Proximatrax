@@ -22,7 +22,7 @@ export default async function ProjectLayout(props: {
         redirect(ROUTES.LOGIN);
     const role = (profile as Pick<Profile, "role"> | null)?.role;
     if (role === "project_manager") {
-        const data = await loadPmProject(supabase, id, user.id);
+        const data = await loadPmProject(supabase, id);
         if (!data)
             notFound();
         return <PmProjectShell data={data} viewerId={user.id}>{props.children}</PmProjectShell>;
@@ -34,7 +34,7 @@ export default async function ProjectLayout(props: {
         return <CrewProjectShell data={data} viewerId={user.id}>{props.children}</CrewProjectShell>;
     }
     if (role === "client") {
-        const data = await loadClientProject(supabase, id, user.id);
+        const data = await loadClientProject(supabase, id);
         if (!data)
             notFound();
         return <ClientProjectShell data={data}>{props.children}</ClientProjectShell>;

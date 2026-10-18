@@ -111,7 +111,9 @@ export async function updateSession(request: NextRequest) {
         applyAuthCacheHeaders(redirect);
         return redirect;
     }
-    if (user) {
+    // Only some paths redirect by role; a project page or a prefetch shouldn't wait on a profile read for nothing.
+    const needsRole = isAuthRoute || isSuperAdminOnly || isMiddlemanShellPath(pathname) || middlemanForbiddenRedirect(pathname) !== null;
+    if (user && needsRole) {
         const { data: profile } = await supabase
             .from("profiles")
             .select("role")
@@ -145,7 +147,7 @@ export async function updateSession(request: NextRequest) {
         }
         if (isAuthRoute) {
             // Claims outlive a revoked session or a deleted profile, which the pages
-            // reject via getUser(); bouncing home then loops /dashboard <-> /login.
+            // reject (no profile); bouncing home then loops /dashboard <-> /login.
             // Confirm here and drop the stale cookies so the login page renders.
             const { data: { user: verified } } = await supabase.auth.getUser();
             if (!verified || !profile) {

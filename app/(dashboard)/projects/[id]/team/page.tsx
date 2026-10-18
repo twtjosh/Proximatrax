@@ -18,7 +18,7 @@ export default async function ProjectTeamPage(props: {
         redirect(ROUTES.LOGIN);
     if (profile?.role !== "project_manager")
         redirect(projectPath(id));
-    const data = await loadPmProject(supabase, id, user.id);
+    const data = await loadPmProject(supabase, id);
     if (!data)
         notFound();
     const [invitations, pool, contacts] = await Promise.all([

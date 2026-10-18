@@ -18,7 +18,7 @@ export default async function ProjectActivityPage(props: {
     if (profile?.role !== "project_manager")
         redirect(projectPath(id));
     const [data, rows] = await Promise.all([
-        loadPmProject(supabase, id, user.id),
+        loadPmProject(supabase, id),
         listProjectActivityPage(id, { limit: 40 }, supabase).catch(() => []),
     ]);
     if (!data)

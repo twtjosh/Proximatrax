@@ -19,7 +19,7 @@ export default async function ProjectFilesPage(props: {
     if (profile?.role !== "project_manager")
         redirect(`${projectPath(id)}?chat=${id}`);
     const [data, library, attachments] = await Promise.all([
-        loadPmProject(supabase, id, user.id),
+        loadPmProject(supabase, id),
         listProjectFiles(id, supabase),
         listTaskAttachmentsForProject(id, supabase),
     ]);

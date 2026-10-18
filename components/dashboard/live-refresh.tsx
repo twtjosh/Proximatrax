@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { projectPath, projectReviewPath } from "@/lib/constants";
-import { isOwnMove, taskAnnouncement, type LiveTaskRow } from "@/lib/live-changes";
+import { isOwnChange, taskAnnouncement, type LiveTaskRow } from "@/lib/live-changes";
 import { createClient } from "@/lib/supabase/client";
 
 /** Everything a task surface draws from: the work, its proof, its talk, its phase and its people. */
@@ -41,8 +41,11 @@ export function LiveRefresh({ channel, projectId, announce, viewerId }: {
         };
         const audience = announce === "pm" ? { role: "pm" as const } : announce === "crew" && viewerId ? { role: "crew" as const, viewerId } : null;
         const onTask = (payload: RealtimePostgresChangesPayload<LiveTaskRow>) => {
+            // The echo of this browser's own write: the writer already updated its view (and refreshes when it needs to).
+            if (payload.eventType !== "DELETE" && isOwnChange(payload.new.id))
+                return;
             refresh();
-            if (!audience || payload.eventType !== "UPDATE" || isOwnMove(payload.new.id))
+            if (!audience || payload.eventType !== "UPDATE")
                 return;
             const said = taskAnnouncement(payload.old, payload.new, audience);
             if (!said)

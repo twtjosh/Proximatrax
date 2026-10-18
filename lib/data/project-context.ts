@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ROLE_TERMS } from "@/lib/vocabulary";
-import { countUnreadChatMessages } from "@/services/chat-presence-service";
 import type { ProjectWithRelations } from "@/services/project-service";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -20,38 +19,37 @@ export type ProjectContext = {
 };
 
 type ProfileRow = Pick<Profile, "id" | "full_name" | "avatar_url" | "role">;
+type MemberRow = { project_id: string; user_id: string; role_in_project: string; profile: ProfileRow | null };
+
+/** What the context is built from, readable before the projects themselves arrive. */
+export type ContextRows = { members: MemberRow[]; unread: Record<string, number> };
 
 /**
- * Who works on each project (project manager, client, then members) and how
- * many of its messages the viewer has not read. Both only decorate the
- * Overview, so a failed read yields empty context rather than an error.
+ * Who works on each project and how many of its messages the viewer has not
+ * read, in one round trip: members carry their profiles, and the chat inbox
+ * (migration 0022) counts unread for every project at once. Without `ids` it
+ * reads every project the viewer can see. It needs only ids, so callers start
+ * it alongside the project read instead of after it. Both only decorate the
+ * page, so a failed read yields empty context rather than an error.
  */
-export async function loadProjectContext(supabase: SupabaseClient, projects: ProjectWithRelations[], viewerId: string): Promise<ProjectContext> {
-    const ids = projects.map((p) => p.id);
-    if (ids.length === 0)
-        return { teams: {}, unread: {} };
-
-    const [members, unreadCounts] = await Promise.all([
-        supabase.from("project_members").select("project_id, user_id, role_in_project").in("project_id", ids),
-        // ponytail: two small queries per project; fine for a PM's handful of active projects, batch with an RPC if that grows.
-        Promise.all(ids.map((id) => countUnreadChatMessages(id, viewerId, supabase).catch(() => 0))),
+export async function loadProjectContext(supabase: SupabaseClient, ids?: string[]): Promise<ContextRows> {
+    if (ids?.length === 0)
+        return { members: [], unread: {} };
+    let members = supabase.from("project_members").select("project_id, user_id, role_in_project, profile:profiles(id, full_name, avatar_url, role)");
+    if (ids)
+        members = members.in("project_id", ids);
+    const [memberResult, inbox] = await Promise.all([
+        members,
+        supabase.rpc("chat_inbox").then((r) => (r.data ?? []) as { project_id: string; unread: number }[], () => []),
     ]);
-    const memberRows = (members.data ?? []) as { project_id: string; user_id: string; role_in_project: string }[];
+    return {
+        members: (memberResult.data ?? []) as unknown as MemberRow[],
+        unread: Object.fromEntries(inbox.map((r) => [r.project_id, r.unread ?? 0])),
+    };
+}
 
-    const known = new Map<string, ProfileRow>();
-    for (const p of projects) {
-        if (p.pm)
-            known.set(p.pm.id, p.pm);
-        if (p.client)
-            known.set(p.client.id, p.client);
-    }
-    const missing = [...new Set(memberRows.map((m) => m.user_id))].filter((id) => !known.has(id));
-    if (missing.length > 0) {
-        const { data } = await supabase.from("profiles").select("id, full_name, avatar_url, role").in("id", missing);
-        for (const row of (data ?? []) as ProfileRow[])
-            known.set(row.id, row);
-    }
-
+/** Each project's team (project manager, client, then members) and unread count. */
+export function projectContext(projects: ProjectWithRelations[], rows: ContextRows): ProjectContext {
     const person = (row: ProfileRow, role: string): TeamMember => ({ id: row.id, name: row.full_name ?? "Unnamed", avatarUrl: row.avatar_url, role });
     const teams: Record<string, TeamMember[]> = {};
     for (const p of projects) {
@@ -65,12 +63,9 @@ export async function loadProjectContext(supabase: SupabaseClient, projects: Pro
         };
         add(p.pm, ROLE_TERMS.project_manager);
         add(p.client, ROLE_TERMS.client);
-        for (const m of memberRows.filter((m) => m.project_id === p.id)) {
-            const row = known.get(m.user_id);
-            add(row, ROLE_TERMS[(m.role_in_project as UserRole) in ROLE_TERMS ? (m.role_in_project as UserRole) : (row?.role ?? "middleman")]);
-        }
+        for (const m of rows.members.filter((m) => m.project_id === p.id))
+            add(m.profile, ROLE_TERMS[(m.role_in_project as UserRole) in ROLE_TERMS ? (m.role_in_project as UserRole) : (m.profile?.role ?? "middleman")]);
         teams[p.id] = team;
     }
-
-    return { teams, unread: Object.fromEntries(ids.map((id, i) => [id, unreadCounts[i]])) };
+    return { teams, unread: Object.fromEntries(projects.map((p) => [p.id, rows.unread[p.id] ?? 0])) };
 }

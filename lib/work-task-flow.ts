@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeBoardStage, parseChecklist, validateStageTransition, type BoardColumnStage, type WorkflowGateContext, } from "@/lib/board-workflow";
-import { noteOwnMove } from "@/lib/live-changes";
 import { hasSiteEvidence } from "@/lib/media-kind";
 import { toGateTasks } from "@/lib/milestone-task-gates";
+import { toTaskNotifySnapshots, type TaskNotifySnapshot } from "@/lib/work-ready-notifications";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { logActivity } from "@/services/activity-service";
-import { assertProjectNotArchived, listMilestones, syncMilestoneFromLinkedTasks, } from "@/services/project-service";
+import { listMilestones, syncMilestoneFromLinkedTasks, } from "@/services/project-service";
 import { sendBackChecklist } from "@/lib/review-queue";
 import { indexAttachmentsByTask, listApprovedAttachmentsForProject, approveAttachmentsForClient, approveTaskAttachmentsForClient, } from "@/services/task-attachment-service";
 import { listAssignedTasksForUser, listClientVisibleDeliverables, listTasksForProject, updateTask, type TaskWithProject, type TaskWithRelations, } from "@/services/task-service";
@@ -17,16 +17,11 @@ export type { TaskWithProject, TaskWithRelations };
 function resolveClient(client?: SupabaseClient): SupabaseClient {
     return client ?? createBrowserClient();
 }
-async function buildWorkflowGateContext(projectId: string, client?: SupabaseClient): Promise<WorkflowGateContext> {
-    const sb = resolveClient(client);
-    const [milestones, tasks] = await Promise.all([
-        listMilestones(projectId, sb),
-        listTasksForProject(projectId, sb),
-    ]);
-    return {
-        milestones,
-        tasks: toGateTasks(tasks),
-    };
+/** After a task's stage changes: its phase may complete or reopen, and that can make someone's next work ready. */
+async function settleProject(projectId: string, milestoneId: string | null | undefined, tasksBefore: TaskNotifySnapshot[], sb: SupabaseClient) {
+    const sync = await syncMilestoneFromLinkedTasks(projectId, milestoneId, sb);
+    await notifyWorkReadyAfterProjectTaskChange(projectId, tasksBefore, sb);
+    return sync;
 }
 /** Submitting needs proof of the work: at least one site photo or video. */
 export function taskNeedsSitePhoto(attachments: TaskAttachment[]): boolean {
@@ -40,50 +35,46 @@ export async function moveTaskToStage(task: TaskWithRelations, targetStage: Boar
     if (sourceStage === targetStage)
         return;
     const sb = resolveClient();
-    await assertProjectNotArchived(projectId, sb);
-    const tasksBefore = await snapshotProjectTasksForNotify(projectId, sb);
-    const gateContext = await buildWorkflowGateContext(projectId, sb);
+    const checkPhoto = sourceStage === "in_progress" && targetStage === "review" && !options?.skipPhotoCheck;
+    // Everything the move is checked against, in one round trip. One task read serves both the gates and the before-snapshot.
+    const [milestones, projectTasks, attachments] = await Promise.all([
+        listMilestones(projectId, sb),
+        listTasksForProject(projectId, sb),
+        checkPhoto ? sb.from("task_attachments").select("*").eq("task_id", task.id).then((r) => (r.data ?? []) as TaskAttachment[]) : null,
+    ]);
+    const gateContext: WorkflowGateContext = { milestones, tasks: toGateTasks(projectTasks) };
     const validation = validateStageTransition(task, sourceStage, targetStage, viewerRole, gateContext);
     if (!validation.ok) {
         throw new Error(validation.failures[0]?.message ?? "Move not allowed.");
     }
     const claimAssigneeId = options?.claimAssigneeId ??
         (validation.claimAssignee === "self" ? viewerId : undefined);
-    if (sourceStage === "in_progress" &&
-        targetStage === "review" &&
-        !options?.skipPhotoCheck) {
-        const sb = resolveClient();
-        const { data } = await sb
-            .from("task_attachments")
-            .select("*")
-            .eq("task_id", task.id);
-        const attachments = (data ?? []) as TaskAttachment[];
-        if (!taskNeedsSitePhoto(attachments)) {
-            throw new Error("Upload at least one site photo or video before submitting for review.");
-        }
+    if (attachments && !taskNeedsSitePhoto(attachments)) {
+        throw new Error("Upload at least one site photo or video before submitting for review.");
     }
-    noteOwnMove(task.id);
+    const tasksBefore = toTaskNotifySnapshots(projectTasks);
+    // Refuses a closed project before writing anything.
     await updateTask({
         id: task.id,
         stage: targetStage as TaskStage,
         ...(claimAssigneeId ? { assigned_to: claimAssigneeId } : {}),
-    });
-    await logActivity({
-        project_id: projectId,
-        action_type: "task_moved",
-        details: {
-            task_id: task.id,
-            title: task.title,
-            from: sourceStage,
-            to: targetStage,
-            handoff: true,
-        },
-    });
-    await syncMilestoneFromLinkedTasks(projectId, task.milestone_id, sb);
-    await notifyWorkReadyAfterProjectTaskChange(projectId, tasksBefore, sb);
-    if (targetStage === "done") {
-        await dismissWorkNotificationsForTask(task.id, sb);
-    }
+    }, sb);
+    // The move is done; the log, the phase and the notifications don't depend on one another.
+    await Promise.all([
+        logActivity({
+            project_id: projectId,
+            action_type: "task_moved",
+            details: {
+                task_id: task.id,
+                title: task.title,
+                from: sourceStage,
+                to: targetStage,
+                handoff: true,
+            },
+        }, sb),
+        settleProject(projectId, task.milestone_id, tasksBefore, sb),
+        targetStage === "done" ? dismissWorkNotificationsForTask(task.id, sb) : null,
+    ]);
 }
 /**
  * The PM accepts work: it becomes visible to the client with the photos the
@@ -95,33 +86,31 @@ export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: 
     milestoneCompleted?: string;
 }> {
     const sb = resolveClient(client);
-    await assertProjectNotArchived(projectId, sb);
     const tasksBefore = await snapshotProjectTasksForNotify(projectId, sb);
     const now = new Date().toISOString();
+    // Refuses a closed project before writing anything.
     await updateTask({
         id: task.id,
         stage: "done",
         client_visible_at: now,
     }, sb);
-    if (options?.photoIds)
-        await approveAttachmentsForClient(options.photoIds, now, sb);
-    else
-        await approveTaskAttachmentsForClient(task.id, now, sb);
-    await logActivity({
-        project_id: projectId,
-        action_type: "task_moved",
-        details: {
-            task_id: task.id,
-            title: task.title,
-            from: "review",
-            to: "done",
-            handoff: true,
-            client_visible: true,
-        },
-    }, sb);
-    const sync = await syncMilestoneFromLinkedTasks(projectId, task.milestone_id, sb);
-    await dismissWorkNotificationsForTask(task.id, sb);
-    await notifyWorkReadyAfterProjectTaskChange(projectId, tasksBefore, sb);
+    const [, , sync] = await Promise.all([
+        options?.photoIds ? approveAttachmentsForClient(options.photoIds, now, sb) : approveTaskAttachmentsForClient(task.id, now, sb),
+        logActivity({
+            project_id: projectId,
+            action_type: "task_moved",
+            details: {
+                task_id: task.id,
+                title: task.title,
+                from: "review",
+                to: "done",
+                handoff: true,
+                client_visible: true,
+            },
+        }, sb),
+        settleProject(projectId, task.milestone_id, tasksBefore, sb),
+        dismissWorkNotificationsForTask(task.id, sb),
+    ]);
     return sync.completed && sync.title ? { milestoneCompleted: sync.title } : {};
 }
 /**
@@ -130,28 +119,29 @@ export async function acceptTaskDeliverable(task: TaskWithRelations, projectId: 
  */
 export async function sendTaskBackToActive(task: TaskWithRelations, projectId: string, client?: SupabaseClient, reason?: string): Promise<void> {
     const sb = resolveClient(client);
-    await assertProjectNotArchived(projectId, sb);
     const tasksBefore = await snapshotProjectTasksForNotify(projectId, sb);
     const note = reason?.trim();
+    // Refuses a closed project before writing anything.
     await updateTask({
         id: task.id,
         stage: "in_progress",
         ...(note ? { checklist: sendBackChecklist(parseChecklist(task.checklist), note, crypto.randomUUID()) } : {}),
     }, sb);
-    await logActivity({
-        project_id: projectId,
-        action_type: "task_moved",
-        details: {
-            task_id: task.id,
-            title: task.title,
-            from: "review",
-            to: "in_progress",
-            handoff: true,
-            ...(note ? { reason: note } : {}),
-        },
-    }, sb);
-    await syncMilestoneFromLinkedTasks(projectId, task.milestone_id, sb);
-    await notifyWorkReadyAfterProjectTaskChange(projectId, tasksBefore, sb);
+    await Promise.all([
+        logActivity({
+            project_id: projectId,
+            action_type: "task_moved",
+            details: {
+                task_id: task.id,
+                title: task.title,
+                from: "review",
+                to: "in_progress",
+                handoff: true,
+                ...(note ? { reason: note } : {}),
+            },
+        }, sb),
+        settleProject(projectId, task.milestone_id, tasksBefore, sb),
+    ]);
 }
 export function sortWorkTodayTasks(tasks: TaskWithProject[]): TaskWithProject[] {
     const rank = (stage: TaskStage) => {

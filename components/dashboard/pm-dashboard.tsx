@@ -80,9 +80,19 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
         document.addEventListener("pointerdown", onDown);
         return () => document.removeEventListener("pointerdown", onDown);
     }, [openTile]);
-    const titleOf = (id: string) => projects.find((p) => p.id === id)?.title ?? "Project";
     /** Up to this many projects sit in a column beside their work instead of a row of tiles above it. */
     const few = projects.length <= FEW_PROJECTS;
+    // The work column doesn't change as tiles open and close, so hovering a tile doesn't re-render it.
+    const work = React.useMemo(() => {
+        const titleOf = (id: string) => projects.find((p) => p.id === id)?.title ?? "Project";
+        return (<div className={cn("grid items-start gap-5", !few && "lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]")}>
+            <div className="grid min-w-0 gap-5">
+              <YourTasks mine={view.mine} titleOf={titleOf} today={today}/>
+              <NeedsYou overdue={view.othersOverdue} projects={projects} loads={view.loads} readyToClose={view.readyToClose} titleOf={titleOf} today={today}/>
+            </div>
+            <Week upcoming={view.upcoming} overdue={view.overdue} later={view.later} today={today} titleOf={titleOf} onLight={setLitProjects}/>
+          </div>);
+    }, [few, projects, today, view]);
 
     return (<div className="mx-auto w-full max-w-360 pb-12">
       <LiveRefresh channel="pm-dashboard" announce="pm"/>
@@ -103,13 +113,7 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
           </section>
 
           {/* Few projects: the work sits beside them. Many: below, in two columns. */}
-          <div className={cn("grid items-start gap-5", !few && "lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]")}>
-            <div className="grid min-w-0 gap-5">
-              <YourTasks mine={view.mine} titleOf={titleOf} today={today}/>
-              <NeedsYou overdue={view.othersOverdue} projects={projects} loads={view.loads} readyToClose={view.readyToClose} titleOf={titleOf} today={today}/>
-            </div>
-            <Week upcoming={view.upcoming} overdue={view.overdue} later={view.later} today={today} titleOf={titleOf} onLight={setLitProjects}/>
-          </div>
+          {work}
         </div>)}
     </div>);
 }
@@ -195,10 +199,10 @@ function ProjectTile({ index, project: p, load, milestones, team, tasks, unread:
 
     // The cell keeps the resting height, so the open box can grow over the cards below without moving them.
     return (<div ref={cellRef} data-tile={p.id} className="materialize relative min-w-0" style={{ ...stagger(index + 1), height: REST_HEIGHT, zIndex: raised ? 30 : undefined }} onPointerEnter={(e) => { pointer.current = e.pointerType; if (e.pointerType === "mouse") later(onOpen, OPEN_DELAY); }} onPointerLeave={(e) => { if (e.pointerType === "mouse") later(onClose, CLOSE_DELAY); }} onPointerDown={(e) => { pointer.current = e.pointerType; }} onFocus={(e) => { if (e.target.matches(":focus-visible")) onOpen(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(); }} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
-      <motion.div data-open={open} initial={false} animate={{ scale: open ? (wide ? ZOOM_WIDE : ZOOM_NARROW) : receded ? 0.97 : 1 }} transition={SPRING} onAnimationComplete={() => { if (!open) setRaised(false); }} onPointerMove={trackSpotlight} style={{ transformOrigin: `50% calc(${REST_HEIGHT} / 2)`, height: open ? `calc(${REST_HEIGHT} + ${OPEN_GROW}px)` : REST_HEIGHT, left: -side, right: -side }} className={cn("tile-surface spotlight absolute inset-x-0 top-0 flex flex-col overflow-hidden rounded-[20px] material", dimmed && !open && "opacity-35 saturate-50", receded && !dimmed && "opacity-55 blur-[1.5px] saturate-[.85]")}>
+      <motion.div data-open={open} initial={false} animate={{ scale: open ? (wide ? ZOOM_WIDE : ZOOM_NARROW) : receded ? 0.97 : 1 }} transition={SPRING} onAnimationComplete={() => { if (!open) setRaised(false); }} onPointerMove={trackSpotlight} style={{ transformOrigin: `50% calc(${REST_HEIGHT} / 2)`, height: open ? `calc(${REST_HEIGHT} + ${OPEN_GROW}px)` : REST_HEIGHT, left: -side, right: -side }} className={cn("tile-surface spotlight absolute inset-x-0 top-0 flex flex-col overflow-hidden rounded-[20px] material", dimmed && !open && "opacity-35", receded && !dimmed && "opacity-55")}>
 
       {/* Front: how the project stands. */}
-      <div aria-hidden={open} style={{ height: REST_HEIGHT }} className={cn("flex flex-none flex-col justify-between p-5 transition-[opacity,scale,filter] duration-[450ms] ease-spring", open && "pointer-events-none scale-[0.96] opacity-0 blur-[3px] motion-reduce:scale-100 motion-reduce:blur-none")}>
+      <div aria-hidden={open} style={{ height: REST_HEIGHT }} className={cn("flex flex-none flex-col justify-between p-5 transition-[opacity,scale] duration-[450ms] ease-spring", open && "pointer-events-none scale-[0.96] opacity-0 motion-reduce:scale-100")}>
         <div className="flex items-center gap-4">
           <ProgressRing value={share} done={share >= 1 && late === 0}>
             <span className="text-lg font-semibold tracking-[-0.03em] text-ink tabular"><CountUp value={Math.round(share * 100)} delay={(index + 1) * 70 + 220}/><span className="text-[11px] font-medium text-ink-tertiary">%</span></span>
@@ -220,7 +224,7 @@ function ProjectTile({ index, project: p, load, milestones, team, tasks, unread:
       </div>
 
       {/* Back: the details, in the same footprint. */}
-      <div id={detailsId} inert={!open} className={cn("absolute inset-0 flex min-h-0 flex-col p-4 transition-[opacity,translate,filter] duration-[450ms] ease-spring", open ? "delay-75" : "pointer-events-none translate-y-1.5 opacity-0 blur-[3px]")}>
+      <div id={detailsId} inert={!open} className={cn("absolute inset-0 flex min-h-0 flex-col p-4 transition-[opacity,translate] duration-[450ms] ease-spring", open ? "delay-75" : "pointer-events-none translate-y-1.5 opacity-0")}>
         <div className="flex items-center gap-3 px-1">
           <ProgressRing value={share} done={share >= 1 && late === 0} size={34} stroke={4} glow={open}>
             <span className="text-[9px] font-semibold text-ink tabular">{Math.round(share * 100)}</span>

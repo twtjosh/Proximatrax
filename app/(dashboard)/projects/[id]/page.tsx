@@ -24,7 +24,7 @@ export default async function ProjectOverviewPage(props: {
         redirect(ROUTES.LOGIN);
     const role = (profile as Pick<Profile, "role"> | null)?.role;
     if (role === "project_manager") {
-        const data = await loadPmProject(supabase, id, user.id);
+        const data = await loadPmProject(supabase, id);
         if (!data)
             notFound();
         return <PmOverview data={data} viewerId={user.id}/>;
@@ -37,7 +37,7 @@ export default async function ProjectOverviewPage(props: {
         return <CrewOverview data={data} viewerId={user.id} openTask={task ?? null}/>;
     }
     if (role === "client") {
-        const data = await loadClientProject(supabase, id, user.id);
+        const data = await loadClientProject(supabase, id);
         if (!data)
             notFound();
         return <ClientOverview data={data}/>;

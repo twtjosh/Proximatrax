@@ -33,12 +33,19 @@ export async function createClient() {
 /**
  * The signed-in user and their profile. Cached per request, so the layouts
  * and page of one navigation share a single auth check and profile read.
+ *
+ * The session's JWT is verified locally against the project's signing keys
+ * (cached by auth-js), like the proxy does, rather than asking the Auth server
+ * on every render: that was a full round trip before any page data. A deleted
+ * account still fails here, since it has no profile.
  */
 export const getViewer = cache(async () => {
     const supabase = await createClient();
-    const { data: { user }, } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    const user = claims?.sub ? { id: claims.sub, email: typeof claims.email === "string" ? claims.email : undefined } : null;
     if (!user)
         return { supabase, user: null, profile: null };
-    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-    return { supabase, user, profile: data as Profile | null };
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    return { supabase, user, profile: profile as Profile | null };
 });

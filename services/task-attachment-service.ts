@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { TaskAttachment } from "@/types/database";
 const TASK_BUCKET = "project-tasks";
 function resolveClient(client?: SupabaseClient): SupabaseClient {
@@ -64,7 +64,7 @@ export async function uploadTaskAttachment(projectId: string, taskId: string, fi
     if (tooBig)
         throw new Error(tooBig);
     const sb = resolveClient(client);
-    const { data: { user }, } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         throw new Error("Not authenticated.");
     const mimeType = file.type || "application/octet-stream";

@@ -59,15 +59,22 @@ export function changedTaskIds(local: Comparable[], server: Comparable[]): strin
     return server.filter((t) => before.get(t.id) !== signature(t)).map((t) => t.id);
 }
 
-/** Moves this browser made itself, so their echo from the server isn't announced back. */
-const ownMoves = new Map<string, number>();
-const OWN_MOVE_MS = 15_000;
+/**
+ * Task writes this browser made itself. Their echo from the server is neither
+ * announced back nor refreshed for: the writer already updated its own view.
+ */
+const ownChanges = new Map<string, number>();
+// An echo lands within a second or so; short enough that a teammate's next change to the same task still comes through.
+const OWN_CHANGE_MS = 5_000;
 
-export function noteOwnMove(taskId: string, now = Date.now()) {
-    ownMoves.set(taskId, now);
+export function noteOwnChange(taskId: string, now = Date.now()) {
+    for (const [id, at] of ownChanges)
+        if (now - at >= OWN_CHANGE_MS)
+            ownChanges.delete(id);
+    ownChanges.set(taskId, now);
 }
 
-export function isOwnMove(taskId: string, now = Date.now()) {
-    const at = ownMoves.get(taskId);
-    return at !== undefined && now - at < OWN_MOVE_MS;
+export function isOwnChange(taskId: string, now = Date.now()) {
+    const at = ownChanges.get(taskId);
+    return at !== undefined && now - at < OWN_CHANGE_MS;
 }

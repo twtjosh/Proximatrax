@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isoDateIn, type DashboardMilestone } from "@/lib/dashboard";
-import { loadProjectContext, type TeamMember } from "@/lib/data/project-context";
+import { loadProjectContext, projectContext, type TeamMember } from "@/lib/data/project-context";
 import { loadSentBack } from "@/lib/data/sent-back";
 import { getProjectById, type ProjectWithRelations } from "@/services/project-service";
 import { listTasksForProject, type TaskWithRelations } from "@/services/task-service";
@@ -29,16 +29,18 @@ export type CrewProjectData = {
  * the layout and the page both call this and share the result.
  */
 export const loadCrewProject = cache(async (supabase: SupabaseClient, projectId: string, viewerId: string): Promise<CrewProjectData | null> => {
-    const project = await getProjectById(projectId, supabase, { withMilestones: true });
-    if (!project)
-        return null;
-    const [taskResult, attachmentResult, context] = await Promise.all([
+    // One round trip: nothing here waits on the project row, so it all leaves together.
+    const [project, taskResult, attachmentResult, rows] = await Promise.all([
+        getProjectById(projectId, supabase, { withMilestones: true }),
         listTasksForProject(projectId, supabase).then((list) => ({ list, failed: false }), () => ({ list: [] as TaskWithRelations[], failed: true })),
         supabase.from("task_attachments").select("*")
             .eq("project_id", projectId).eq("uploaded_by", viewerId)
             .order("created_at", { ascending: false }),
-        loadProjectContext(supabase, [project], viewerId),
+        loadProjectContext(supabase, [projectId]),
     ]);
+    if (!project)
+        return null;
+    const context = projectContext([project], rows);
     const sentBack = await loadSentBack(supabase, taskResult.list.filter((t) => t.assigned_to === viewerId));
     return {
         project,

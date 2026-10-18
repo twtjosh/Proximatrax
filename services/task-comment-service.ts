@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import { throwIfSupabaseError } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import type { Profile, TaskComment } from "@/types/database";
@@ -37,7 +37,7 @@ export async function countTaskComments(projectId: string, client?: SupabaseClie
 
 export async function addTaskComment(input: { taskId: string; projectId: string; taskTitle: string; body: string }, client?: SupabaseClient): Promise<TaskCommentWithAuthor> {
     const sb = resolveClient(client);
-    const { data: { user } } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         throw new Error("Not signed in.");
     const { data, error } = await sb

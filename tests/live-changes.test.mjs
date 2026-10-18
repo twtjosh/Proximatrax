@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { changedTaskIds, isOwnMove, noteOwnMove, taskAnnouncement } from "../lib/live-changes.ts";
+import { changedTaskIds, isOwnChange, noteOwnChange, taskAnnouncement } from "../lib/live-changes.ts";
 
 const row = (o) => ({ id: "t1", project_id: "p1", title: "Tile the kitchen", stage: "review", assigned_to: "crew", ...o });
 
@@ -31,9 +31,9 @@ test("changed ids: server edits and new tasks, not the local copy's own state", 
     assert.deepEqual(changedTaskIds(local, server), ["b", "c"]);
 });
 
-test("own moves are muted for a while", () => {
-    noteOwnMove("t9", 1_000);
-    assert.equal(isOwnMove("t9", 5_000), true);
-    assert.equal(isOwnMove("t9", 20_000), false);
-    assert.equal(isOwnMove("other", 5_000), false);
+test("own changes are muted briefly", () => {
+    noteOwnChange("t9", 1_000);
+    assert.equal(isOwnChange("t9", 4_000), true);
+    assert.equal(isOwnChange("t9", 7_000), false, "a teammate's later change is not muted");
+    assert.equal(isOwnChange("other", 5_000), false);
 });

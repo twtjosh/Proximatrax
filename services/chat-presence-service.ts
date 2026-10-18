@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { InboxRow } from "@/lib/messenger";
 import type { Profile, ProjectChatReadCursor } from "@/types/database";
 export type ChatParticipant = Pick<Profile, "id" | "full_name" | "avatar_url">;
@@ -54,7 +54,7 @@ export async function listProjectChatReadCursors(projectId: string, client?: Sup
 }
 export async function markProjectChatRead(projectId: string, client?: SupabaseClient): Promise<void> {
     const sb = resolveClient(client);
-    const { data: { user }, } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         return;
     const now = new Date().toISOString();

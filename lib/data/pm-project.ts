@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isoDateIn, type DashboardMilestone } from "@/lib/dashboard";
-import { loadProjectContext, type TeamMember } from "@/lib/data/project-context";
+import { loadProjectContext, projectContext, type TeamMember } from "@/lib/data/project-context";
 import type { PmTask } from "@/lib/pm-project";
 import { latestUpdate, type StatusUpdate } from "@/lib/project-log";
 import { listProjectActivityPage, type ActivityWithActor } from "@/services/activity-service";
@@ -34,21 +34,24 @@ const ACTIVITY_COUNT = 10;
  * Everything the PM's project shell and Overview read, once per request:
  * the layout and the page both call this and share the result.
  */
-export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: string, viewerId: string): Promise<PmProjectData | null> => {
-    const project = await getProjectById(projectId, supabase, { withMilestones: true });
-    if (!project)
-        return null;
-    const [taskResult, context, invitations, activity, updateRows] = await Promise.all([
+export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: string): Promise<PmProjectData | null> => {
+    // One round trip: nothing here waits on the project row, so it all leaves together.
+    const [project, taskResult, rows, pendingInvitations, activity, updateRows] = await Promise.all([
+        getProjectById(projectId, supabase, { withMilestones: true }),
         supabase.from("tasks")
             .select("id, title, project_id, stage, due_date, client_visible_at, updated_at, assigned_to, milestone_id")
             .eq("project_id", projectId),
-        loadProjectContext(supabase, [project], viewerId),
-        project.status === "pending_invites" ? listInvitationsForProject(projectId, supabase).catch(() => []) : Promise.resolve([]),
+        loadProjectContext(supabase, [projectId]),
+        listInvitationsForProject(projectId, supabase).catch(() => []),
         listProjectActivityPage(projectId, { limit: ACTIVITY_COUNT }, supabase).catch(() => []),
         supabase.from("activity_feed").select("action_type, details, created_at, user_id")
             .eq("project_id", projectId).eq("action_type", "project_update")
             .order("created_at", { ascending: false }).limit(1),
     ]);
+    if (!project)
+        return null;
+    const context = projectContext([project], rows);
+    const invitations = project.status === "pending_invites" ? pendingInvitations : [];
     const tasks = (taskResult.data ?? []) as PmTask[];
     const team = context.teams[projectId] ?? [];
     return {

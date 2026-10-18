@@ -544,10 +544,17 @@ body {
 
 /* A project box zoomed toward the viewer: white, edged in copper, sitting on a
    warm shadow. After .material so it wins. */
+/* No backdrop blur here: tiles rest on the plain canvas, where it shows
+   nothing, yet re-blurring the backdrop of a box that scales and grows every
+   frame (and of every receding neighbour) is what made hovering lag. The open
+   box is opaque instead, so the cards it grows over stay hidden. */
 .tile-surface {
-  transition: height 520ms var(--ease-spring), left 520ms var(--ease-spring), right 520ms var(--ease-spring), box-shadow 500ms var(--ease-spring), opacity 450ms var(--ease-spring), filter 450ms var(--ease-spring);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: height 520ms var(--ease-spring), left 520ms var(--ease-spring), right 520ms var(--ease-spring), box-shadow 500ms var(--ease-spring), opacity 450ms var(--ease-spring);
 }
 .tile-surface[data-open="true"] {
+  background: var(--surface);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.9),
     0 0 0 1.5px rgb(217 119 6 / 0.55),

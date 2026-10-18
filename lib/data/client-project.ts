@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toClientPhotos, type ApprovedRow, type ClientPhoto } from "@/lib/client-project";
 import { isoDateIn, type DashboardMilestone } from "@/lib/dashboard";
-import { loadProjectContext, type TeamMember } from "@/lib/data/project-context";
+import { loadProjectContext, projectContext, type TeamMember } from "@/lib/data/project-context";
 import { latestUpdate, type StatusUpdate } from "@/lib/project-log";
 import { getProjectById, type ProjectWithRelations } from "@/services/project-service";
 import type { ProjectFile } from "@/types/database";
@@ -34,16 +34,15 @@ export type ClientProjectData = {
  * Only accepted work and approved photos are read, so nothing unapproved
  * reaches the client's browser.
  */
-export const loadClientProject = cache(async (supabase: SupabaseClient, projectId: string, viewerId: string): Promise<ClientProjectData | null> => {
-    const project = await getProjectById(projectId, supabase, { withMilestones: true });
-    if (!project)
-        return null;
-    const [updateResult, photoResult, context, statusRows, documents] = await Promise.all([
+export const loadClientProject = cache(async (supabase: SupabaseClient, projectId: string): Promise<ClientProjectData | null> => {
+    // One round trip: nothing here waits on the project row, so it all leaves together.
+    const [project, updateResult, photoResult, rows, statusRows, documents] = await Promise.all([
+        getProjectById(projectId, supabase, { withMilestones: true }),
         supabase.from("tasks").select("id, title, milestone_id, client_visible_at")
             .eq("project_id", projectId).not("client_visible_at", "is", null)
             .order("client_visible_at", { ascending: false }),
         listApprovedAttachmentsForProject(projectId, supabase).then((rows) => ({ rows: rows as unknown as ApprovedRow[], failed: false }), () => ({ rows: [] as ApprovedRow[], failed: true })),
-        loadProjectContext(supabase, [project], viewerId),
+        loadProjectContext(supabase, [projectId]),
         supabase.from("activity_feed").select("action_type, details, created_at, user_id")
             .eq("project_id", projectId).eq("action_type", "project_update")
             .order("created_at", { ascending: false }).limit(1),
@@ -51,11 +50,14 @@ export const loadClientProject = cache(async (supabase: SupabaseClient, projectI
         supabase.from("project_files").select("*").eq("project_id", projectId).not("shared_with_client_at", "is", null)
             .order("shared_with_client_at", { ascending: false }),
     ]);
-    const rows = (updateResult.data ?? []) as { id: string; title: string; milestone_id: string | null; client_visible_at: string }[];
+    if (!project)
+        return null;
+    const context = projectContext([project], rows);
+    const updates = (updateResult.data ?? []) as { id: string; title: string; milestone_id: string | null; client_visible_at: string }[];
     return {
         project,
         milestones: (project.milestones ?? []).map((m) => ({ id: m.id, title: m.title, project_id: m.project_id, due_date: m.due_date, completed: m.completed })),
-        updates: rows.map((t) => ({ id: t.id, title: t.title, milestone_id: t.milestone_id, at: t.client_visible_at })),
+        updates: updates.map((t) => ({ id: t.id, title: t.title, milestone_id: t.milestone_id, at: t.client_visible_at })),
         photos: toClientPhotos(photoResult.rows, publicTaskAttachmentUrl),
         team: context.teams[projectId] ?? [],
         update: latestUpdate((statusRows.data ?? []) as Parameters<typeof latestUpdate>[0]),

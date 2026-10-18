@@ -26,7 +26,7 @@ export default async function ProjectPhotosPage(props: {
         return <CrewPhotos data={data} viewerId={user.id}/>;
     }
     if (role === "client") {
-        const data = await loadClientProject(supabase, id, user.id);
+        const data = await loadClientProject(supabase, id);
         if (!data)
             notFound();
         return (<div className="grid gap-6">

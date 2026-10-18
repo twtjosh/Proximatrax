@@ -25,7 +25,7 @@ export default async function ProjectBoardPage(props: {
     if (role === "middleman")
         redirect(projectPath(id));
     if (role === "client") {
-        const data = await loadClientProject(supabase, id, user.id);
+        const data = await loadClientProject(supabase, id);
         if (!data)
             notFound();
         return <UpdatesFeed data={data}/>;

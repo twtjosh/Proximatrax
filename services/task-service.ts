@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { noteOwnChange } from "@/lib/live-changes";
+import { isProjectArchived } from "@/lib/project-lifecycle";
 import { assertProjectNotArchived } from "@/services/project-service";
-import type { Task, Milestone } from "@/types/database";
+import type { Task, Milestone, Project } from "@/types/database";
 import type { TaskStage, TaskPriority } from "@/types/enums";
 export type TaskAssignee = {
     id: string;
@@ -92,16 +94,18 @@ export type UpdateTaskInput = {
 export async function updateTask(input: UpdateTaskInput, client?: SupabaseClient): Promise<Task> {
     const sb = resolveClient(client);
     const { id, ...rest } = input;
+    // The task and its project's status in one read: a closed project is read-only.
     const { data: existing, error: lookupError } = await sb
         .from("tasks")
-        .select("project_id")
+        .select("project:projects(status)")
         .eq("id", id)
         .maybeSingle();
     if (lookupError)
         throw lookupError;
-    if (existing?.project_id) {
-        await assertProjectNotArchived(existing.project_id as string, sb);
-    }
+    const project = (existing as { project: { status: Project["status"] } | null } | null)?.project;
+    if (project && isProjectArchived(project))
+        throw new Error("This engagement is formally closed and read-only.");
+    noteOwnChange(id);
     const payload: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rest)) {
         if (v !== undefined)

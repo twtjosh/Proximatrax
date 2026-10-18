@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/types/database";
 function resolveClient(client?: SupabaseClient): SupabaseClient {
     return client ?? createBrowserClient();
@@ -19,7 +19,7 @@ export async function listChatMessages(projectId: string, limit: number, client?
 }
 export async function sendChatMessage(projectId: string, content: string, client?: SupabaseClient): Promise<ChatMessage> {
     const sb = resolveClient(client);
-    const { data: { user }, } = await sb.auth.getUser();
+    const user = await signedInUser(sb);
     if (!user)
         throw new Error("Not authenticated.");
     const { data, error } = await sb
