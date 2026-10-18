@@ -13,6 +13,7 @@ import { normalizeBoardStage, parseChecklist, taskBlockedReason, type BoardColum
 import { projectReviewPath } from "@/lib/constants";
 import { formatDate } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
+import { milestoneTaskDates } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import { deleteTaskAttachment, publicTaskAttachmentUrl, uploadTaskAttachment } from "@/services/task-attachment-service";
@@ -33,6 +34,7 @@ type Props = {
     attachments: TaskAttachment[];
     people: Profile[];
     milestones: Milestone[];
+    projectStart: string;
     today: string;
     closed: boolean;
     gate: WorkflowGateContext;
@@ -57,7 +59,7 @@ export function TaskSheet(props: Props) {
     </Sheet>);
 }
 
-function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachments, people, milestones, today, closed, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
+function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachments, people, milestones, projectStart, today, closed, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
     task: TaskWithRelations;
 }) {
     const stage = normalizeBoardStage(task.stage);
@@ -205,7 +207,10 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
           <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">Milestone
             <select value={task.milestone_id ?? ""} onChange={(e) => {
                 const m = milestones.find((x) => x.id === e.target.value);
-                void save({ milestone_id: m?.id ?? null }, { milestone_id: m?.id ?? null, milestone: m ? { id: m.id, title: m.title } : null });
+                // Dates follow the new milestone while they are unset or still the old one's default.
+                const from = milestones.find((x) => x.id === task.milestone_id);
+                const dates = !task.due_date || task.due_date === from?.due_date ? milestoneTaskDates(m?.id ?? null, milestones, projectStart, today) : null;
+                void save({ milestone_id: m?.id ?? null, ...dates }, { milestone_id: m?.id ?? null, milestone: m ? { id: m.id, title: m.title } : null, ...dates });
             }} className={cn(field, "cursor-pointer")}>
               <option value="">None</option>
               {milestones.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}

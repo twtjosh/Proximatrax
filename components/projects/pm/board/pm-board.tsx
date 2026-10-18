@@ -11,6 +11,7 @@ import { checklistProgress, normalizeBoardStage, taskBlockedReason, type BoardCo
 import { daysBetween, duePhrase } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { parseQuickAdd } from "@/lib/quick-add";
+import { milestoneTaskDates } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
@@ -41,7 +42,7 @@ function order(stage: BoardColumnStage, tasks: TaskWithRelations[], today: strin
  * one stage at a time. In review is decided in Review mode, so a card dragged
  * out of it opens there; Accepted is the client's record and stays put.
  */
-export function PmBoard({ projectId, tasks, attachments, comments, milestones, people, today, viewerId, closed }: {
+export function PmBoard({ projectId, tasks, attachments, comments, milestones, people, projectStart, today, viewerId, closed }: {
     projectId: string;
     tasks: TaskWithRelations[];
     attachments: TaskAttachment[];
@@ -50,6 +51,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     milestones: Milestone[];
     /** Who can be given work: the PM and the project's crew. */
     people: Profile[];
+    projectStart: string;
     today: string;
     viewerId: string;
     closed: boolean;
@@ -92,7 +94,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const fileCounts = new Map([...byTask].map(([id, list]) => [id, list.length]));
 
     return (<div className="grid gap-4 pt-2">
-      <QuickAdd projectId={projectId} people={people} milestones={milestones} today={today} closed={closed} onAdded={(task) => {
+      <QuickAdd projectId={projectId} people={people} milestones={milestones} projectStart={projectStart} today={today} closed={closed} onAdded={(task) => {
             setItems((list) => [...list, task]);
             router.refresh();
         }}/>
@@ -179,7 +181,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
         </div>
       </DragDropContext>) : null}
 
-      <TaskSheet {...sheet} people={people} today={today} reduce={!!reduce}/>
+      <TaskSheet {...sheet} people={people} projectStart={projectStart} today={today} reduce={!!reduce}/>
     </div>);
 }
 
@@ -236,10 +238,11 @@ function Card({ handle, task, comments, today, files, blocked, dragging, onOpen 
  * One line becomes a task: "Tile the kitchen @ana #finishing fri". Typing @
  * or # offers matches; Tab takes the first. Pressing N anywhere focuses it.
  */
-function QuickAdd({ projectId, people, milestones, today, closed, onAdded }: {
+function QuickAdd({ projectId, people, milestones, projectStart, today, closed, onAdded }: {
     projectId: string;
     people: Profile[];
     milestones: Milestone[];
+    projectStart: string;
     today: string;
     closed: boolean;
     onAdded: (task: TaskWithRelations) => void;
@@ -284,7 +287,7 @@ function QuickAdd({ projectId, people, milestones, today, closed, onAdded }: {
         setBusy(true);
         try {
             const before = parsed.assigneeId ? await snapshotProjectTasksForNotify(projectId) : null;
-            const created = await createTask({ project_id: projectId, title: parsed.title, assigned_to: parsed.assigneeId, milestone_id: parsed.milestoneId, due_date: parsed.dueDate, stage: "to_do" });
+            const created = await createTask({ project_id: projectId, title: parsed.title, assigned_to: parsed.assigneeId, milestone_id: parsed.milestoneId, due_date: parsed.dueDate, ...milestoneTaskDates(parsed.milestoneId, milestones, projectStart, today, parsed.dueDate), stage: "to_do" });
             void logActivity({ project_id: projectId, action_type: "task_created", details: { task_id: created.id, title: created.title } });
             if (before)
                 void notifyWorkReadyAfterProjectTaskChange(projectId, before);

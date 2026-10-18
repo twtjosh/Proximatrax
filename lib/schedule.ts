@@ -18,6 +18,23 @@ export function milestoneSpans(milestones: { id: string; due_date: string }[], p
     });
 }
 
+/**
+ * Where a task in a milestone runs by default: from the day its phase opens
+ * (the day after the previous milestone is due, or the project start), or
+ * today once that has passed, to the milestone's due date. A due date the PM
+ * typed wins; the start never lands after the due date.
+ */
+export function milestoneTaskDates(milestoneId: string | null, milestones: { id: string; due_date: string }[], projectStart: string, today: string, typedDue?: string | null): { start_date: string; due_date: string } | null {
+    const sorted = [...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const i = sorted.findIndex((m) => m.id === milestoneId);
+    if (i < 0)
+        return null;
+    const due = typedDue ?? sorted[i].due_date;
+    const opens = i === 0 ? projectStart : addDays(sorted[i - 1].due_date, 1);
+    const start = opens > today ? opens : today;
+    return { start_date: start < due ? start : due, due_date: due };
+}
+
 export type Range = { from: string; to: string };
 
 /** The visible window: the project and every due date, padded a few days. */

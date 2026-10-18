@@ -354,8 +354,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
           </ul>
         </section>) : null}
 
-      <TaskSheet {...actions.sheet} people={people} today={today} reduce={!!reduce}/>
-      <MilestonePanel milestone={openMs} projectId={projectId} tasks={items} people={people} milestones={ms} today={today} closed={closed} count={openMs ? counts.get(openMs.id) ?? { total: 0, accepted: 0 } : { total: 0, accepted: 0 }} onClose={() => setQuery({ milestone: null })} onPatch={(id, p) => setMs((list) => list.map((m) => (m.id === id ? { ...m, ...p } : m)))} onReschedule={(m, to) => void saveMilestone(m, to)} onDeleted={(id) => {
+      <TaskSheet {...actions.sheet} people={people} projectStart={start} today={today} reduce={!!reduce}/>
+      <MilestonePanel milestone={openMs} projectId={projectId} tasks={items} people={people} milestones={ms} projectStart={start} today={today} closed={closed} count={openMs ? counts.get(openMs.id) ?? { total: 0, accepted: 0 } : { total: 0, accepted: 0 }} onClose={() => setQuery({ milestone: null })} onPatch={(id, p) => setMs((list) => list.map((m) => (m.id === id ? { ...m, ...p } : m)))} onReschedule={(m, to) => void saveMilestone(m, to)} onDeleted={(id) => {
             setQuery({ milestone: null });
             setMs((list) => list.filter((m) => m.id !== id));
             router.refresh();

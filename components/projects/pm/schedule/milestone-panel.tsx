@@ -11,6 +11,7 @@ import { projectBoardPath } from "@/lib/constants";
 import { plural } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { parseQuickAdd } from "@/lib/quick-add";
+import { milestoneTaskDates } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { TASK_STAGE_TERMS } from "@/lib/vocabulary";
 import { logActivity } from "@/services/activity-service";
@@ -26,6 +27,7 @@ type Props = {
     tasks: TaskWithRelations[];
     people: Profile[];
     milestones: Milestone[];
+    projectStart: string;
     today: string;
     closed: boolean;
     count: { total: number; accepted: number };
@@ -47,7 +49,7 @@ export function MilestonePanel(props: Props) {
     </Sheet>);
 }
 
-function Body({ milestone: m, projectId, tasks, people, milestones, today, closed, count, onPatch, onReschedule, onDeleted }: Props & {
+function Body({ milestone: m, projectId, tasks, people, milestones, projectStart, today, closed, count, onPatch, onReschedule, onDeleted }: Props & {
     milestone: Milestone;
 }) {
     const router = useRouter();
@@ -112,7 +114,7 @@ function Body({ milestone: m, projectId, tasks, people, milestones, today, close
                 const p = parseQuickAdd(line, lookup);
                 if (!p.title)
                     continue;
-                const created = await createTask({ project_id: projectId, title: p.title, milestone_id: m.id, assigned_to: p.assigneeId, due_date: p.dueDate ?? m.due_date, stage: "to_do" });
+                const created = await createTask({ project_id: projectId, title: p.title, milestone_id: m.id, assigned_to: p.assigneeId, ...milestoneTaskDates(m.id, milestones, projectStart, today, p.dueDate), stage: "to_do" });
                 void logActivity({ project_id: projectId, action_type: "task_created", details: { task_id: created.id, title: created.title } });
                 made += 1;
             }

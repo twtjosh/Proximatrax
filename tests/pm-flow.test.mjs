@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuickAdd } from "../lib/quick-add.ts";
-import { dateToFraction, fractionToDate, milestoneSpans, monthTicks, shiftLabel, timelineRange } from "../lib/schedule.ts";
+import { dateToFraction, fractionToDate, milestoneSpans, milestoneTaskDates, monthTicks, shiftLabel, timelineRange } from "../lib/schedule.ts";
 import { peopleLoad } from "../lib/people-load.ts";
 import { reviewQueue, sendBackChecklist } from "../lib/review-queue.ts";
 import { nextHandoffAction, taskBlockedReason, validateStageTransition } from "../lib/board-workflow.ts";
@@ -47,6 +47,19 @@ test("schedule: each bar runs from the previous milestone (or the project start)
     const ms = [{ id: "b", due_date: "2026-10-24" }, { id: "a", due_date: "2026-10-20" }];
     assert.deepEqual(milestoneSpans(ms, "2026-10-19"), [{ id: "a", start: "2026-10-19", end: "2026-10-20" }, { id: "b", start: "2026-10-20", end: "2026-10-24" }]);
     assert.deepEqual(milestoneSpans([{ id: "x", due_date: "2026-10-10" }], "2026-10-19"), [{ id: "x", start: "2026-10-10", end: "2026-10-10" }]);
+});
+
+test("schedule: a task in a milestone defaults to the phase's window, starting no earlier than today", () => {
+    const ms = [{ id: "b", due_date: "2026-11-20" }, { id: "a", due_date: "2026-10-31" }];
+    // First phase opens at the project start, which has passed: starts today.
+    assert.deepEqual(milestoneTaskDates("a", ms, "2026-10-01", TODAY), { start_date: TODAY, due_date: "2026-10-31" });
+    // Later phase opens the day after the previous milestone.
+    assert.deepEqual(milestoneTaskDates("b", ms, "2026-10-01", TODAY), { start_date: "2026-11-01", due_date: "2026-11-20" });
+    // A typed due date wins, and the start never passes it.
+    assert.deepEqual(milestoneTaskDates("b", ms, "2026-10-01", TODAY, "2026-10-16"), { start_date: "2026-10-16", due_date: "2026-10-16" });
+    // A milestone already past: start and due are its date.
+    assert.deepEqual(milestoneTaskDates("x", [{ id: "x", due_date: "2026-10-10" }], "2026-10-01", TODAY), { start_date: "2026-10-10", due_date: "2026-10-10" });
+    assert.equal(milestoneTaskDates(null, ms, "2026-10-01", TODAY), null);
 });
 
 test("schedule: range pads the project window and every due date; date and fraction convert both ways, snapped to days", () => {
