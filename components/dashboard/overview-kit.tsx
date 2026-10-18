@@ -38,22 +38,26 @@ export function OverviewHeader({ title, sub, actions }: {
     </header>);
 }
 
-/** A white card with a title row. `aside` sits at the right of the title. */
-export function OverviewCard({ id, title, count, aside, children, className, style }: {
+/** A white card with a title row. `sub` is one quiet line under the title; `aside` sits at the right. */
+export function OverviewCard({ id, title, count, sub, aside, children, className, style }: {
     id: string;
     title: string;
     count?: number;
+    sub?: React.ReactNode;
     aside?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
     style?: React.CSSProperties;
 }) {
     return (<section aria-labelledby={id} className={cn("min-w-0 rounded-[20px] material", className)} style={style}>
-      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-2 sm:px-6">
-        <h2 id={id} className="text-[17px] font-semibold tracking-[-0.016em] text-ink">
-          {title}
-          {count ? <span className="ml-1.5 font-medium text-ink-tertiary tabular">{count}</span> : null}
-        </h2>
+      <div className={cn("flex justify-between gap-3 px-5 pt-5 pb-2 sm:px-6", sub ? "flex-wrap items-start" : "items-center")}>
+        <div className="min-w-0">
+          <h2 id={id} className="text-[17px] font-semibold tracking-[-0.016em] text-ink">
+            {title}
+            {count ? <span className="ml-1.5 font-medium text-ink-tertiary tabular">{count}</span> : null}
+          </h2>
+          {sub ? <p className="mt-0.5 text-[13px] text-ink-tertiary">{sub}</p> : null}
+        </div>
         {aside ? <div className="text-xs text-ink-tertiary">{aside}</div> : null}
       </div>
       {children}

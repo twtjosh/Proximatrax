@@ -1,5 +1,5 @@
 import type { Milestone, Project, Task } from "../types/database";
-import { addDays, daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
+import { daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
 
 /**
  * Pure derivations behind the owner's Overview and the PM's Analytics page.
@@ -162,18 +162,6 @@ export function milestoneRecord(milestones: AMilestone[], today: string): Milest
     };
 }
 
-export type TaskCounts = { ongoing: number; dueSoon: number; completed: number };
-
-/** Ongoing is in progress or in review; due soon is open work due from today through `horizonDays - 1` days ahead. */
-export function taskCounts(tasks: ATask[], today: string, horizonDays = 14): TaskCounts {
-    const last = addDays(today, horizonDays - 1);
-    return {
-        ongoing: tasks.filter((t) => t.stage === "in_progress" || t.stage === "review").length,
-        dueSoon: tasks.filter((t) => t.stage !== "done" && t.due_date !== null && t.due_date >= today && t.due_date <= last).length,
-        completed: tasks.filter((t) => t.stage === "done").length,
-    };
-}
-
 /** Late is open work past its due date; work in review waits on the PM, so it is never late (as in `lib/people-load.ts`). */
 const isLate = (t: ATask, today: string) => t.stage !== "done" && t.stage !== "review" && t.due_date !== null && t.due_date < today;
 
@@ -202,55 +190,7 @@ export function waitingForReview(tasks: ATask[], moves: TaskMove[], today: strin
         .sort((a, b) => a.since.localeCompare(b.since));
 }
 
-/**
- * Mean days from a submission to the PM's answer (accepted or sent back), over
- * submissions made in the last `windowDays`, to one decimal. Submissions still
- * waiting are left out; null when none was answered.
- */
-export function reviewTurnaround(moves: TaskMove[], today: string, windowDays = 90): number | null {
-    const from = addDays(today, -(windowDays - 1));
-    const sorted = [...moves].sort((a, b) => a.at.localeCompare(b.at));
-    const waits: number[] = [];
-    // ponytail: scans forward per submission (O(n²)); index moves by task if a PM's log grows past a few thousand.
-    sorted.forEach((m, i) => {
-        if (m.to !== "review" || dateOf(m.at) < from)
-            return;
-        const answer = sorted.slice(i + 1).find((n) => n.task_id === m.task_id && n.from === "review");
-        if (answer)
-            waits.push((Date.parse(answer.at) - Date.parse(m.at)) / 86_400_000);
-    });
-    return waits.length > 0 ? Math.round((waits.reduce((s, w) => s + w, 0) / waits.length) * 10) / 10 : null;
-}
-
 export type Person = { id: string; name: string; avatarUrl: string | null };
-export type CrewRow = Person & OpenLoad & { finished: number; finishedOnTime: number; sentBack: number; submissions: number };
-
-/**
- * Each person's record across `tasks`: open work, lateness, finished work
- * (on time when it has no due date or was completed by it), and how often
- * their submissions came back. Moves count for the task's current assignee.
- * People with no tasks are left out. Most late first, then busiest.
- */
-export function crewRecord(people: Person[], tasks: ATask[], moves: TaskMove[], today: string): CrewRow[] {
-    const assignee = new Map(tasks.map((t) => [t.id, t.assigned_to]));
-    return people
-        .map((p) => {
-            const mine = tasks.filter((t) => t.assigned_to === p.id);
-            const done = mine.filter((t) => t.stage === "done");
-            const theirs = moves.filter((m) => assignee.get(m.task_id) === p.id);
-            return {
-                ...p,
-                ...openLoad(mine, today),
-                finished: done.length,
-                finishedOnTime: done.filter((t) => !t.due_date || !t.completed_at || dateOf(t.completed_at) <= t.due_date).length,
-                submissions: theirs.filter((m) => m.to === "review").length,
-                sentBack: theirs.filter((m) => m.from === "review" && m.to === "in_progress").length,
-            };
-        })
-        .filter((r) => r.open + r.finished > 0)
-        .sort((a, b) => b.late - a.late || b.open - a.open || a.name.localeCompare(b.name));
-}
-
 export type ProjectRow = {
     project: AProject;
     result: ProjectResult;

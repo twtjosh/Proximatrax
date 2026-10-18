@@ -118,6 +118,16 @@
   --copper-hover: #B45309;
   --copper-soft: rgba(217, 119, 6, 0.1);
   --copper-muted: #FEF3C7;
+  /* Chart series for categories (projects, people), in fixed order; a fifth
+     and later category folds into "other". Validated for colour-blind
+     separation against white. Never reuse the stage colours for series. */
+  --series-1: #C2620A;
+  --series-2: #4F6BED;
+  --series-3: #0F9D8E;
+  --series-4: #A14FC4;
+  --series-other: #9AA1B2;
+  /* A task that has waited under three days, on an Analytics step. */
+  --age-fresh: #A9B0BF;
   --surface-card: #FFFFFF;
   --surface-spotlight: #F8FAFC;
   --cool-grey: #E2E8F0;
@@ -455,6 +465,33 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .ring-draw {
+    animation: none;
+  }
+}
+
+/* Chart marks settle in when their data changes (bars rise, fills widen). */
+@keyframes chart-rise {
+  from {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+}
+@keyframes chart-widen {
+  from {
+    transform: scaleX(0);
+  }
+}
+.chart-rise {
+  transform-origin: 50% 100%;
+  animation: chart-rise 700ms var(--ease-spring) backwards;
+}
+.chart-widen {
+  transform-origin: 0 50%;
+  animation: chart-widen 700ms var(--ease-spring) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-rise,
+  .chart-widen {
     animation: none;
   }
 }

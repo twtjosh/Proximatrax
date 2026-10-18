@@ -4,7 +4,6 @@ import {
     agePhrase,
     ageTone,
     behindSchedule,
-    crewRecord,
     deliveries,
     deliveryPhrase,
     deliveryRecord,
@@ -20,8 +19,6 @@ import {
     projectRows,
     resultPhrase,
     resultTone,
-    reviewTurnaround,
-    taskCounts,
     waitingForReview,
 } from "../lib/analytics.ts";
 
@@ -151,19 +148,6 @@ test("milestoneRecord: on time by Manila completion date; overdue counts open on
     assert.deepEqual(milestoneRecord([], TODAY), { completed: 0, onTime: 0, overdue: 0, ticks: [] });
 });
 
-test("taskCounts: ongoing, due from today through day 13, completed", () => {
-    const ts = [
-        task({ id: "1", stage: "in_progress" }),
-        task({ id: "2", stage: "review" }),
-        task({ id: "3", due_date: TODAY }),
-        task({ id: "4", due_date: "2026-10-28" }),
-        task({ id: "5", due_date: "2026-10-29" }),
-        task({ id: "6", stage: "done", due_date: "2026-10-20" }),
-        task({ id: "7", due_date: "2026-10-14" }),
-    ];
-    assert.deepEqual(taskCounts(ts, TODAY), { ongoing: 2, dueSoon: 2, completed: 1 });
-});
-
 test("openLoad: work in review is never late", () => {
     const ts = [task({ id: "1", due_date: "2026-10-01" }), task({ id: "2", stage: "review", due_date: "2026-10-01" }), task({ id: "3", stage: "done", due_date: "2026-10-01" }), task({ id: "4" })];
     assert.deepEqual(openLoad(ts, TODAY), { open: 3, late: 1, review: 1 });
@@ -178,44 +162,6 @@ test("waitingForReview: dated from the latest submission, else the last update; 
         move("c", "in_progress", "review", at("2026-10-01")),
     ];
     assert.deepEqual(waitingForReview(ts, moves, TODAY).map((w) => [w.task.id, w.days]), [["a", 5], ["b", 3]]);
-});
-
-test("reviewTurnaround: mean days to an answer over the last 90 days, unanswered left out", () => {
-    const moves = [
-        move("a", "in_progress", "review", at("2026-10-01")), move("a", "review", "done", at("2026-10-03")),
-        move("b", "in_progress", "review", at("2026-10-02")), move("b", "review", "in_progress", at("2026-10-05")),
-        move("c", "in_progress", "review", at("2026-10-14")),
-        move("d", "in_progress", "review", at("2026-06-01")), move("d", "review", "done", at("2026-06-11")),
-    ];
-    assert.equal(reviewTurnaround(moves, TODAY), 2.5);
-    assert.equal(reviewTurnaround([], TODAY), null);
-});
-
-test("crewRecord: per current assignee, unassigned and idle ignored, most late first", () => {
-    const people = [
-        { id: "jessa", name: "Jessa Mendoza", avatarUrl: null },
-        { id: "arnel", name: "Arnel Cruz", avatarUrl: null },
-        { id: "idle", name: "Nobody Here", avatarUrl: null },
-    ];
-    const ts = [
-        task({ id: "1", assigned_to: "arnel", due_date: "2026-10-01" }),
-        task({ id: "2", assigned_to: "arnel", stage: "done", due_date: "2026-09-01", completed_at: at("2026-09-03") }),
-        task({ id: "3", assigned_to: "jessa", stage: "done", completed_at: at("2026-09-03") }),
-        task({ id: "4", assigned_to: "jessa", stage: "done", due_date: "2026-09-10", completed_at: at("2026-09-09") }),
-        task({ id: "5", due_date: "2026-10-01" }),
-    ];
-    const moves = [
-        move("2", "in_progress", "review", at("2026-08-30")),
-        move("2", "review", "in_progress", at("2026-08-31")),
-        move("2", "in_progress", "review", at("2026-09-02")),
-        move("2", "review", "done", at("2026-09-03")),
-        move("4", "in_progress", "review", at("2026-09-08")),
-        move("5", "in_progress", "review", at("2026-09-08")),
-    ];
-    assert.deepEqual(
-        crewRecord(people, ts, moves, TODAY).map((r) => [r.id, r.open, r.late, r.finished, r.finishedOnTime, r.sentBack, r.submissions]),
-        [["arnel", 1, 1, 1, 0, 1, 2], ["jessa", 0, 0, 2, 2, 0, 1]],
-    );
 });
 
 test("projectRows: active by newest start, delivered by newest delivery, with counts and result", () => {

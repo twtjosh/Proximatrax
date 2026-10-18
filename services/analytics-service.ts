@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { behindSchedule, crewRecord, deliveries, deliveryRecord, lastMonths, managingCount, milestoneRecord, openLoad, peopleCount, projectRows, reviewTurnaround, taskCounts, waitingForReview, type AMilestone, type AProject, type ATask, type CrewRow, type DeliveryRecord, type MilestoneRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskCounts, type TaskMove, type Waiting } from "@/lib/analytics";
+import { behindSchedule, deliveries, deliveryRecord, lastMonths, managingCount, openLoad, peopleCount, projectRows, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskMove } from "@/lib/analytics";
+import type { FlowTask } from "@/lib/flow";
 import { readAll } from "@/lib/paged";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { UserRole } from "@/types/enums";
 
 export const PROJECT_COLS = "id, title, pm_id, client_id, status, start_date, end_date, completed_at";
-export const TASK_COLS = "id, project_id, title, stage, assigned_to, due_date, completed_at, updated_at";
+export const TASK_COLS = "id, project_id, title, stage, assigned_to, due_date, completed_at, created_at, updated_at";
 export const MILESTONE_COLS = "id, project_id, title, due_date, completed, completed_at";
 
 type ProfileRow = { id: string; full_name: string; role: UserRole; avatar_url: string | null };
@@ -111,16 +112,17 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
 export type PmAnalytics = {
     pm: Person & { firstName: string };
     firstDelivery: string | null;
+    delivered: number;
     rows: { active: ProjectRow[]; delivered: ProjectRow[] };
     clientNames: Record<string, string>;
-    record: DeliveryRecord;
-    dots: { title: string; late: number }[];
-    milestones: MilestoneRecord;
-    tasks: TaskCounts;
-    behind: string[];
-    crew: CrewRow[];
-    turnaround: number | null;
-    waiting: (Waiting & { projectTitle: string; crewName: string | null })[];
+    /** Raw rows for the Flow charts, which the page filters and counts in the browser. */
+    flow: {
+        tasks: FlowTask[];
+        moves: TaskMove[];
+        /** Active projects first, then delivered; colours follow this order. */
+        projects: { id: string; title: string; active: boolean }[];
+        crew: Person[];
+    };
 };
 
 const none = { data: [], error: null };
@@ -140,7 +142,7 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
         : [none, none, none];
     for (const r of [tasksRes, milestonesRes, movesRes])
         throwIfSupabaseError(r.error);
-    const tasks = (tasksRes.data ?? []) as ATask[];
+    const tasks = (tasksRes.data ?? []) as FlowTask[];
     const milestones = (milestonesRes.data ?? []) as AMilestone[];
     const moves = toMoves(movesRes.data ?? []);
 
@@ -149,26 +151,20 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
     throwIfSupabaseError(peopleRes.error);
     const people = (peopleRes.data ?? []) as ProfileRow[];
     const nameOf = new Map(people.map((p) => [p.id, p.full_name]));
-    const titleOf = new Map(projects.map((p) => [p.id, p.title]));
 
     const ds = deliveries(projects);
     const rows = projectRows(projects, milestones, tasks, today);
     return {
         pm: { id: pm.id, name: pm.full_name, avatarUrl: pm.avatar_url ?? null, firstName: pm.full_name.split(" ")[0] },
         firstDelivery: ds[0]?.date ?? null,
+        delivered: ds.length,
         rows,
         clientNames: Object.fromEntries(projects.map((p) => [p.id, nameOf.get(p.client_id) ?? "Client"])),
-        record: deliveryRecord(ds),
-        dots: ds.map((d) => ({ title: d.project.title, late: d.late })),
-        milestones: milestoneRecord(milestones, today),
-        tasks: taskCounts(tasks, today),
-        behind: rows.active.filter((r) => r.result.kind === "past_end" || r.result.kind === "milestone_late").map((r) => r.project.title),
-        crew: crewRecord(people.filter((p) => p.role === "middleman").map(person), tasks, moves, today),
-        turnaround: reviewTurnaround(moves, today),
-        waiting: waitingForReview(tasks, moves, today).map((w) => ({
-            ...w,
-            projectTitle: titleOf.get(w.task.project_id) ?? "",
-            crewName: w.task.assigned_to ? nameOf.get(w.task.assigned_to) ?? null : null,
-        })),
+        flow: {
+            tasks,
+            moves,
+            projects: [...rows.active, ...rows.delivered].map((r) => ({ id: r.project.id, title: r.project.title, active: r.project.status !== "completed" })),
+            crew: people.filter((p) => p.role !== "client").sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),
+        },
     };
 }
