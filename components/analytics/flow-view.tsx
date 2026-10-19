@@ -120,8 +120,10 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
 
     const STEP_NAMES = ["Waiting to start", "Being worked on", `Waiting for ${you}`];
     const TAGS = ["To do", "In progress", "In review"];
-    const slowest = s.now.steps[0] !== null && s.now.steps[1] !== null ? (s.now.steps[1]! >= s.now.steps[0]! ? 1 : 0) : -1;
-    const grow = s.now.steps.map((d) => d ?? 1), sum = grow.reduce((a, b) => a + b, 0);
+    const [d0, d1] = s.now.steps;
+    const slowest = d0 !== null && d1 !== null && Math.max(d0, d1) > 0 ? (d1 >= d0 ? 1 : 0) : -1;
+    // A floor so 0-day steps still get a share of the row (all zeros = equal thirds) and the loop maths never divides by 0.
+    const grow = s.now.steps.map((d) => Math.max(d ?? 1, 0.5)), sum = grow.reduce((a, b) => a + b, 0);
     const mid1 = ((grow[0] + grow[1] / 2) / sum) * 100, mid2 = ((grow[0] + grow[1] + grow[2] / 2) / sum) * 100;
     const list = s.open[step], shown = showAll ? list : list.slice(0, 5);
     const onTimeTotal = s.now.accepted, late = onTimeTotal - s.now.onTime;
@@ -175,7 +177,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
           </div>
           <div className="grid lg:grid-cols-[minmax(0,1fr)_150px] lg:gap-2">
             <div className="relative py-3 lg:h-14 lg:py-0">
-              {s.now.submitted ? <span className="absolute top-1.5 h-6 rounded-b-[14px] border-[1.5px] border-t-0 border-dashed border-copper transition-[left,width] duration-500 max-lg:hidden" style={{ left: `${mid1}%`, width: `${mid2 - mid1}%` }} aria-hidden/> : null}
+              {s.now.submitted ? <span className="absolute top-1.5 h-6 rounded-b-[14px] border-[1.5px] border-t-0 border-dashed border-copper transition-[left,width] duration-500 before:absolute before:-top-0.75 before:-left-1.5 before:border-x-[5px] before:border-b-[7px] before:border-x-transparent before:border-b-copper before:content-[''] max-lg:hidden" style={{ left: `${mid1}%`, width: `${mid2 - mid1}%` }} aria-hidden/> : null}
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[12.5px] font-semibold text-brand lg:absolute lg:top-7 lg:-translate-x-1/2 lg:whitespace-nowrap" style={{ left: `${(mid1 + mid2) / 2}%` }}>
                 <Undo2 className="size-3.5" aria-hidden/>
                 {s.now.submitted ? <>{s.now.sentBack} of {s.now.submitted} sent back{s.reworkDays !== null ? ` · +${s.reworkDays} d each` : ""}</> : "Nothing submitted for review yet"}
