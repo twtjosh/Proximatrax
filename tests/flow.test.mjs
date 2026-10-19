@@ -80,22 +80,22 @@ test("reworkDays is the mean wait from a send-back to the next submission", () =
     assert.equal(reworkDays([move("x", "review", "in_progress", "2026-10-14")], "2026-10-01", TODAY), null);
 });
 
-test("weekStarts gives Monday-start weeks ending with today's", () => {
-    assert.deepEqual(weekStarts(TODAY, 3), ["2026-09-28", "2026-10-05", "2026-10-12"]);
-    assert.deepEqual(weekStarts("2026-10-12", 1), ["2026-10-12"]);
+test("weekStarts gives seven-day weeks, the last ending today", () => {
+    assert.deepEqual(weekStarts(TODAY, 3), ["2026-09-25", "2026-10-02", "2026-10-09"]);
+    assert.deepEqual(weekStarts(TODAY, 1), ["2026-10-09"]);
 });
 
-test("flowSummary counts the period, the period before, and the weeks", () => {
+test("flowSummary counts the period, the period before, and weeks that add up to the period", () => {
     const old = task({ id: "t0", stage: "done", created_at: at("2026-09-01"), completed_at: at("2026-09-20"), due_date: "2026-09-15" });
-    const s = flowSummary([t1, t2, old], [...t1Moves, ...t2Moves, move("t0", "in_progress", "review", "2026-09-18"), move("t0", "review", "in_progress", "2026-09-19")], TODAY, 14);
-    assert.deepEqual([s.now.accepted, s.now.onTime, s.now.submitted, s.now.sentBack], [2, 1, 3, 1]);
-    assert.deepEqual([s.before.accepted, s.before.onTime, s.before.submitted, s.before.sentBack], [1, 0, 1, 1]);
+    // Accepted Oct 13 with no due date: counts as accepted, not as on time or late.
+    const undated = task({ id: "t4", stage: "done", created_at: at("2026-10-05"), completed_at: at("2026-10-13") });
+    const s = flowSummary([t1, t2, old, undated], [...t1Moves, ...t2Moves, move("t0", "in_progress", "review", "2026-09-18"), move("t0", "review", "in_progress", "2026-09-19")], TODAY, 2);
+    assert.deepEqual([s.now.accepted, s.now.dated, s.now.onTime, s.now.added, s.now.submitted, s.now.sentBack], [3, 2, 1, 2, 3, 1]);
+    assert.deepEqual([s.before.accepted, s.before.dated, s.before.onTime, s.before.added, s.before.submitted, s.before.sentBack], [1, 1, 0, 1, 1, 1]);
     assert.equal(s.reworkDays, 2);
-    assert.deepEqual(s.weeks, ["2026-10-05", "2026-10-12"]);
-    assert.deepEqual(s.weekly.accepted, [1, 1]);
-    assert.deepEqual(s.weekly.acceptedBefore, [0, 0]);
-    assert.deepEqual(s.weekly.sentBack, [1, 0]);
-    assert.deepEqual(s.weekly.onTime, [1, 0]);
+    assert.deepEqual(s.weeks, ["2026-10-02", "2026-10-09"]);
+    assert.deepEqual(s.weekly.accepted, [0, 3]);
+    assert.deepEqual(s.weekly.added, [2, 0]);
 });
 
 test("scopeFlow keeps one person's tasks and only their moves", () => {

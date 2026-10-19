@@ -122,15 +122,13 @@ export function openNow(tasks: FlowTask[], moves: TaskMove[], today: string): Op
 
 /** Accepted within the dates: done, with a completion stamp in range. */
 export const acceptedIn = (tasks: FlowTask[], from: string, to: string) => tasks.filter((t) => t.stage === "done" && t.completed_at && inRange(t.completed_at, from, to));
-/** On time means no due date, or completed on or before it. */
-const onTime = (t: FlowTask) => !t.due_date || dayOf(t.completed_at!) <= t.due_date;
+/** Completed on or before its due date. Only tasks with a due date can be on time or late. */
+const onTime = (t: FlowTask) => !!t.due_date && dayOf(t.completed_at!) <= t.due_date;
 const isSendBack = (m: TaskMove) => m.from === "review" && m.to === "in_progress";
 
-/** The Monday-start weeks covering the last `count` weeks, the current one last. */
+/** The first days of the last `count` seven-day weeks, oldest first; the last week ends today. */
 export function weekStarts(today: string, count: number): string[] {
-    const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
-    const monday = addDays(today, -((dow + 6) % 7));
-    return Array.from({ length: count }, (_, i) => addDays(monday, -7 * (count - 1 - i)));
+    return Array.from({ length: count }, (_, i) => addDays(today, 1 - 7 * (count - i)));
 }
 
 /** Mean days from each send-back in range to that task's next submission; null when none came back yet. */
@@ -150,7 +148,11 @@ export function reworkDays(moves: TaskMove[], from: string, to: string): number 
 export type FlowPeriod = {
     steps: (number | null)[];
     accepted: number;
+    /** Accepted tasks that had a due date: what on time is out of. */
+    dated: number;
     onTime: number;
+    /** Tasks created. */
+    added: number;
     submitted: number;
     sentBack: number;
 };
@@ -160,7 +162,9 @@ function period(tasks: FlowTask[], moves: TaskMove[], vs: Visit[], from: string,
     return {
         steps: stepMedians(vs, from, to),
         accepted: acc.length,
+        dated: acc.filter((t) => t.due_date).length,
         onTime: acc.filter(onTime).length,
+        added: tasks.filter((t) => inRange(t.created_at, from, to)).length,
         submitted: moves.filter((m) => m.to === "review" && inRange(m.at, from, to)).length,
         sentBack: moves.filter((m) => isSendBack(m) && inRange(m.at, from, to)).length,
     };
@@ -173,25 +177,21 @@ export type FlowSummary = {
     weeks: string[];
     weekly: {
         accepted: number[];
-        acceptedBefore: number[];
-        review: (number | null)[];
-        sentBack: number[];
-        onTime: (number | null)[];
-        journey: (number | null)[];
+        added: number[];
     };
     open: OpenTask[][];
 };
 
 /**
  * Everything the Flow page shows for one scope of tasks over the last
- * `days` days, against the `days` before. Weekly series cover the weeks
- * that overlap the period; `acceptedBefore` is the same weeks one period earlier.
+ * `count` weeks, against the same span before. The weekly series split the
+ * period exactly, so they add up to its totals.
  */
-export function flowSummary(tasks: FlowTask[], moves: TaskMove[], today: string, days: number): FlowSummary {
+export function flowSummary(tasks: FlowTask[], moves: TaskMove[], today: string, count: number): FlowSummary {
     const vs = visits(tasks, moves);
+    const days = count * 7;
     const from = addDays(today, -(days - 1));
-    const weeks = weekStarts(today, Math.ceil(days / 7));
-    const shift = weeks.length * 7;
+    const weeks = weekStarts(today, count);
     const week = (ws: string) => period(tasks, moves, vs, ws, addDays(ws, 6));
     const perWeek = weeks.map(week);
     return {
@@ -201,11 +201,7 @@ export function flowSummary(tasks: FlowTask[], moves: TaskMove[], today: string,
         weeks,
         weekly: {
             accepted: perWeek.map((w) => w.accepted),
-            acceptedBefore: weeks.map((ws) => acceptedIn(tasks, addDays(ws, -shift), addDays(ws, 6 - shift)).length),
-            review: perWeek.map((w) => w.steps[2]),
-            sentBack: perWeek.map((w) => w.sentBack),
-            onTime: perWeek.map((w) => (w.accepted ? w.onTime / w.accepted : null)),
-            journey: perWeek.map((w) => journeyDays(w.steps)),
+            added: perWeek.map((w) => w.added),
         },
         open: openNow(tasks, moves, today),
     };

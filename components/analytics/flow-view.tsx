@@ -2,13 +2,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ChartLine, ChevronDown, Table2, Undo2 } from "lucide-react";
-import { AreaChart, Donut, Spark, WeekBars, type Slice } from "@/components/analytics/flow-charts";
+import { AreaChart, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
 import { openLoad, type Person, type TaskMove } from "@/lib/analytics";
 import { projectBoardPath, projectReviewPath } from "@/lib/constants";
-import { addDays, formatDate, isoDateIn, plural } from "@/lib/dashboard";
-import { acceptedIn, daysPerTask, flowSummary, journeyDays, openNow, scopeFlow, type FlowTask, type OpenTask } from "@/lib/flow";
+import { addDays, isoDateIn, plural } from "@/lib/dashboard";
+import { daysPerTask, flowSummary, journeyDays, openNow, scopeFlow, type FlowTask, type OpenTask } from "@/lib/flow";
 import { cn } from "@/lib/utils";
 
 export type FlowData = {
@@ -18,7 +18,8 @@ export type FlowData = {
     crew: Person[];
 };
 type Viewer = "pm" | "owner";
-type Period = 30 | 90;
+/** Whole weeks, so the weekly charts add up to the tiles. */
+type Period = 4 | 12;
 
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 const OTHER = "var(--series-other)";
@@ -30,9 +31,8 @@ const daysText = (d: number) => (d === 0 ? "Today" : plural(d, "day"));
 
 /**
  * The Analytics page's Flow: how work moves through a manager's projects.
- * Number tiles, the task journey with what sits in each step now, then
- * throughput, where accepted work came from, on time, review time and
- * workload. One period and one filter (a project or a person) drive it all;
+ * The task journey (each flow number once, with its change and what sits in
+ * each step now), then throughput (added against accepted) and workload. One period and one filter (a project or a person) drive it all;
  * every count is worked out here from the raw rows.
  */
 export function FlowView({ data, viewer, firstName, today, title, sub, before }: {
@@ -46,12 +46,11 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     /** Rendered above the header (the owner's back link). */
     before?: React.ReactNode;
 }) {
-    const [period, setPeriod] = React.useState<Period>(90);
+    const [period, setPeriod] = React.useState<Period>(12);
     const [filter, setFilter] = React.useState("all");
     const [step, setStep] = React.useState(2);
     const [showAll, setShowAll] = React.useState(false);
     const [table, setTable] = React.useState(false);
-    const [lit, setLit] = React.useState<string | null>(null);
     const root = React.useRef<HTMLDivElement>(null);
 
     const you = viewer === "pm" ? "you" : firstName;
@@ -66,7 +65,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
         return scopeFlow(data.tasks, data.moves, (t) => (byProject ? t.project_id === id : t.assigned_to === id));
     }, [data, filter]);
     const s = React.useMemo(() => flowSummary(scoped.tasks, scoped.moves, today, period), [scoped, today, period]);
-    const from = addDays(today, -(period - 1));
+    const from = addDays(today, 1 - period * 7);
     const scopeName = !scope ? null : scope.kind === "project" ? projectOf.get(scope.id)?.title : personOf.get(scope.id)?.name;
     const pick = (f: string) => {
         setFilter((cur) => (cur === f ? "all" : f));
@@ -78,30 +77,16 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     const total = journeyDays(s.now.steps), totalBefore = journeyDays(s.before.steps);
     const rate = (x: number, y: number) => (y ? (x / y) * 100 : null);
 
-    // Where accepted work came from: by project, or by person inside one project.
-    const byPerson = scope?.kind === "project";
-    const slices: Slice[] = React.useMemo(() => {
-        const counts = new Map<string, number>();
-        for (const t of acceptedIn(scoped.tasks, from, today)) {
-            const key = byPerson ? t.assigned_to ?? "none" : t.project_id;
-            counts.set(key, (counts.get(key) ?? 0) + 1);
-        }
-        const order = byPerson ? data.crew.map((p) => p.id) : data.projects.map((p) => p.id);
-        const named = order.slice(0, 4).filter((id) => counts.get(id)).map((id) => ({ key: id, label: (byPerson ? personOf.get(id)?.name : projectOf.get(id)?.title) ?? "", value: counts.get(id)!, color: (byPerson ? personOf.get(id)?.color : projectOf.get(id)?.color) ?? OTHER }));
-        const rest = [...counts.entries()].filter(([id]) => !named.some((n) => n.key === id)).reduce((a, [, v]) => a + v, 0);
-        return rest ? [...named, { key: "other", label: byPerson ? "Others" : "Other projects", value: rest, color: OTHER }] : named;
-    }, [scoped, from, today, byPerson, data, personOf, projectOf]);
-
     // Workload: everyone's open work (inside the chosen project, when there is one).
-    const base = byPerson ? scoped : data;
+    const base = scope?.kind === "project" ? scoped : data;
     const workload = React.useMemo(() => {
-        const team = daysPerTask(base.tasks, base.moves, today, period);
+        const team = daysPerTask(base.tasks, base.moves, today, period * 7);
         const rows = data.crew.map((p) => {
             const mine = scopeFlow(base.tasks, base.moves, (t) => t.assigned_to === p.id);
             const open = openNow(mine.tasks, mine.moves, today).map((l) => l.length);
             const inPeriod = mine.moves.filter((m) => isoDateIn(m.at) >= from);
             const submitted = inPeriod.filter((m) => m.to === "review").length, back = inPeriod.filter((m) => m.from === "review" && m.to === "in_progress").length;
-            return { person: p, open, late: openLoad(mine.tasks, today).late, pace: daysPerTask(mine.tasks, mine.moves, today, period), submitted, back };
+            return { person: p, open, late: openLoad(mine.tasks, today).late, pace: daysPerTask(mine.tasks, mine.moves, today, period * 7), submitted, back };
         }).filter((r) => r.open.some(Boolean) || r.submitted > 0);
         const maxOpen = Math.max(1, ...rows.map((r) => r.open[0] + r.open[1] + r.open[2]));
         const worst = rows.filter((r) => r.submitted >= 3 && r.back / r.submitted > 0.12).sort((a, b) => b.back / b.submitted - a.back / a.submitted)[0]?.person.id;
@@ -126,13 +111,13 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     const grow = s.now.steps.map((d) => Math.max(d ?? 1, 0.5)), sum = grow.reduce((a, b) => a + b, 0);
     const mid1 = ((grow[0] + grow[1] / 2) / sum) * 100, mid2 = ((grow[0] + grow[1] + grow[2] / 2) / sum) * 100;
     const list = s.open[step], shown = showAll ? list : list.slice(0, 5);
-    const onTimeTotal = s.now.accepted, late = onTimeTotal - s.now.onTime;
+    const net = s.now.added - s.now.accepted;
 
     return (<div ref={root} className="relative scroll-mt-6">
       {before}
       <OverviewHeader title={title} sub={sub} actions={<div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Period" className="inline-flex rounded-xl bg-surface p-[3px] shadow-[0_0_0_1px_var(--line)]">
-            {([30, 90] as const).map((d) => <button key={d} type="button" aria-pressed={period === d} onClick={() => setPeriod(d)} className={cn("h-8 min-w-13 rounded-[9px] px-3 text-[13px] font-semibold transition-colors", period === d ? "bg-ink text-surface" : "text-ink-tertiary hover:text-ink", focusRing)}>{d}D</button>)}
+            {([4, 12] as const).map((d) => <button key={d} type="button" aria-label={`Last ${d} weeks`} aria-pressed={period === d} onClick={() => setPeriod(d)} className={cn("h-8 min-w-13 rounded-[9px] px-3 text-[13px] font-semibold transition-colors", period === d ? "bg-ink text-surface" : "text-ink-tertiary hover:text-ink", focusRing)}>{d}W</button>)}
           </div>
           <label className={cn("relative inline-flex h-[38px] items-center rounded-xl bg-surface pl-3 shadow-[0_0_0_1px_var(--line)] focus-within:shadow-[0_0_0_2px_var(--copper)]", filter !== "all" && "shadow-[0_0_0_1.5px_var(--copper),0_0_0_5px_var(--copper-soft)]")}>
             <span className="text-[13px] text-ink-tertiary">Show</span>
@@ -146,17 +131,8 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
           {filter !== "all" ? <button type="button" onClick={() => setFilter("all")} className={cn("h-[38px] rounded-xl px-2.5 text-[13px] font-semibold text-brand hover:bg-brand-soft", focusRing)}>Clear</button> : null}
         </div>}/>
 
-      {/* Number tiles */}
-      <div className="materialize mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" style={stagger(1)}>
-        <Tile label="Accepted" value={s.now.accepted} unit="tasks" delta={<Delta now={s.now.accepted} before={s.before.accepted} worseWhenUp={false} whole/>} spark={s.weekly.accepted}/>
-        <Tile label="To get accepted" value={total ?? "–"} unit={total === null ? "" : "days"} delta={<Delta now={total} before={totalBefore} unit=" d"/>} spark={s.weekly.journey}/>
-        <Tile label={`Waiting for ${you}`} value={s.now.steps[2] ?? "–"} unit={s.now.steps[2] === null ? "" : "days"} delta={<Delta now={s.now.steps[2]} before={s.before.steps[2]} unit=" d"/>} spark={s.weekly.review}/>
-        <Tile label="Sent back" value={s.now.sentBack} unit={`of ${s.now.submitted}`} delta={<Delta now={rate(s.now.sentBack, s.now.submitted)} before={rate(s.before.sentBack, s.before.submitted)} unit=" pts" whole/>} spark={s.weekly.sentBack}/>
-        <Tile label="Finished on time" value={s.now.onTime} unit={`of ${s.now.accepted}`} delta={<Delta now={rate(s.now.onTime, s.now.accepted)} before={rate(s.before.onTime, s.before.accepted)} worseWhenUp={false} unit=" pts" whole/>} spark={s.weekly.onTime}/>
-      </div>
-
-      {/* Task journey */}
-      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step · each dot is a task there now" className="materialize mt-4" style={stagger(2)} aside={<AgeKey/>}>
+      {/* Task journey: the page's one place for the flow numbers and their change against the period before. */}
+      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step · each dot is a task there now" className="materialize mt-6" style={stagger(1)} aside={<AgeKey/>}>
         <div className="px-5 pb-5 sm:px-6">
           <div className="mt-3 mb-2.5 grid gap-2 lg:grid-cols-[minmax(0,1fr)_150px]">
             <div className="flex items-center gap-2.5">
@@ -171,16 +147,25 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
             </div>
             <div className="flex flex-col gap-2.5 rounded-2xl bg-success-soft p-3.5">
               <span className="text-[13.5px] font-semibold">Accepted<span className="block text-xs font-normal text-ink-tertiary">Done</span></span>
-              <b className="text-[32px] leading-none font-semibold tracking-[-0.035em] text-success tabular">{s.now.accepted}<small className="ml-1 text-[13.5px] font-medium tracking-normal text-ink-tertiary">tasks</small></b>
-              <span className="mt-auto text-[12.5px] text-ink-secondary">last {period} days</span>
+              <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                <b className="text-[32px] leading-none font-semibold tracking-[-0.035em] text-success tabular">{s.now.accepted}<small className="ml-1 text-[13.5px] font-medium tracking-normal text-ink-tertiary">tasks</small></b>
+                <Delta now={s.now.accepted} before={s.before.accepted} worseWhenUp={false} whole/>
+              </span>
+              <span className="mt-auto flex flex-col items-start gap-1.5 border-t border-success/20 pt-2.5 text-[12.5px] text-ink-secondary">
+                {s.now.dated ? <span><b className="font-semibold text-ink tabular">{s.now.onTime} of {s.now.dated}</b> by due date</span> : "None had a due date"}
+                <Delta now={rate(s.now.onTime, s.now.dated)} before={rate(s.before.onTime, s.before.dated)} worseWhenUp={false} unit=" pts" whole/>
+              </span>
             </div>
           </div>
           <div className="grid lg:grid-cols-[minmax(0,1fr)_150px] lg:gap-2">
             <div className="relative py-3 lg:h-14 lg:py-0">
               {s.now.submitted ? <span className="absolute top-1.5 h-6 rounded-b-[14px] border-[1.5px] border-t-0 border-dashed border-copper transition-[left,width] duration-500 before:absolute before:-top-0.75 before:-left-1.5 before:border-x-[5px] before:border-b-[7px] before:border-x-transparent before:border-b-copper before:content-[''] max-lg:hidden" style={{ left: `${mid1}%`, width: `${mid2 - mid1}%` }} aria-hidden/> : null}
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[12.5px] font-semibold text-brand lg:absolute lg:top-7 lg:-translate-x-1/2 lg:whitespace-nowrap" style={{ left: `${(mid1 + mid2) / 2}%` }}>
-                <Undo2 className="size-3.5" aria-hidden/>
-                {s.now.submitted ? <>{s.now.sentBack} of {s.now.submitted} sent back{s.reworkDays !== null ? ` · +${s.reworkDays} d each` : ""}</> : "Nothing submitted for review yet"}
+              <span className="inline-flex flex-wrap items-center gap-1.5 lg:absolute lg:top-7 lg:-translate-x-1/2 lg:flex-nowrap lg:whitespace-nowrap" style={{ left: `${(mid1 + mid2) / 2}%` }}>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[12.5px] font-semibold text-brand">
+                  <Undo2 className="size-3.5" aria-hidden/>
+                  {s.now.submitted ? <>{s.now.sentBack} of {s.now.submitted} sent back{s.reworkDays !== null ? ` · +${s.reworkDays} d each` : ""}</> : "Nothing submitted for review yet"}
+                </span>
+                {s.now.submitted ? <Delta now={rate(s.now.sentBack, s.now.submitted)} before={rate(s.before.sentBack, s.before.submitted)} unit=" pts" whole/> : null}
               </span>
             </div>
           </div>
@@ -192,79 +177,26 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
         </div>
       </OverviewCard>
 
-      {/* Throughput */}
-      <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks accepted each week" className="materialize mt-4" style={stagger(3)} aside={<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-ink-secondary">
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-copper" aria-hidden/>Last {period} days</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-ink-tertiary" aria-hidden/>Period before</span>
-          <button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 font-medium hover:text-ink", focusRing)}>{table ? <><ChartLine className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>
-        </div>}>
-        <Big value={s.now.accepted} label="accepted" delta={<Delta now={s.now.accepted} before={s.before.accepted} worseWhenUp={false} whole/>}/>
-        <div className="px-4 pt-3 pb-5 sm:px-5">
-          {table ? (<table className="w-full text-[13px] tabular">
-              <thead><tr className="text-left text-ink-tertiary"><th className="px-2.5 py-1.5 font-medium">Week of</th><th className="px-2.5 py-1.5 text-right font-medium">Accepted</th><th className="px-2.5 py-1.5 text-right font-medium">Period before</th></tr></thead>
-              <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line"><td className="px-2.5 py-1.5">{formatDate(w, { month: "short", day: "numeric" })}</td><td className="px-2.5 py-1.5 text-right">{s.weekly.accepted[i]}</td><td className="px-2.5 py-1.5 text-right">{s.weekly.acceptedBefore[i]}</td></tr>)}</tbody>
-            </table>) : <AreaChart values={s.weekly.accepted} before={s.weekly.acceptedBefore} weeks={s.weeks}/>}
-        </div>
-      </OverviewCard>
-
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
-        {/* Where accepted work came from */}
-        <OverviewCard id="share-heading" title={byPerson ? "By crew member" : "By project"} sub="Where accepted work came from · click one to focus" className="materialize" style={stagger(4)}>
-          {slices.length === 0 ? <p className="px-5 pt-1 pb-6 text-sm text-ink-tertiary sm:px-6">Nothing accepted in the last {period} days.</p> : (<div className="grid items-center gap-5 px-5 pt-3 pb-5 sm:grid-cols-[168px_minmax(0,1fr)] sm:px-6">
-              <div className="relative mx-auto size-[168px]">
-                <Donut slices={slices} lit={lit}/>
-                <div className="absolute inset-0 grid place-content-center text-center"><b className="text-[30px] leading-none font-semibold tracking-[-0.03em] tabular">{s.now.accepted}</b><span className="mt-1 text-xs text-ink-tertiary">accepted</span></div>
-              </div>
-              <div className="grid gap-0.5">
-                {slices.map((sl) => {
-                    const f = sl.key === "other" || sl.key === "none" ? null : byPerson ? `u:${sl.key}` : `p:${sl.key}`;
-                    const body = (<>
-                      <span className="size-2.5 rounded-[3px]" style={{ background: sl.color }} aria-hidden/>
-                      <span className="truncate text-[13px] font-semibold">{sl.label}</span>
-                      <span className="text-[13px] font-semibold tabular">{sl.value} <span className="font-medium text-ink-tertiary">of {s.now.accepted}</span></span>
-                      <span className="col-span-2 col-start-2 h-1 overflow-hidden rounded-full bg-surface-sunken"><span className="chart-widen block h-full rounded-full" style={{ width: `${(sl.value / s.now.accepted) * 100}%`, background: sl.color }}/></span>
-                    </>);
-                    const cls = "grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 rounded-[10px] px-2.5 py-2 text-left";
-                    return f ? <button key={sl.key} type="button" aria-pressed={filter === f} onClick={() => pick(f)} onPointerEnter={() => setLit(sl.key)} onPointerLeave={() => setLit(null)} onFocus={() => setLit(sl.key)} onBlur={() => setLit(null)} className={cn(cls, "transition-colors hover:bg-surface-subtle aria-pressed:bg-brand-soft", focusRing)}>{body}</button> : <div key={sl.key} className={cls} onPointerEnter={() => setLit(sl.key)} onPointerLeave={() => setLit(null)}>{body}</div>;
-                })}
-              </div>
-            </div>)}
-        </OverviewCard>
-
-        {/* On time */}
-        <OverviewCard id="ontime-heading" title="On time" sub="Accepted tasks finished by their due date" className="materialize" style={stagger(5)}>
-          <Big value={s.now.onTime} label={`of ${onTimeTotal}`} delta={<Delta now={rate(s.now.onTime, s.now.accepted)} before={rate(s.before.onTime, s.before.accepted)} worseWhenUp={false} unit=" pts" whole/>}/>
-          {onTimeTotal ? (<>
-              <div className="mx-5 mt-3.5 flex h-2.5 gap-[3px] sm:mx-6" role="img" aria-label={`${s.now.onTime} on time, ${late} late`}>
-                {s.now.onTime ? <span className="chart-widen rounded-full bg-stage-done" style={{ flex: s.now.onTime }}/> : null}
-                {late ? <span className="chart-widen rounded-full bg-stage-late" style={{ flex: late }}/> : null}
-              </div>
-              <div className="flex gap-4 px-5 pt-2.5 text-[12.5px] text-ink-secondary sm:px-6">
-                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-done" aria-hidden/><b className="font-semibold text-ink tabular">{s.now.onTime}</b> on time</span>
-                <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-late" aria-hidden/><b className="font-semibold text-ink tabular">{late}</b> late</span>
-              </div>
-            </>) : null}
-          <p className="px-5 pt-5 pb-1.5 text-[12.5px] font-semibold text-ink-tertiary sm:px-6">In progress the longest</p>
-          {s.open[1].length === 0 ? <p className="px-5 pb-5 text-sm text-ink-tertiary sm:px-6">Nothing in progress.</p> : (<ul className="pb-2">
-              {s.open[1].slice(0, 4).map((o) => {
-                    const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to) : null;
-                    return (<li key={o.task.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-t border-line px-5 py-2.5 sm:px-6">
-                      {who ? <Face person={asMember(who)} size={30}/> : <span className="size-[30px] rounded-full bg-surface-sunken" aria-hidden/>}
-                      <span className="min-w-0"><span className="block truncate text-[13.5px] font-semibold">{o.task.title}</span><span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-tertiary"><span className="size-2 shrink-0 rounded-full" style={{ background: p?.color ?? OTHER }} aria-hidden/><span className="truncate">{p?.title}{who ? ` · ${who.name}` : ""}</span></span></span>
-                      <span className={cn("text-right text-[15px] leading-tight font-semibold tabular", o.days >= 7 && "text-danger")}>{o.days} d<small className="block text-[11.5px] font-medium text-ink-tertiary">in progress</small></span>
-                    </li>);
-                })}
-            </ul>)}
-        </OverviewCard>
-
-        {/* Review time */}
-        <OverviewCard id="review-heading" title={`${your} review time`} sub={`Days a submission waited for ${you}, each week`} className="materialize" style={stagger(6)}>
-          <Big value={s.now.steps[2] ?? "–"} label={s.now.steps[2] === null ? "nothing answered yet" : "days typical"} delta={<Delta now={s.now.steps[2]} before={s.before.steps[2]} unit=" d"/>}/>
-          <div className="px-4 pt-4 pb-5 sm:px-5"><WeekBars values={s.weekly.review} weeks={s.weeks} typical={s.now.steps[2]} tip={(v) => `${v} days waiting for ${you}`}/></div>
+        {/* Throughput */}
+        <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks added and accepted each week" className="materialize" style={stagger(2)} aside={<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-ink-secondary">
+            <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-copper" aria-hidden/>Accepted</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-[color:var(--series-2)]" aria-hidden/>Added</span>
+            <button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 font-medium hover:text-ink", focusRing)}>{table ? <><ChartLine className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>
+          </div>}>
+          <p className="px-5 pt-1 text-[13.5px] text-ink-secondary sm:px-6">
+            <b className="font-semibold text-ink tabular">{s.now.added}</b> added · {net === 0 ? "open work unchanged" : <>open work {net > 0 ? "up" : "down"} <b className="font-semibold text-ink tabular">{Math.abs(net)}</b></>}
+          </p>
+          <div className="px-4 pt-4 pb-5 sm:px-5">
+            {table ? (<table className="w-full text-[13px] tabular">
+                <thead><tr className="text-left text-ink-tertiary"><th className="px-2.5 py-1.5 font-medium">Week</th><th className="px-2.5 py-1.5 text-right font-medium">Added</th><th className="px-2.5 py-1.5 text-right font-medium">Accepted</th></tr></thead>
+                <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line"><td className="px-2.5 py-1.5">{weekRange(w)}</td><td className="px-2.5 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-2.5 py-1.5 text-right">{s.weekly.accepted[i]}</td></tr>)}</tbody>
+              </table>) : <AreaChart accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks}/>}
+          </div>
         </OverviewCard>
 
         {/* Workload */}
-        <OverviewCard id="workload-heading" title="Workload" sub={workload.team === null ? "Open tasks per person" : `Open tasks per person · days per task against the team’s ${workload.team}`} className="materialize" style={stagger(7)} aside={<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
+        <OverviewCard id="workload-heading" title="Workload" sub={workload.team === null ? "Open tasks per person" : `Open tasks per person · days per task against the team’s ${workload.team}`} className="materialize" style={stagger(3)} aside={<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
             <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-todo" aria-hidden/>To do</span>
             <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-progress" aria-hidden/>In progress</span>
             <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-review" aria-hidden/>In review</span>
@@ -306,25 +238,6 @@ function Delta({ now, before, worseWhenUp = true, unit = "", whole = false }: { 
     </span>);
 }
 
-function Tile({ label, value, unit, delta, spark }: { label: string; value: number | string; unit: string; delta: React.ReactNode; spark: (number | null)[] }) {
-    return (<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-x-2.5 rounded-2xl px-4 py-3.5 material">
-      <p className="col-span-2 text-[12.5px] font-medium text-ink-tertiary">{label}</p>
-      <div className="min-w-0">
-        <p className="mt-1.5 text-[26px] leading-[1.1] font-semibold tracking-[-0.03em] whitespace-nowrap text-ink tabular">{value}{unit ? <small className="ml-1 text-[13px] font-medium tracking-normal text-ink-tertiary">{unit}</small> : null}</p>
-        <div className="mt-2 h-[22px]">{delta}</div>
-      </div>
-      <Spark values={spark}/>
-    </div>);
-}
-
-function Big({ value, label, delta }: { value: number | string; label: string; delta: React.ReactNode }) {
-    return (<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-5 pt-1 sm:px-6">
-      <b className="text-[32px] leading-none font-semibold tracking-[-0.035em] text-ink tabular">{value}</b>
-      <span className="text-[13.5px] text-ink-tertiary">{label}</span>
-      {delta}
-    </div>);
-}
-
 function AgeKey() {
     return (<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
       <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", AGE_BG.fresh)} aria-hidden/>Under 3 days</span>
@@ -341,7 +254,7 @@ function StepBox({ i, name, tag, days, before, open, grow, pressed, flag, projec
     i: number; name: string; tag: string; days: number | null; before: number | null; open: OpenTask[]; grow: number; pressed: boolean; flag: string | null;
     projectOf: ProjectMap; personOf: PersonMap; onClick: () => void;
 }) {
-    const mine = i === 2, stale = open.filter((o) => o.days >= 7).length;
+    const mine = i === 2, stale = open.filter((o) => o.days >= 7).length, unassigned = i === 0 ? open.filter((o) => !o.task.assigned_to).length : 0;
     return (<button type="button" aria-pressed={pressed} aria-controls="flow-step-tasks" onClick={onClick} style={{ flexGrow: grow }} className={cn(
             "flex min-w-0 basis-0 flex-col gap-2.5 rounded-2xl px-4 pt-3.5 pb-3 text-left transition-[flex-grow,box-shadow,translate,background-color] duration-500 ease-[var(--ease-spring)] hover:-translate-y-px lg:min-w-40",
             mine ? "bg-brand-soft shadow-[0_0_0_1.5px_rgb(217_119_6/0.45)]" : "bg-surface-subtle shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_var(--line-strong),0_14px_28px_-18px_rgb(14_18_34/0.3)]",
@@ -362,7 +275,7 @@ function StepBox({ i, name, tag, days, before, open, grow, pressed, flag, projec
             })}
       </span>
       <span className={cn("mt-auto flex items-center justify-between gap-2 border-t pt-2.5 text-[12.5px] text-ink-secondary", mine ? "border-copper/20" : "border-line")}>
-        <span><b className="font-semibold text-ink tabular">{open.length}</b> {mine ? "waiting" : "here"}{stale ? <span className="text-danger"> · {stale} over a week</span> : null}</span>
+        <span><b className="font-semibold text-ink tabular">{open.length}</b> {mine ? "waiting" : "here"}{stale ? <span className="text-danger"> · {stale} over a week</span> : null}{unassigned ? <> · <b className="font-semibold text-ink tabular">{unassigned}</b> unassigned</> : null}</span>
         <ChevronDown className={cn("size-3.5 transition-transform duration-300", pressed ? "rotate-180 text-ink" : "text-ink-tertiary")} aria-hidden/>
       </span>
     </button>);

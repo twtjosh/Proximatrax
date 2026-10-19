@@ -1,10 +1,10 @@
 import type { Milestone, Project, Task } from "../types/database";
-import { daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
+import { addDays, daysBetween, formatDate, isoDateIn, plural } from "./dashboard.ts";
 
 /**
  * Pure derivations behind the owner's Overview and the PM's Analytics page.
- * Every count is descriptive: what happened and what stands now, never a
- * forecast. Dates are Manila calendar dates; timestamps become one through
+ * Every count is descriptive, what happened and what stands now, except
+ * `forecast`, which projects an active project's recent pace forward. Dates are Manila calendar dates; timestamps become one through
  * `dateOf`. Relative imports keep this file runnable by `node --test`.
  */
 
@@ -190,12 +190,51 @@ export function waitingForReview(tasks: ATask[], moves: TaskMove[], today: strin
         .sort((a, b) => a.since.localeCompare(b.since));
 }
 
+export type Forecast =
+    | { kind: "no_tasks" | "all_accepted" | "too_early" }
+    | { kind: "on_pace" | "late"; finish: string; days: number };
+
+/** The weeks of recent pace a forecast goes by, and the fewest accepted tasks in them worth projecting from. */
+const PACE_WEEKS = 4, PACE_MIN = 3;
+
+/**
+ * When an active project's open tasks should all be accepted if the pace of
+ * its last four weeks holds, against its planned end. Every task counts the
+ * same: tasks carry no size. `days` is how far past the end date it lands.
+ */
+export function forecast(project: AProject, tasks: ATask[], today: string): Forecast {
+    if (tasks.length === 0)
+        return { kind: "no_tasks" };
+    const open = tasks.filter((t) => t.stage !== "done").length;
+    if (open === 0)
+        return { kind: "all_accepted" };
+    const from = addDays(today, 1 - PACE_WEEKS * 7);
+    const recent = tasks.filter((t) => t.stage === "done" && t.completed_at && dateOf(t.completed_at) >= from).length;
+    if (recent < PACE_MIN)
+        return { kind: "too_early" };
+    const finish = addDays(today, Math.ceil((open * PACE_WEEKS * 7) / recent));
+    const days = daysBetween(project.end_date, finish);
+    return days > 0 ? { kind: "late", finish, days } : { kind: "on_pace", finish, days: 0 };
+}
+
+export function forecastPhrase(f: Forecast): string {
+    switch (f.kind) {
+        case "no_tasks": return "No tasks yet";
+        case "all_accepted": return "All tasks accepted";
+        case "too_early": return "Too early to tell";
+        case "on_pace": return "On pace";
+        case "late": return f.days < 14 ? `About ${plural(f.days, "day")} late` : `About ${Math.round(f.days / 7)} weeks late`;
+    }
+}
+
 export type Person = { id: string; name: string; avatarUrl: string | null };
 export type ProjectRow = {
     project: AProject;
     result: ProjectResult;
     milestones: { done: number; onTime: number; overdue: number };
     tasks: { done: number; total: number };
+    /** Null once delivered. */
+    forecast: Forecast | null;
 };
 
 /** One row per project: active ones newest start first, delivered ones newest delivery first. */
@@ -208,6 +247,7 @@ export function projectRows(projects: AProject[], milestones: AMilestone[], task
             result: projectResult(project, milestones, today),
             milestones: { done: ms.completed, onTime: ms.onTime, overdue: ms.overdue },
             tasks: { done: ts.filter((t) => t.stage === "done").length, total: ts.length },
+            forecast: isActive(project) ? forecast(project, ts, today) : null,
         };
     };
     return {

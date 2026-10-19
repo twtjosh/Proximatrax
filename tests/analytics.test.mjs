@@ -7,6 +7,8 @@ import {
     deliveries,
     deliveryPhrase,
     deliveryRecord,
+    forecast,
+    forecastPhrase,
     inquiryYear,
     lastMonths,
     managingCount,
@@ -175,6 +177,25 @@ test("projectRows: active by newest start, delivered by newest delivery, with co
     assert.deepEqual(r.active[1].tasks, { done: 1, total: 2 });
     assert.equal(r.active[1].result.kind, "milestone_late");
     assert.deepEqual(r.delivered[0].milestones, { done: 1, onTime: 0, overdue: 0 });
+    assert.equal(r.active[1].forecast.kind, "too_early");
+    assert.equal(r.delivered[0].forecast, null);
+});
+
+test("forecast: projects the last four weeks' pace onto the open tasks", () => {
+    const accepted = (id, date) => task({ id, stage: "done", completed_at: at(date) });
+    // 4 accepted in the last 28 days (one older one doesn't count), 6 open: 6 × 28 / 4 = 42 days → Nov 26.
+    const ts = [accepted("a", "2026-09-10"), accepted("b", "2026-10-01"), accepted("c", "2026-10-05"), accepted("d", "2026-10-10"), accepted("e", "2026-10-14"), ...[1, 2, 3, 4, 5, 6].map((n) => task({ id: `o${n}` }))];
+    assert.deepEqual(forecast(project({ end_date: "2026-12-01" }), ts, TODAY), { kind: "on_pace", finish: "2026-11-26", days: 0 });
+    assert.deepEqual(forecast(project({ end_date: "2026-11-05" }), ts, TODAY), { kind: "late", finish: "2026-11-26", days: 21 });
+    assert.equal(forecast(project(), ts.slice(3), TODAY).kind, "too_early");
+    assert.equal(forecast(project(), ts.slice(0, 5), TODAY).kind, "all_accepted");
+    assert.equal(forecast(project(), [], TODAY).kind, "no_tasks");
+});
+
+test("forecastPhrase: days under two weeks, weeks after", () => {
+    assert.equal(forecastPhrase({ kind: "late", finish: "", days: 9 }), "About 9 days late");
+    assert.equal(forecastPhrase({ kind: "late", finish: "", days: 21 }), "About 3 weeks late");
+    assert.equal(forecastPhrase({ kind: "on_pace", finish: "", days: 0 }), "On pace");
 });
 
 test("agePhrase and ageTone", () => {
