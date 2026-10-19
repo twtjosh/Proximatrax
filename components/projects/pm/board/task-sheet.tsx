@@ -11,7 +11,7 @@ import { TaskHistory } from "@/components/projects/shared/task-history";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { normalizeBoardStage, parseChecklist, taskBlockedReason, type BoardColumnStage, type ChecklistItem, type WorkflowGateContext } from "@/lib/board-workflow";
 import { projectReviewPath } from "@/lib/constants";
-import { formatDate } from "@/lib/dashboard";
+import { formatDate, isoDateIn } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { milestoneTaskDates } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
@@ -310,7 +310,7 @@ function NextStep({ task, stage, projectId, closed, onMove }: {
     if (closed)
         return null;
     if (stage === "done")
-        return (<p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="size-4" aria-hidden/>Accepted {formatDate(task.updated_at.slice(0, 10), { month: "short", day: "numeric" })}{task.client_visible_at ? " · the client can see it" : ""}</p>);
+        return (<p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="size-4" aria-hidden/>Accepted {formatDate(isoDateIn(task.completed_at ?? task.updated_at), { month: "short", day: "numeric" })}{task.client_visible_at ? " · the client can see it" : ""}</p>);
     if (stage === "review")
         return <Link href={`${projectReviewPath(projectId)}?task=${task.id}`} className={cn(primaryAction, "w-fit")}><Check aria-hidden/>Review it</Link>;
     if (stage === "in_progress")
