@@ -50,7 +50,8 @@ export async function login({ email, password, }: LoginCredentials): Promise<Aut
         redirectTo: getRoleHomePath(profile.role),
     };
 }
-export async function createUser(payload: CreateUserPayload): Promise<void> {
+/** Returns the new account's id. */
+export async function createUser(payload: CreateUserPayload): Promise<string | undefined> {
     const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,6 +70,10 @@ export async function createUser(payload: CreateUserPayload): Promise<void> {
         }
         throw new Error(message);
     }
+    const data = (await response.json().catch(() => ({}))) as {
+        userId?: string;
+    };
+    return data.userId;
 }
 /** Throws an Error; `reassignable` is true when the user's managed projects need a new PM first. */
 export async function deleteUser(userId: string, reassignTo?: string): Promise<void> {

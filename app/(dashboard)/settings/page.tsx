@@ -1,63 +1,42 @@
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
-import { SuperAdminContentFrame } from "@/components/superadmin/super-admin-content-frame";
-import { SuperAdminHero } from "@/components/superadmin/super-admin-hero";
 import { ROUTES } from "@/lib/constants";
 import { getViewer } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
-import { CreateUserForm } from "./create-user-form";
-import { UserDirectoryTable } from "./user-directory-table";
+import { PeopleDirectory, type Person } from "./people-directory";
 export default async function SettingsPage() {
     const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    const resolvedProfile = profile as Profile | null;
-    const isSuperAdmin = resolvedProfile?.role === "super_admin";
-    if (!isSuperAdmin) {
+    if ((profile as Profile | null)?.role !== "super_admin") {
         redirect(ROUTES.DASHBOARD);
     }
-    const { data: allProfiles } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-    const profiles = (allProfiles ?? []) as Profile[];
-    return (<SuperAdminContentFrame>
-      <SuperAdminHero icon={Users} eyebrow="Provisioning" title="User management" description="Create or remove workspace members with the correct role before they sign in. Every account appears in the directory below—use it as your source of truth for who has access."/>
-
-      <section className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-lg shadow-black/15 ring-1 ring-black/[0.04]">
-        <div className="border-b border-zinc-100 bg-zinc-50/90 px-6 py-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700">
-              <Users className="h-5 w-5" strokeWidth={1.75} aria-hidden/>
-            </div>
-            <div>
-              <h2 className="font-heading text-lg font-semibold tracking-tight text-zinc-950">
-                Create new user
-              </h2>
-              <p className="mt-0.5 text-sm text-zinc-600">
-                Invited people should change their password after first login.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="p-6 sm:p-8">
-          <CreateUserForm />
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-lg shadow-black/15 ring-1 ring-black/[0.04]">
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-zinc-100 bg-zinc-50/90 px-6 py-5">
-          <div>
-            <h2 className="font-heading text-lg font-semibold tracking-tight text-zinc-950">
-              Directory
-            </h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              {profiles.length} member{profiles.length === 1 ? "" : "s"} in the
-              workspace
-            </p>
-          </div>
-        </div>
-        <UserDirectoryTable profiles={profiles} currentUserId={user.id}/>
-      </section>
-    </SuperAdminContentFrame>);
+    const [{ data: allProfiles }, { data: projects }, { data: members }] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("projects").select("id, pm_id, client_id, status"),
+        supabase.from("project_members").select("user_id, project_id"),
+    ]);
+    const projectRows = (projects ?? []) as { id: string; pm_id: string; client_id: string; status: string }[];
+    const activeIds = new Set(projectRows.filter((p) => p.status !== "completed").map((p) => p.id));
+    // Each person's active projects in any part (PM, client, crew), plus the links that block removing them.
+    const active = new Map<string, Set<string>>();
+    const link = (userId: string, projectId: string) => {
+        if (!activeIds.has(projectId))
+            return;
+        if (!active.has(userId))
+            active.set(userId, new Set());
+        active.get(userId)!.add(projectId);
+    };
+    for (const p of projectRows) {
+        link(p.pm_id, p.id);
+        link(p.client_id, p.id);
+    }
+    for (const m of (members ?? []) as { user_id: string; project_id: string }[])
+        link(m.user_id, m.project_id);
+    const people: Person[] = ((allProfiles ?? []) as Profile[]).map((p) => ({
+        ...p,
+        activeProjects: active.get(p.id)?.size ?? 0,
+        managed: projectRows.filter((r) => r.pm_id === p.id).length,
+        clientOf: projectRows.filter((r) => r.client_id === p.id).length,
+    }));
+    return <PeopleDirectory people={people} currentUserId={user.id}/>;
 }

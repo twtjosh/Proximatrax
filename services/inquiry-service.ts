@@ -68,7 +68,7 @@ export async function markInquiryViewed(inquiryId: string, profileId: string, cl
     if (error)
         throw error;
 }
-export async function updateInquiryStatus(id: string, status: InquiryStatus, notes?: string, client?: SupabaseClient): Promise<Inquiry> {
+export async function updateInquiryStatus(id: string, status: InquiryStatus, notes?: string | null, client?: SupabaseClient): Promise<Inquiry> {
     const sb = resolveClient(client);
     const payload: Record<string, unknown> = { status };
     if (notes !== undefined)
