@@ -15,11 +15,12 @@ import type { TeamMember } from "@/lib/data/project-context";
 import { SPRING } from "@/lib/motion";
 import { peopleLoad } from "@/lib/people-load";
 import { cn } from "@/lib/utils";
-import { ROLE_TERMS } from "@/lib/vocabulary";
+import { CLASSIFICATION_TERMS, ROLE_TERMS, personTitle } from "@/lib/vocabulary";
 import { logActivity } from "@/services/activity-service";
 import { createProjectInvitations, deleteProjectInvitation } from "@/services/project-invitation-service";
 import { removeProjectMember } from "@/services/project-service";
 import type { Profile, ProjectInvitationWithInvitee } from "@/types/database";
+import type { CrewClassification } from "@/types/enums";
 
 type TeamTask = { id: string; title: string; assigned_to: string | null; stage: string; due_date: string | null };
 
@@ -38,7 +39,7 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
     tasks: TeamTask[];
     invitations: ProjectInvitationWithInvitee[];
     /** Every middleman in the company, to invite from. */
-    crewPool: Pick<Profile, "id" | "full_name" | "avatar_url">[];
+    crewPool: Pick<Profile, "id" | "full_name" | "avatar_url" | "classification">[];
     today: string;
     closed: boolean;
 }) {
@@ -106,7 +107,7 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
                   <Face person={p} size={44}/>
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate text-[15px] font-semibold text-ink">{p.name}</h3>
-                    <p className="text-xs text-ink-tertiary">{p.role}</p>
+                    <p className="text-xs text-ink-tertiary">{p.title ?? p.role}</p>
                   </div>
                   {!closed ? <MemberMenu name={p.name} openCount={p.open} onRemove={() => void remove(p, p.open)}/> : null}
                 </header>
@@ -139,7 +140,7 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
                 <Face person={{ id: i.invitee_id, name: i.invitee?.full_name ?? "Someone", avatarUrl: i.invitee?.avatar_url ?? null, role: "" }} size={30}/>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-ink">{i.invitee?.full_name ?? "Someone"}</span>
-                  <span className="block text-xs text-ink-tertiary">{ROLE_TERMS[i.invitee_role]} · invited {agoPhrase(isoDateIn(i.created_at), today)}</span>
+                  <span className="block text-xs text-ink-tertiary">{i.invitee ? personTitle(i.invitee) : ROLE_TERMS[i.invitee_role]} · invited {agoPhrase(isoDateIn(i.created_at), today)}</span>
                 </span>
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", i.status === "declined" ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning")}>{i.status === "declined" ? "Declined" : "Waiting"}</span>
                 {!closed ? (i.status === "declined" && i.invitee_role === "middleman" && i.invitee ? <button type="button" onClick={() => void invite(i.invitee!)} className={cn(softAction, "h-8")}>Invite again</button> : <button type="button" onClick={() => void cancel(i)} aria-label={`Cancel the invitation to ${i.invitee?.full_name ?? "them"}`} className={cn("grid size-8 cursor-pointer place-items-center rounded-full text-ink-tertiary hover:bg-surface-sunken hover:text-ink", focusRing)}><X className="size-4" aria-hidden/></button>) : null}
@@ -199,13 +200,15 @@ function MemberMenu({ name, openCount, onRemove }: {
 function InviteDialog({ open, onOpenChange, people, onInvite }: {
     open: boolean;
     onOpenChange: (o: boolean) => void;
-    people: Pick<Profile, "id" | "full_name" | "avatar_url">[];
+    people: Pick<Profile, "id" | "full_name" | "avatar_url" | "classification">[];
     onInvite: (p: Pick<Profile, "id" | "full_name">) => Promise<void>;
 }) {
     const [q, setQ] = React.useState("");
     const [busy, setBusy] = React.useState<string | null>(null);
     const [sent, setSent] = React.useState<Set<string>>(() => new Set());
-    const list = people.filter((p) => p.full_name.toLowerCase().includes(q.trim().toLowerCase()));
+    const [kind, setKind] = React.useState<CrewClassification | "all">("all");
+    const kinds = (Object.keys(CLASSIFICATION_TERMS) as CrewClassification[]).filter((c) => people.some((p) => p.classification === c));
+    const list = people.filter((p) => (kind === "all" || p.classification === kind) && p.full_name.toLowerCase().includes(q.trim().toLowerCase()));
     return (<Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-4">
         <DialogHeader>
@@ -217,11 +220,19 @@ function InviteDialog({ open, onOpenChange, people, onInvite }: {
           <span className="sr-only">Search people</span>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name" className="h-10 w-full rounded-xl border border-line bg-surface pr-3 pl-9 text-sm focus:border-brand focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none"/>
         </label>
+        {kinds.length > 1 ? (<div role="radiogroup" aria-label="Classification" className="-mt-1 flex flex-wrap gap-1.5">
+            {(["all", ...kinds] as const).map((c) => (<button key={c} type="button" role="radio" aria-checked={kind === c} onClick={() => setKind(c)} className={cn("press inline-flex h-7 items-center rounded-full px-2.5 text-[12.5px] font-medium transition-colors", focusRing, kind === c ? "bg-ink text-white" : "bg-surface-sunken text-ink-secondary hover:text-ink")}>
+                {c === "all" ? "Everyone" : CLASSIFICATION_TERMS[c]}
+              </button>))}
+          </div>) : null}
         <ul className="-mx-2 max-h-80 overflow-y-auto">
           {list.length === 0 ? <li className="px-2 py-6 text-center text-sm text-ink-tertiary">{people.length ? "No one by that name." : "Every middleman is already on this project or invited."}</li> : null}
           {list.map((p) => (<li key={p.id} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-surface-sunken">
               <Face person={{ id: p.id, name: p.full_name, avatarUrl: p.avatar_url, role: "" }} size={32}/>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.full_name}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{p.full_name}</span>
+                <span className="block truncate text-xs text-ink-tertiary">{personTitle({ role: "middleman", classification: p.classification })}</span>
+              </span>
               <button type="button" disabled={busy === p.id || sent.has(p.id)} onClick={async () => {
                     setBusy(p.id);
                     await onInvite(p);

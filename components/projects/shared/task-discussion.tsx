@@ -7,7 +7,7 @@ import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { SPRING } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { ROLE_TERMS } from "@/lib/vocabulary";
+import { personTitle } from "@/lib/vocabulary";
 import { addTaskComment, deleteTaskComment, listTaskComments, type TaskCommentWithAuthor } from "@/services/task-comment-service";
 
 const when = (iso: string) => new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(new Date(iso));
@@ -118,7 +118,7 @@ export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, o
             <AnimatePresence initial={false}>
               {comments.map((c) => {
                 const mine = c.author_id === viewerId;
-                const role = c.author?.role === "project_manager" ? "PM" : c.author?.role === "middleman" ? ROLE_TERMS.middleman : null;
+                const role = c.author?.role === "project_manager" ? "PM" : c.author?.role === "middleman" ? personTitle(c.author) : null;
                 return (<motion.li key={c.id} layout={!reduce} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={SPRING} className="group flex gap-3">
                     <Face person={{ id: c.author_id, name: c.author?.full_name ?? "Someone", avatarUrl: c.author?.avatar_url ?? null, role: "" }} size={30}/>
                     <div className="min-w-0 flex-1">

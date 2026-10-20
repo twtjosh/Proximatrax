@@ -5,10 +5,10 @@ import { logActivity } from "@/services/activity-service";
 import type { Profile, TaskComment } from "@/types/database";
 
 export type TaskCommentWithAuthor = TaskComment & {
-    author: Pick<Profile, "id" | "full_name" | "avatar_url" | "role"> | null;
+    author: Pick<Profile, "id" | "full_name" | "avatar_url" | "role" | "classification"> | null;
 };
 
-const SELECT = "*, author:profiles!task_comments_author_id_fkey ( id, full_name, avatar_url, role )";
+const SELECT = "*, author:profiles!task_comments_author_id_fkey ( id, full_name, avatar_url, role, classification )";
 
 function resolveClient(client?: SupabaseClient): SupabaseClient {
     return client ?? createBrowserClient();

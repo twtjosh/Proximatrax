@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { CLASSIFICATION_TERMS } from "@/lib/vocabulary";
 import type { UserRole } from "@/types/enums";
 const DELETABLE_ROLES: UserRole[] = ["project_manager", "middleman", "client"];
 function getAdminClient() {
@@ -114,6 +115,52 @@ export async function DELETE(request: Request, context: {
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteError) {
         return NextResponse.json({ error: deleteError.message ?? "Unable to delete user." }, { status: 400 });
+    }
+    return NextResponse.json({ success: true });
+}
+/** Sets a middleman's classification: { classification }. */
+export async function PATCH(request: Request, context: {
+    params: Promise<{
+        userId: string;
+    }>;
+}) {
+    const { userId } = await context.params;
+    const supabase = await createServerClient();
+    const { data: { user }, } = await supabase.auth.getUser();
+    if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+    if ((callerProfile as {
+        role?: string;
+    } | null)?.role !== "super_admin") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const { classification } = (await request.json().catch(() => ({}))) as {
+        classification?: string;
+    };
+    if (!classification || !(classification in CLASSIFICATION_TERMS)) {
+        return NextResponse.json({ error: "Choose Site Manager, Foreman or Safety Officer." }, { status: 400 });
+    }
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+        return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+    }
+    const { data: updated, error } = await adminClient
+        .from("profiles")
+        .update({ classification })
+        .eq("id", userId)
+        .eq("role", "middleman")
+        .select("id");
+    if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!updated?.length) {
+        return NextResponse.json({ error: "Only middlemen have a classification." }, { status: 400 });
     }
     return NextResponse.json({ success: true });
 }

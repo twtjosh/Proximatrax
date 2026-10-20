@@ -299,7 +299,7 @@ function TileDetails({ project: p, milestones, team, tasks, unread, today }: {
                 <Face person={m} size={24}/>
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-xs font-medium text-ink">{m.name}</span>
-                  <span className="block truncate text-[10px] text-ink-tertiary">{m.role}</span>
+                  <span className="block truncate text-[10px] text-ink-tertiary">{m.title ?? m.role}</span>
                 </span>
               </li>))}
           </ul>)}

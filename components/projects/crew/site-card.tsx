@@ -38,7 +38,7 @@ export function SiteCard({ next, team, viewerId }: {
               <Face person={m} size={34}/>
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="block truncate text-sm font-medium text-ink">{m.name}{m.id === viewerId ? <span className="font-normal text-ink-tertiary"> (you)</span> : null}</span>
-                <span className="block text-xs text-ink-tertiary">{m.role}</span>
+                <span className="block text-xs text-ink-tertiary">{m.title ?? m.role}</span>
               </span>
             </li>))}
         </ul>

@@ -80,13 +80,13 @@ export async function listInvitationsForProject(projectId: string, client?: Supa
     }
     const { data: invitees, error: inviteeError } = await sb
         .from("profiles")
-        .select("id, full_name, avatar_url, role")
+        .select("id, full_name, avatar_url, role, classification")
         .in("id", inviteeIds);
     if (inviteeError)
         throw inviteeError;
     const inviteeMap = new Map((invitees ?? []).map((p) => [
         p.id,
-        p as Pick<Profile, "id" | "full_name" | "avatar_url" | "role">,
+        p as Pick<Profile, "id" | "full_name" | "avatar_url" | "role" | "classification">,
     ]));
     return rows.map((row) => ({
         ...row,

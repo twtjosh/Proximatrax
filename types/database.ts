@@ -1,10 +1,12 @@
-import type { UserRole, ProjectStatus, TaskStage, ActivityActionType, TaskPriority, ProjectInvitationStatus, ProjectInviteeRole, } from "./enums";
+import type { UserRole, ProjectStatus, TaskStage, ActivityActionType, TaskPriority, ProjectInvitationStatus, ProjectInviteeRole, CrewClassification, } from "./enums";
 export interface Profile {
     id: string;
     role: UserRole;
     full_name: string;
     avatar_url: string | null;
     contact_number: string | null;
+    /** Middlemen only; set by the super admin. */
+    classification: CrewClassification | null;
     created_at: string;
     updated_at: string;
 }
@@ -43,7 +45,7 @@ export type ProjectInvitationWithInviter = ProjectInvitation & {
     inviter: Pick<Profile, "id" | "full_name" | "avatar_url"> | null;
 };
 export type ProjectInvitationWithInvitee = ProjectInvitation & {
-    invitee: Pick<Profile, "id" | "full_name" | "avatar_url" | "role"> | null;
+    invitee: Pick<Profile, "id" | "full_name" | "avatar_url" | "role" | "classification"> | null;
 };
 export interface Milestone {
     id: string;

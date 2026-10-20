@@ -1,4 +1,4 @@
-import type { ProjectStatus, TaskStage, UserRole } from "@/types/enums";
+import type { CrewClassification, ProjectStatus, TaskStage, UserRole } from "@/types/enums";
 
 /**
  * The single source of user-facing names for workflow states.
@@ -36,5 +36,16 @@ export const ROLE_TERMS: Record<UserRole, string> = {
     middleman: "Middleman",
     client: "Client",
 };
+
+/** How a middleman is addressed on a project; the role and permissions stay "middleman". */
+export const CLASSIFICATION_TERMS: Record<CrewClassification, string> = {
+    site_manager: "Site Manager",
+    foreman: "Foreman",
+    safety_officer: "Safety Officer",
+};
+
+/** A person's title on a project: their classification if they have one, else their role. */
+export const personTitle = (p: { role: UserRole; classification?: CrewClassification | null }) =>
+    (p.role === "middleman" && p.classification ? CLASSIFICATION_TERMS[p.classification] : ROLE_TERMS[p.role]);
 
 export const COMPANY_NAME = "AEG Home Fashion";

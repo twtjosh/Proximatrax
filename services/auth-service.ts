@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types/database";
-import type { UserRole } from "@/types/enums";
+import type { CrewClassification, UserRole } from "@/types/enums";
 export type LoginCredentials = {
     email: string;
     password: string;
@@ -13,6 +13,8 @@ export type CreateUserPayload = {
     fullName: string;
     role: UserRole;
     contactNumber?: string;
+    /** Required for a middleman. */
+    classification?: CrewClassification;
 };
 export type AuthSessionResult = {
     user: User;
@@ -76,6 +78,19 @@ export async function createUser(payload: CreateUserPayload): Promise<string | u
     return data.userId;
 }
 /** Throws an Error; `reassignable` is true when the user's managed projects need a new PM first. */
+export async function setClassification(userId: string, classification: CrewClassification): Promise<void> {
+    const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classification }),
+    });
+    if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+            error?: string;
+        };
+        throw new Error(data.error ?? "Unable to change the classification.");
+    }
+}
 export async function deleteUser(userId: string, reassignTo?: string): Promise<void> {
     const response = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",

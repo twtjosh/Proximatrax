@@ -7,14 +7,14 @@ import { Face, focusRing, softAction, stagger } from "@/components/dashboard/ove
 import { RoleBadge } from "@/components/shared/role-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { formatDate, plural } from "@/lib/dashboard";
-import { ROLE_TERMS } from "@/lib/vocabulary";
+import { CLASSIFICATION_TERMS, personTitle } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
-import { deleteUser } from "@/services/auth-service";
+import { deleteUser, setClassification } from "@/services/auth-service";
 import type { Profile } from "@/types/database";
-import type { UserRole } from "@/types/enums";
+import type { CrewClassification, UserRole } from "@/types/enums";
 import { AddPersonDialog } from "./add-person-dialog";
 
 export type Person = Profile & {
@@ -127,12 +127,15 @@ export function PeopleDirectory({ people, currentUserId }: {
                           {p.id === fresh ? <span className="shrink-0 rounded-full bg-brand-soft px-1.5 text-[11px] leading-[18px] font-medium text-brand">New</span> : null}
                         </span>
                         <span className="block truncate text-[12.5px] text-ink-tertiary">
-                          <span className="md:hidden">{ROLE_TERMS[p.role]} · {projects}</span>
+                          <span className="md:hidden">{personTitle(p)} · {projects}</span>
                           <span className="hidden md:inline">Joined {joined(p.created_at)}</span>
                         </span>
                       </span>
                     </span>
-                    <span className="hidden md:block"><RoleBadge role={p.role}/></span>
+                    <span className="hidden md:block">
+                      <RoleBadge role={p.role} classification={p.classification}/>
+                      {p.role === "middleman" && !p.classification ? <span className="mt-0.5 block text-[11.5px] text-warning">No classification yet</span> : null}
+                    </span>
                     <span className={cn("hidden text-[13px] md:block", p.activeProjects > 0 ? "text-ink" : "text-ink-tertiary")}>{projects}</span>
                     <span className="hidden min-w-0 md:block">
                       {p.contact_number
@@ -151,14 +154,35 @@ export function PeopleDirectory({ people, currentUserId }: {
 }
 
 function PersonMenu({ person, removable, onRemove }: { person: Person; removable: boolean; onRemove: () => void }) {
+    const router = useRouter();
     const phone = person.contact_number;
-    if (!phone && !removable)
+    const crew = person.role === "middleman";
+    if (!phone && !removable && !crew)
         return <span aria-hidden/>;
+    async function classify(value: CrewClassification) {
+        try {
+            await setClassification(person.id, value);
+            toast.success(`${person.full_name || "This person"} is now ${CLASSIFICATION_TERMS[value]}`);
+            router.refresh();
+        }
+        catch (err) {
+            toast.error(err instanceof Error ? err.message : "Unable to change the classification.");
+        }
+    }
     return (<DropdownMenu>
       <DropdownMenuTrigger type="button" aria-label={`Actions for ${person.full_name || "this person"}`} className={cn("grid size-9 place-items-center rounded-full text-ink-tertiary transition-colors hover:bg-surface-sunken hover:text-ink data-popup-open:bg-surface-sunken data-popup-open:text-ink", focusRing)}>
         <MoreHorizontal className="size-[18px]" aria-hidden/>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52 rounded-[12px] p-1.5">
+        {crew ? (<>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Called on site</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={person.classification ?? ""} onValueChange={(v) => { if (v && v !== person.classification) void classify(v as CrewClassification); }}>
+                {(Object.keys(CLASSIFICATION_TERMS) as CrewClassification[]).map((c) => (<DropdownMenuRadioItem key={c} value={c} className="h-9 rounded-[8px]">{CLASSIFICATION_TERMS[c]}</DropdownMenuRadioItem>))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+            {phone || removable ? <DropdownMenuSeparator /> : null}
+          </>) : null}
         {phone ? (<>
             <DropdownMenuItem onClick={() => { window.location.href = `tel:${phone.replace(/\s/g, "")}`; }} className="h-9 rounded-[8px]">
               <Phone aria-hidden/>Call {phone}
@@ -219,7 +243,7 @@ function RemoveDialog({ person, open, people, onClose }: { person: Person | null
           <span className="mb-2 grid size-11 place-items-center rounded-full bg-danger-soft text-danger" aria-hidden><UserMinus className="size-5"/></span>
           <DialogTitle className="text-[19px] tracking-[-0.018em]">Remove {name}?</DialogTitle>
           <DialogDescription>
-            {person ? `${ROLE_TERMS[person.role]}. ` : null}Their sign-in stops working right away, and this can’t be undone.
+            {person ? `${personTitle(person)}. ` : null}Their sign-in stops working right away, and this can’t be undone.
           </DialogDescription>
         </DialogHeader>
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import type { UserRole } from "@/types/enums";
+import { CLASSIFICATION_TERMS } from "@/lib/vocabulary";
+import type { CrewClassification, UserRole } from "@/types/enums";
 const PROVISIONABLE_ROLES: UserRole[] = [
     "project_manager",
     "middleman",
@@ -13,6 +14,7 @@ type Body = {
     fullName?: string;
     role?: string;
     contactNumber?: string;
+    classification?: string;
 };
 export async function POST(request: Request) {
     const supabase = await createServerClient();
@@ -52,6 +54,10 @@ export async function POST(request: Request) {
     if (!PROVISIONABLE_ROLES.includes(role)) {
         return NextResponse.json({ error: "Invalid role. SuperAdmin accounts cannot be provisioned here." }, { status: 400 });
     }
+    const classification = role === "middleman" ? body.classification as CrewClassification | undefined : undefined;
+    if (role === "middleman" && !(classification && classification in CLASSIFICATION_TERMS)) {
+        return NextResponse.json({ error: "Choose a classification: Site Manager, Foreman or Safety Officer." }, { status: 400 });
+    }
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceRoleKey) {
@@ -79,6 +85,7 @@ export async function POST(request: Request) {
         full_name: fullName,
         role,
         contact_number: contactNumber,
+        classification: classification ?? null,
     }, { onConflict: "id" });
     if (upsertError) {
         await adminClient.auth.admin.deleteUser(created.user.id).catch(() => { });

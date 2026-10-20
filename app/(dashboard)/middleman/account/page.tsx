@@ -50,7 +50,7 @@ export default async function MiddlemanAccountPage() {
           <p className="font-heading text-xl tracking-tight text-slate-950">
             {resolved.full_name}
           </p>
-          <RoleBadge role={resolved.role}/>
+          <RoleBadge role={resolved.role} classification={resolved.classification}/>
           <p className="break-all text-xs text-slate-500">
             {user.email}
           </p>

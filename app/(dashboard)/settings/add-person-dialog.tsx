@@ -7,16 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_TERMS } from "@/lib/vocabulary";
+import { CLASSIFICATION_TERMS, ROLE_TERMS, personTitle } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
 import { createUser } from "@/services/auth-service";
-import type { UserRole } from "@/types/enums";
+import type { CrewClassification, UserRole } from "@/types/enums";
 
 const ROLES: Array<{ value: UserRole; can: string }> = [
     { value: "project_manager", can: "Runs projects and accepts work" },
     { value: "middleman", can: "Does the work on site and uploads photos" },
     { value: "client", can: "Follows approved progress and messages the PM" },
 ];
+const CLASSIFICATIONS = Object.keys(CLASSIFICATION_TERMS) as CrewClassification[];
 const field = "h-10 rounded-[10px] px-3";
 
 /** 12 characters without look-alikes (0/O, 1/l/I), so it can be read out over the phone. */
@@ -32,6 +33,7 @@ export function AddPersonDialog({ onCreated }: { onCreated: (id: string | undefi
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [role, setRole] = useState<UserRole>("client");
+    const [classification, setClassification] = useState<CrewClassification | null>(null);
     const [contactNumber, setContactNumber] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,6 +44,7 @@ export function AddPersonDialog({ onCreated }: { onCreated: (id: string | undefi
         setPassword("");
         setShowPassword(false);
         setRole("client");
+        setClassification(null);
         setContactNumber("");
         setError(null);
     }
@@ -49,12 +52,16 @@ export function AddPersonDialog({ onCreated }: { onCreated: (id: string | undefi
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
+        if (role === "middleman" && !classification) {
+            setError("Choose what they’re called on site: Site Manager, Foreman or Safety Officer.");
+            return;
+        }
         setIsSubmitting(true);
         try {
-            const id = await createUser({ fullName, email, password, role, contactNumber: contactNumber || undefined });
+            const id = await createUser({ fullName, email, password, role, classification: role === "middleman" ? classification! : undefined, contactNumber: contactNumber || undefined });
             const details = `ProximaTrax sign-in\nEmail: ${email.trim().toLowerCase()}\nTemporary password: ${password}`;
             toast.success(`${fullName.trim()} can sign in now`, {
-                description: `${ROLE_TERMS[role]} · ${email.trim().toLowerCase()}`,
+                description: `${personTitle({ role, classification })} · ${email.trim().toLowerCase()}`,
                 duration: 12000,
                 action: {
                     label: "Copy sign-in details",
@@ -108,6 +115,15 @@ export function AddPersonDialog({ onCreated }: { onCreated: (id: string | undefi
                       </label>);
                 })}
                 </div>
+                {role === "middleman" ? (<div role="radiogroup" aria-label="Classification" className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-[12.5px] text-ink-tertiary">Called on site</span>
+                    {CLASSIFICATIONS.map((c) => {
+                        const on = classification === c;
+                        return (<button key={c} type="button" role="radio" aria-checked={on} onClick={() => setClassification(c)} className={cn("press inline-flex h-8 items-center rounded-full px-3 text-[13px] font-medium transition-colors", focusRing, on ? "bg-ink text-white" : "bg-surface-sunken/70 text-ink-secondary hover:bg-surface-sunken hover:text-ink")}>
+                            {CLASSIFICATION_TERMS[c]}
+                          </button>);
+                    })}
+                  </div>) : null}
               </fieldset>
 
               <div className="grid gap-4 sm:grid-cols-2">
