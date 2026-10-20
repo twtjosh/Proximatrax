@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysPerTask, flowSummary, journeyDays, median, openNow, readiness, reworkDays, scopeFlow, stepMedians, stepOf, visits, weekStarts } from "../lib/flow.ts";
+import { daysPerTask, flowSummary, journeyStat, median, openNow, readiness, reworkDays, scopeFlow, stepOf, stepStats, visits, weekStarts } from "../lib/flow.ts";
 
 const TODAY = "2026-10-15"; // a Thursday
 /** 02:00Z is 10:00 in Manila: the same calendar date. */
@@ -51,17 +51,42 @@ test("median handles odd, even and empty lists", () => {
     assert.equal(median([]), null);
 });
 
-test("stepMedians counts stays that ended in the window, by step", () => {
+const days = (stats) => stats.map((x) => x.days);
+
+test("stepStats takes one sample per task per step: all its time there, sent back or not", () => {
     const vs = visits([t1, t2], [...t1Moves, ...t2Moves]);
-    // To do: t1 3 days, t2 6 days. In progress: t1 5 and 2, t2 2. Review: t1 1 and 2, t2 1.
-    assert.deepEqual(stepMedians(vs, "2026-10-01", TODAY), [4.5, 2, 1]);
-    assert.deepEqual(stepMedians(vs, "2026-10-13", TODAY), [null, null, 2]);
+    // To do: t1 3, t2 6. In progress: t1 5 + 2 = 7, t2 2. Review: t1 1 + 2 = 3, t2 1.
+    assert.deepEqual(days(stepStats(vs, "2026-10-01", TODAY)), [4.5, 4.5, 2]);
+    assert.deepEqual(stepStats(vs, "2026-10-01", TODAY).map((x) => x.tasks), [2, 2, 2]);
+    // Only t1's last review stay ended in the window; it still brings its earlier one.
+    assert.deepEqual(days(stepStats(vs, "2026-10-13", TODAY)), [null, null, 3]);
 });
 
-test("journeyDays adds the known steps", () => {
-    assert.equal(journeyDays([4.5, 2, 1]), 7.5);
-    assert.equal(journeyDays([null, 2, null]), 2);
-    assert.equal(journeyDays([null, null, null]), null);
+test("stepStats counts tasks still in a step at their wait so far", () => {
+    // Three started 2 days after being ready; three ready Sep 5 and never started (40 days by Oct 15).
+    const started = ["a", "b", "c"].map((id) => task({ id, stage: "in_progress", created_at: at("2026-10-08") }));
+    const stuck = ["x", "y", "z"].map((id) => task({ id, created_at: at("2026-09-05") }));
+    const vs = visits([...started, ...stuck], ["a", "b", "c"].map((id) => move(id, "to_do", "in_progress", "2026-10-10")));
+    const [todo] = stepStats(vs, "2026-07-24", TODAY);
+    assert.deepEqual([todo.days, todo.tasks, todo.open], [21, 6, 3]);
+    // As of an earlier period's last day, an open stay counts up to that day only.
+    assert.deepEqual(stepStats(vs, "2026-09-01", "2026-09-15")[0], { days: 10, tasks: 3, open: 3 });
+});
+
+test("stepStats leaves out stays with no known start", () => {
+    const vs = visits([task({ stage: "review" })], [], new Map());
+    const [, , review] = stepStats(vs, "2026-10-01", TODAY);
+    assert.deepEqual(review, { days: null, tasks: 0, open: 0 });
+});
+
+test("journeyStat is the typical time from ready to accepted, over tasks accepted in the window", () => {
+    // Ready Oct 1; accepted after 2, 10 and 10 days.
+    const done = [["a", "2026-10-03"], ["b", "2026-10-11"], ["c", "2026-10-11"]].map(([id, d]) => task({ id, stage: "done", completed_at: at(d) }));
+    assert.deepEqual(journeyStat(done, "2026-10-01", TODAY), { days: 10, tasks: 3 });
+    // Ready later than created: timed from ready.
+    const r = new Map([["a", { at: at("2026-10-02"), why: "Planned start", later: null }]]);
+    assert.deepEqual(journeyStat(done.slice(0, 1), "2026-10-01", TODAY, r), { days: 1, tasks: 1 });
+    assert.deepEqual(journeyStat(done, "2026-10-12", TODAY), { days: null, tasks: 0 });
 });
 
 test("openNow times the current step from the latest move into it, longest first", () => {
@@ -70,13 +95,17 @@ test("openNow times the current step from the latest move into it, longest first
         task({ id: "b", stage: "review" }),
         task({ id: "c", stage: "backlog", created_at: at("2026-10-12") }),
     ], [move("a", "in_progress", "review", "2026-10-10")], TODAY);
-    assert.deepEqual(open[2].map((o) => [o.task.id, o.days]), [["b", 14], ["a", 5]]);
+    // "b" has no logged move into review: how long it has been there is unknown, not "since its last edit".
+    assert.deepEqual(open[2].map((o) => [o.task.id, o.days]), [["a", 5], ["b", null]]);
     assert.deepEqual(open[0].map((o) => [o.task.id, o.days]), [["c", 3]]);
     assert.equal(open[1].length, 0);
 });
 
-test("reworkDays is the mean wait from a send-back to the next submission", () => {
+test("reworkDays is the typical (median) wait from a send-back to the next submission", () => {
     assert.equal(reworkDays(t1Moves, "2026-10-01", TODAY), 2);
+    const backs = [["p", "2026-10-02"], ["q", "2026-10-02"], ["r", "2026-10-11"]].flatMap(([id, d]) => [move(id, "review", "in_progress", "2026-10-01"), move(id, "in_progress", "review", d)]);
+    // Waits of 1, 1 and 10 days: typically 1, not the mean's 4.
+    assert.equal(reworkDays(backs, "2026-10-01", TODAY), 1);
     assert.equal(reworkDays([move("x", "review", "in_progress", "2026-10-14")], "2026-10-01", TODAY), null);
 });
 
@@ -131,5 +160,9 @@ test("readiness: the latest of created, planned start and the earlier phases' la
     assert.deepEqual(open.map((o) => [o.task.id, o.days]), [["wardrobe", 9], ["shelf", 7], ["loose", 3], ["blinds", 0], ["keys", 0]]);
     // A stay that ended before its task was ready counts as 0, not negative.
     const vs = visits([tasks[3]], [move("shelf", "to_do", "in_progress", "2026-10-07")], r);
-    assert.deepEqual(stepMedians(vs, "2026-10-01", TODAY), [0, null, null]);
+    // In progress since Oct 7: its 8 days so far count too.
+    assert.deepEqual(days(stepStats(vs, "2026-10-01", TODAY)), [0, 8, null]);
+    // Later tasks aren't waiting: their To do stay is left out of the step's numbers.
+    const all = stepStats(visits(tasks, [], r), "2026-10-01", TODAY)[0];
+    assert.equal(all.tasks, 3);
 });

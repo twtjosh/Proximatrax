@@ -98,7 +98,7 @@ export function readiness(tasks: FlowTask[], phases: FlowPhase[], today: string)
     return out;
 }
 
-/** One stay in a step. `start` is null when the task entered it before moves were logged; `end` is null while it is still there. */
+/** One stay in a step. `start` is null when it isn't known (entered before moves were logged) or isn't a wait (a later task in To do); `end` is null while it is still there. */
 export type Visit = { task: string; step: number; start: string | null; end: string | null };
 
 function movesByTask(moves: TaskMove[]): Map<string, TaskMove[]> {
@@ -132,7 +132,7 @@ export function visits(tasks: FlowTask[], moves: TaskMove[], ready?: Map<string,
             step = next;
             start = m.at;
         }
-        if (step < 3) out.push({ task: t.id, step, start, end: null });
+        if (step < 3) out.push({ task: t.id, step, start: step === 0 && ready?.get(t.id)?.later ? null : start, end: null });
     }
     return out;
 }
@@ -143,31 +143,60 @@ export function median(xs: number[]): number | null {
     return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** Typical (median) days spent in each step, over stays that ended between `from` and `to` (Manila dates). Null for a step with none. A stay that ended before its task was ready counts as 0. */
-export function stepMedians(vs: Visit[], from: string, to: string): (number | null)[] {
+/** A typical number of days and how many tasks it rests on. */
+export type Stat = { days: number | null; tasks: number };
+/** A step's typical days; `open` of its `tasks` were still in the step at the window's end. */
+export type StepStat = Stat & { open: number };
+
+const stat = (ds: number[]): Stat => {
+    const m = median(ds);
+    return { days: m === null ? null : r1(m), tasks: ds.length };
+};
+
+/**
+ * Typical (median) days in each step as of `to`, one sample per task: every
+ * task whose time there ended between `from` and `to` (Manila dates), or was
+ * still running at `to`, counted with all its time in the step, rework stays
+ * included. A stay still running counts its whole days up to `to`, so a
+ * backlog raises the number instead of hiding from it. Stays with no known
+ * start are left out; one that ended before its task was ready counts as 0.
+ */
+export function stepStats(vs: Visit[], from: string, to: string): StepStat[] {
     return [0, 1, 2].map((step) => {
-        const ds = vs.filter((v) => v.step === step && v.start && v.end && inRange(v.end, from, to)).map((v) => Math.max(0, Date.parse(v.end!) - Date.parse(v.start!)) / DAY_MS);
-        const m = median(ds);
-        return m === null ? null : r1(m);
+        const byTask = new Map<string, { days: number; state: "done" | "open" | "before" }>();
+        for (const v of vs) {
+            if (v.step !== step || !v.start || dayOf(v.start) > to) continue;
+            const ended = v.end !== null && dayOf(v.end) <= to;
+            const d = ended ? Math.max(0, Date.parse(v.end!) - Date.parse(v.start)) / DAY_MS : daysBetween(dayOf(v.start), to);
+            const cur = byTask.get(v.task);
+            // Visits come oldest first, so the last one seen decides whether the task counts.
+            byTask.set(v.task, { days: (cur?.days ?? 0) + d, state: !ended ? "open" : dayOf(v.end!) >= from ? "done" : "before" });
+        }
+        const counted = [...byTask.values()].filter((x) => x.state !== "before");
+        return { ...stat(counted.map((x) => x.days)), open: counted.filter((x) => x.state === "open").length };
     });
 }
 
-/** The sum of the steps that have a value; null when none has. */
-export function journeyDays(steps: (number | null)[]): number | null {
-    const known = steps.filter((s): s is number => s !== null);
-    return known.length ? r1(known.reduce((a, b) => a + b, 0)) : null;
+/** Typical days from ready to accepted, over tasks accepted between `from` and `to`: how long a task really takes, rework and all. */
+export function journeyStat(tasks: FlowTask[], from: string, to: string, ready?: Map<string, Readiness>): Stat {
+    return stat(acceptedIn(tasks, from, to).map((t) => Math.max(0, Date.parse(t.completed_at!) - Date.parse(ready?.get(t.id)?.at ?? t.created_at)) / DAY_MS));
 }
 
-/** A task open now. `since` is when its wait began and `why` names that moment; `later` To do tasks can't start yet and wait 0 days. */
-export type OpenTask = { task: FlowTask; step: number; days: number; since: string; why: string; later: Later | null };
+/**
+ * A task open now. `since` is when its wait began and `why` names that
+ * moment; both are null, with `days`, when it entered its step before moves
+ * were logged. `later` To do tasks can't start yet and wait 0 days.
+ */
+export type OpenTask = { task: FlowTask; step: number; days: number | null; since: string | null; why: string | null; later: Later | null };
 
 /** Later tasks in the order they open: start dates first, soonest first, then those behind a phase, by phase. */
 const laterKey = (l: Later) => (l.phase ? `~${l.phase.due_date}${l.phase.id}` : l.date!);
 
 /**
  * Open tasks by the step they are in now, longest wait first, with To do's
- * later tasks after the rest. The wait counts from the latest move into that
- * step, else from when it was ready (To do) or the last update.
+ * later tasks after the rest, then any whose wait is unknown. The wait counts
+ * from the latest move into that step, else (To do) from when it was ready.
+ * Never from the last update: any edit would reset it.
  */
 export function openNow(tasks: FlowTask[], moves: TaskMove[], today: string, ready?: Map<string, Readiness>): OpenTask[][] {
     const by = movesByTask(moves);
@@ -177,11 +206,11 @@ export function openNow(tasks: FlowTask[], moves: TaskMove[], today: string, rea
         if (step > 2) continue;
         const entered = [...(by.get(t.id) ?? [])].reverse().find((m) => stepOf(m.to) === step && stepOf(m.from) !== step)?.at;
         const r = step === 0 ? ready?.get(t.id) : undefined, later = r?.later ?? null;
-        const since = entered ?? (step === 0 ? r?.at ?? t.created_at : t.updated_at);
-        const why = entered ? (step === 0 ? "Moved back to To do" : "Moved here") : r?.why ?? (step === 0 ? "Created" : "Last update");
-        out[step].push({ task: t, step, days: later ? 0 : Math.max(0, daysBetween(dayOf(since), today)), since, why, later });
+        const since = entered ?? (step === 0 ? r?.at ?? t.created_at : null);
+        const why = entered ? (step === 0 ? "Moved back to To do" : "Moved here") : step === 0 ? r?.why ?? "Created" : null;
+        out[step].push({ task: t, step, days: later ? 0 : since ? Math.max(0, daysBetween(dayOf(since), today)) : null, since, why, later });
     }
-    for (const list of out) list.sort((a, b) => (a.later && b.later ? (laterKey(a.later) < laterKey(b.later) ? -1 : laterKey(a.later) > laterKey(b.later) ? 1 : 0) : Number(!!a.later) - Number(!!b.later) || b.days - a.days));
+    for (const list of out) list.sort((a, b) => (a.later && b.later ? (laterKey(a.later) < laterKey(b.later) ? -1 : laterKey(a.later) > laterKey(b.later) ? 1 : 0) : Number(!!a.later) - Number(!!b.later) || (b.days ?? -1) - (a.days ?? -1)));
     return out;
 }
 
@@ -196,7 +225,7 @@ export function weekStarts(today: string, count: number): string[] {
     return Array.from({ length: count }, (_, i) => addDays(today, 1 - 7 * (count - i)));
 }
 
-/** Mean days from each send-back in range to that task's next submission; null when none came back yet. */
+/** Typical (median) days from each send-back in range to that task's next submission; null when none came back yet. */
 export function reworkDays(moves: TaskMove[], from: string, to: string): number | null {
     const by = movesByTask(moves);
     const waits: number[] = [];
@@ -207,11 +236,13 @@ export function reworkDays(moves: TaskMove[], from: string, to: string): number 
             if (again) waits.push((Date.parse(again.at) - Date.parse(m.at)) / DAY_MS);
         });
     }
-    return waits.length ? r1(waits.reduce((a, b) => a + b, 0) / waits.length) : null;
+    return stat(waits).days;
 }
 
 export type FlowPeriod = {
-    steps: (number | null)[];
+    steps: StepStat[];
+    /** Ready to accepted, over the tasks accepted. */
+    journey: Stat;
     accepted: number;
     /** Accepted tasks that had a due date: what on time is out of. */
     dated: number;
@@ -222,10 +253,11 @@ export type FlowPeriod = {
     sentBack: number;
 };
 
-function period(tasks: FlowTask[], moves: TaskMove[], vs: Visit[], from: string, to: string): FlowPeriod {
+function period(tasks: FlowTask[], moves: TaskMove[], vs: Visit[], from: string, to: string, ready?: Map<string, Readiness>): FlowPeriod {
     const acc = acceptedIn(tasks, from, to);
     return {
-        steps: stepMedians(vs, from, to),
+        steps: stepStats(vs, from, to),
+        journey: journeyStat(tasks, from, to, ready),
         accepted: acc.length,
         dated: acc.filter((t) => t.due_date).length,
         onTime: acc.filter(onTime).length,
@@ -258,11 +290,11 @@ export function flowSummary(tasks: FlowTask[], moves: TaskMove[], today: string,
     const days = count * 7;
     const from = addDays(today, -(days - 1));
     const weeks = weekStarts(today, count);
-    const week = (ws: string) => period(tasks, moves, vs, ws, addDays(ws, 6));
+    const week = (ws: string) => period(tasks, moves, vs, ws, addDays(ws, 6), ready);
     const perWeek = weeks.map(week);
     return {
-        now: period(tasks, moves, vs, from, today),
-        before: period(tasks, moves, vs, addDays(from, -days), addDays(from, -1)),
+        now: period(tasks, moves, vs, from, today, ready),
+        before: period(tasks, moves, vs, addDays(from, -days), addDays(from, -1), ready),
         reworkDays: reworkDays(moves, from, today),
         weeks,
         weekly: {
@@ -282,5 +314,5 @@ export function scopeFlow(tasks: FlowTask[], moves: TaskMove[], keep: (t: FlowTa
 
 /** Days per task in progress for one person over the period: the typical stay in step 1. */
 export function daysPerTask(tasks: FlowTask[], moves: TaskMove[], today: string, days: number): number | null {
-    return stepMedians(visits(tasks, moves), addDays(today, -(days - 1)), today)[1];
+    return stepStats(visits(tasks, moves), addDays(today, -(days - 1)), today)[1].days;
 }

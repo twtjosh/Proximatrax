@@ -8,7 +8,7 @@ import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/compon
 import { openLoad, type Person, type TaskMove } from "@/lib/analytics";
 import { projectBoardPath, projectReviewPath } from "@/lib/constants";
 import { addDays, daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
-import { daysPerTask, flowSummary, journeyDays, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask, type Later, type OpenTask } from "@/lib/flow";
+import { daysPerTask, flowSummary, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask, type Later, type OpenTask, type Stat, type StepStat } from "@/lib/flow";
 import { cn } from "@/lib/utils";
 
 export type FlowData = {
@@ -25,7 +25,13 @@ type Period = 4 | 12;
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 const OTHER = "var(--series-other)";
 const r1 = (n: number) => Math.round(n * 10) / 10;
-const age = (d: number) => (d >= 7 ? "stale" : d >= 3 ? "aging" : "fresh");
+/** An unknown wait (entered before moves were logged) reads as fresh: never flagged on a guess. */
+const age = (d: number | null) => (d === null ? "fresh" : d >= 7 ? "stale" : d >= 3 ? "aging" : "fresh");
+/** Below this many tasks a typical value is shown muted and called too few to tell. */
+const FEW = 3;
+/** A change against the period before shows only when both periods rest on at least this many tasks; fewer is noise. */
+const COMPARABLE = 5;
+const comparable = (now: Stat, before: Stat) => now.tasks >= COMPARABLE && before.tasks >= COMPARABLE;
 const AGE_BG = { fresh: "bg-[var(--age-fresh)]", aging: "bg-stage-review", stale: "bg-stage-late" } as const;
 const pill = "inline-flex h-[22px] items-center gap-0.5 rounded-full px-2 text-xs font-semibold whitespace-nowrap tabular [&_svg]:size-3";
 const daysText = (d: number) => (d === 0 ? "Today" : plural(d, "day"));
@@ -85,7 +91,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     };
 
     // Numbers for the tiles.
-    const total = journeyDays(s.now.steps), totalBefore = journeyDays(s.before.steps);
+    const journey = s.now.journey, journeyBefore = s.before.journey;
     const rate = (x: number, y: number) => (y ? (x / y) * 100 : null);
 
     // Workload: everyone's open work (inside the chosen project, when there is one).
@@ -116,16 +122,17 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
 
     const STEP_NAMES = ["Waiting to start", "Being worked on", `Waiting for ${you}`];
     const TAGS = ["To do", "In progress", "In review"];
+    // Only call a step slowest when both have enough tasks to say so.
     const [d0, d1] = s.now.steps;
-    const slowest = d0 !== null && d1 !== null && Math.max(d0, d1) > 0 ? (d1 >= d0 ? 1 : 0) : -1;
+    const slowest = d0.tasks >= FEW && d1.tasks >= FEW && Math.max(d0.days!, d1.days!) > 0 ? (d1.days! >= d0.days! ? 1 : 0) : -1;
     // A floor so 0-day steps still get a share of the row (all zeros = equal thirds) and the loop maths never divides by 0.
-    const grow = s.now.steps.map((d) => Math.max(d ?? 1, 0.5)), sum = grow.reduce((a, b) => a + b, 0);
+    const grow = s.now.steps.map((d) => Math.max(d.days ?? 1, 0.5)), sum = grow.reduce((a, b) => a + b, 0);
     const mid1 = ((grow[0] + grow[1] / 2) / sum) * 100, mid2 = ((grow[0] + grow[1] + grow[2] / 2) / sum) * 100;
     const waiting = s.open[0].filter((o) => !o.later), planned = s.open[0].filter((o) => o.later);
     const lists = [waiting, s.open[1], s.open[2]];
     const list = step === 0 && later && planned.length ? planned : lists[step], shown = showAll ? list : list.slice(0, 5);
     // One scale for every wait bar in To do: the oldest task's age.
-    const span = Math.max(7, ...waiting.map((o) => daysBetween(isoDateIn(o.task.created_at), isoDateIn(o.since)) + o.days));
+    const span = Math.max(7, ...waiting.map((o) => daysBetween(isoDateIn(o.task.created_at), isoDateIn(o.since!)) + o.days!));
     const net = s.now.added - s.now.accepted;
 
     return (<div ref={root} className="relative scroll-mt-6">
@@ -147,18 +154,23 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
         </div>}/>
 
       {/* Task journey: the page's one place for the flow numbers and their change against the period before. */}
-      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step · each dot is a task there now" className="materialize mt-6" style={stagger(1)} aside={<AgeKey later={planned.length > 0}/>}>
+      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step, tasks still there included · each dot is a task there now" className="materialize mt-6" style={stagger(1)} aside={<AgeKey later={planned.length > 0}/>}>
         <div className="px-5 pb-5 sm:px-6">
           <div className="mt-3 mb-2.5 grid gap-2 lg:grid-cols-[minmax(0,1fr)_150px]">
             <div className="flex items-center gap-2.5">
               <span className="h-2 flex-1 translate-y-1 rounded-t border-[1.5px] border-b-0 border-line-strong max-lg:hidden" aria-hidden/>
-              <span className="inline-flex items-center gap-2 text-[13.5px] font-semibold whitespace-nowrap">{total === null ? "No finished steps yet" : `${total} days in total`}<Delta now={total} before={totalBefore} unit=" d"/></span>
+              <span className="inline-flex items-center gap-2 text-[13.5px] font-semibold whitespace-nowrap">
+                {journey.tasks === 0 ? "Nothing accepted yet" : journey.tasks < FEW
+                    ? <span className="font-medium text-ink-tertiary">Only {plural(journey.tasks, "task")} accepted, too few to tell</span>
+                    : <>{journey.days} days from ready to accepted<span className="font-normal text-ink-tertiary">· typical of {journey.tasks}</span></>}
+                {comparable(journey, journeyBefore) ? <Delta now={journey.days} before={journeyBefore.days} unit=" d"/> : null}
+              </span>
               <span className="h-2 flex-1 translate-y-1 rounded-t border-[1.5px] border-b-0 border-line-strong max-lg:hidden" aria-hidden/>
             </div>
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_150px]">
             <div className="flex flex-col gap-2 lg:flex-row">
-              {[0, 1, 2].map((i) => <StepBox key={i} i={i} name={STEP_NAMES[i]} tag={TAGS[i]} days={s.now.steps[i]} before={s.before.steps[i]} open={lists[i]} later={i === 0 ? planned : []} grow={grow[i]} pressed={step === i} flag={i === 2 ? `${your} step` : i === slowest ? "Slowest" : null} projectOf={projectOf} personOf={personOf} onClick={() => { setStep(i); setShowAll(false); setLater(false); }}/>)}
+              {[0, 1, 2].map((i) => <StepBox key={i} i={i} name={STEP_NAMES[i]} tag={TAGS[i]} stat={s.now.steps[i]} before={s.before.steps[i]} open={lists[i]} later={i === 0 ? planned : []} grow={grow[i]} pressed={step === i} flag={i === 2 ? `${your} step` : i === slowest ? "Slowest" : null} projectOf={projectOf} personOf={personOf} onClick={() => { setStep(i); setShowAll(false); setLater(false); }}/>)}
             </div>
             <div className="flex flex-col gap-2.5 rounded-2xl bg-success-soft p-3.5">
               <span className="text-[13.5px] font-semibold">Accepted<span className="block text-xs font-normal text-ink-tertiary">Done</span></span>
@@ -178,7 +190,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
               <span className="inline-flex flex-wrap items-center gap-1.5 lg:absolute lg:top-7 lg:-translate-x-1/2 lg:flex-nowrap lg:whitespace-nowrap" style={{ left: `${(mid1 + mid2) / 2}%` }}>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[12.5px] font-semibold text-brand">
                   <Undo2 className="size-3.5" aria-hidden/>
-                  {s.now.submitted ? <>{s.now.sentBack} of {s.now.submitted} sent back{s.reworkDays !== null ? ` · +${s.reworkDays} d each` : ""}</> : "Nothing submitted for review yet"}
+                  {s.now.submitted ? <>{s.now.sentBack} of {plural(s.now.submitted, "submission")} sent back{s.reworkDays !== null ? ` · typically +${s.reworkDays} d` : ""}</> : "Nothing submitted for review yet"}
                 </span>
                 {s.now.submitted ? <Delta now={rate(s.now.sentBack, s.now.submitted)} before={rate(s.before.sentBack, s.before.submitted)} unit=" pts" whole/> : null}
               </span>
@@ -276,12 +288,20 @@ function AgeKey({ later }: { later: boolean }) {
 type ProjectMap = Map<string, { id: string; title: string; active: boolean; color: string }>;
 type PersonMap = Map<string, Person & { color: string }>;
 
-/** One step of the journey: typical days, its change, a dot per task there now (a ring per To do task that can't start yet). Pressing it lists those tasks below. */
-function StepBox({ i, name, tag, days, before, open, later, grow, pressed, flag, projectOf, personOf, onClick }: {
-    i: number; name: string; tag: string; days: number | null; before: number | null; open: OpenTask[]; later: OpenTask[]; grow: number; pressed: boolean; flag: string | null;
+/**
+ * One step of the journey: typical days and what they rest on (how many
+ * tasks, how many still there), its change when both periods have enough
+ * tasks, a dot per task there now (a ring per To do task that can't start
+ * yet). Pressing it lists those tasks below.
+ */
+function StepBox({ i, name, tag, stat, before, open, later, grow, pressed, flag, projectOf, personOf, onClick }: {
+    i: number; name: string; tag: string; stat: StepStat; before: StepStat; open: OpenTask[]; later: OpenTask[]; grow: number; pressed: boolean; flag: string | null;
     projectOf: ProjectMap; personOf: PersonMap; onClick: () => void;
 }) {
-    const mine = i === 2, stale = open.filter((o) => o.days >= 7).length, unassigned = i === 0 ? open.filter((o) => !o.task.assigned_to).length : 0;
+    const few = stat.tasks > 0 && stat.tasks < FEW;
+    const basis = stat.tasks === 0 ? "No tasks yet" : few ? `Only ${plural(stat.tasks, "task")}, too few to tell`
+        : `Typical of ${stat.tasks}${stat.open ? ` · ${stat.open} still ${["waiting", "going", "waiting"][i]}` : ""}`;
+    const mine = i === 2, stale = open.filter((o) => (o.days ?? 0) >= 7).length, unassigned = i === 0 ? open.filter((o) => !o.task.assigned_to).length : 0;
     return (<button type="button" aria-pressed={pressed} aria-controls="flow-step-tasks" onClick={onClick} style={{ flexGrow: grow }} className={cn(
             "flex min-w-0 basis-0 flex-col gap-2.5 rounded-2xl px-4 pt-3.5 pb-3 text-left transition-[flex-grow,box-shadow,translate,background-color] duration-500 ease-[var(--ease-spring)] hover:-translate-y-px lg:min-w-40",
             mine ? "bg-brand-soft shadow-[0_0_0_1.5px_rgb(217_119_6/0.45)]" : "bg-surface-subtle shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_var(--line-strong),0_14px_28px_-18px_rgb(14_18_34/0.3)]",
@@ -291,14 +311,17 @@ function StepBox({ i, name, tag, days, before, open, later, grow, pressed, flag,
         <span><span className="block text-[13.5px] font-semibold text-ink">{name}</span><span className="block text-xs text-ink-tertiary">{tag}</span></span>
         {flag ? <span className={cn("rounded-full px-2 text-[11.5px] leading-[22px] font-semibold whitespace-nowrap", mine ? "bg-brand text-white" : "bg-ink text-surface")}>{flag}</span> : null}
       </span>
-      <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-        <b className="text-[32px] leading-none font-semibold tracking-[-0.035em] text-ink tabular">{days ?? "–"}{days !== null ? <small className="ml-1 text-[13.5px] font-medium tracking-normal text-ink-tertiary">days</small> : null}</b>
-        <Delta now={days} before={before} unit=" d"/>
+      <span className="flex flex-col gap-1.5">
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <b className={cn("text-[32px] leading-none font-semibold tracking-[-0.035em] tabular transition-colors", few ? "text-ink-tertiary" : "text-ink")}>{stat.days ?? "–"}{stat.days !== null ? <small className="ml-1 text-[13.5px] font-medium tracking-normal text-ink-tertiary">days</small> : null}</b>
+          {comparable(stat, before) ? <Delta now={stat.days} before={before.days} unit=" d"/> : null}
+        </span>
+        <span className="text-xs text-ink-tertiary tabular">{basis}</span>
       </span>
       <span className="flex min-h-[22px] flex-wrap content-start gap-1" aria-hidden>
         {open.length + later.length === 0 ? <span className="text-[12.5px] text-ink-tertiary">Empty</span> : open.map((o) => {
                 const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to)?.name : null;
-                const wait = i === 0 ? (o.days === 0 ? "Ready today" : `Ready since ${shortDay(o.since)} · ${plural(o.days, "day")} waiting`) : o.days === 0 ? "Arrived today" : `${plural(o.days, "day")} in this step`;
+                const wait = o.days === null ? "Moved here before tracking began" : i === 0 ? (o.days === 0 ? "Ready today" : `Ready since ${shortDay(o.since!)} · ${plural(o.days, "day")} waiting`) : o.days === 0 ? "Arrived today" : `${plural(o.days, "day")} in this step`;
                 return <i key={o.task.id} className={cn("size-[9px] rounded-[3px] transition-transform hover:scale-150", AGE_BG[age(o.days)])} data-tip={`${o.task.title}\n${p?.title ?? ""} · ${who ?? "Unassigned"}\n${wait}`}/>;
             })}
         {later.length ? <>
@@ -319,7 +342,9 @@ function StepBox({ i, name, tag, days, before, open, later, grow, pressed, flag,
 /** One open task. In To do (`span` set) its wait shows as a bar on that shared scale, or what it still waits on when it can't start yet. */
 function TaskRow({ o, viewer, projectOf, personOf, span }: { o: OpenTask; viewer: Viewer; projectOf: ProjectMap; personOf: PersonMap; span?: number }) {
     const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to) : null, a = age(o.days);
-    const days = <span className={cn("inline-flex shrink-0 items-center gap-1.5 font-semibold tabular", a === "stale" && "text-danger")}><span className={cn("size-2 rounded-[2.5px]", AGE_BG[a])} aria-hidden/>{daysText(o.days)}</span>;
+    const days = o.days === null
+        ? <span className="shrink-0 text-[13px] text-ink-tertiary" data-tip={"Not tracked\nMoved here before tracking began, so its time here is unknown"}>Not tracked</span>
+        : <span className={cn("inline-flex shrink-0 items-center gap-1.5 font-semibold tabular", a === "stale" && "text-danger")}><span className={cn("size-2 rounded-[2.5px]", AGE_BG[a])} aria-hidden/>{daysText(o.days)}</span>;
     return (<div className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t border-line px-4 py-2.5 text-[13.5px] transition-colors hover:bg-surface/70", span ? "sm:grid-cols-[minmax(0,1fr)_170px_minmax(150px,260px)_auto]" : "sm:grid-cols-[minmax(0,1fr)_170px_84px_auto]")}>
       <span className="min-w-0"><span className={cn("block truncate", o.later ? "font-medium" : "font-semibold")}>{o.task.title}</span><span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-ink-tertiary"><span className="size-2 shrink-0 rounded-full" style={{ background: p?.color ?? OTHER }} aria-hidden/><span className="truncate">{p?.title}</span></span></span>
       <span className="flex min-w-0 items-center gap-2 text-[13px] max-sm:hidden">{who ? <><Face person={asMember(who)} size={22}/><span className="truncate">{who.name}</span></> : <span className="text-ink-tertiary">Unassigned</span>}</span>
@@ -340,18 +365,20 @@ function TaskRow({ o, viewer, projectOf, personOf, span }: { o: OpenTask; viewer
  * today in its age colour. Hover or focus shows the dates.
  */
 function WaitBar({ o, span }: { o: OpenTask; span: number }) {
-    const pre = Math.max(0, daysBetween(isoDateIn(o.task.created_at), isoDateIn(o.since)));
+    // To do always knows when its wait began.
+    const since = o.since!, wait = o.days!;
+    const pre = Math.max(0, daysBetween(isoDateIn(o.task.created_at), isoDateIn(since)));
     const x = (d: number) => `${Math.max(0, 100 - (d / span) * 100)}%`;
-    const a = age(o.days), created = shortDay(o.task.created_at), readyOn = shortDay(o.since);
-    return (<span tabIndex={0} role="img" aria-label={`Created ${created}. Ready ${readyOn}, ${o.why}. Waiting ${daysText(o.days)}.`} className={cn("group/bar relative block h-6 min-w-0 flex-1 rounded max-sm:hidden", focusRing)}>
+    const a = age(wait), created = shortDay(o.task.created_at), readyOn = shortDay(since);
+    return (<span tabIndex={0} role="img" aria-label={`Created ${created}. Ready ${readyOn}, ${o.why}. Waiting ${daysText(wait)}.`} className={cn("group/bar relative block h-6 min-w-0 flex-1 rounded max-sm:hidden", focusRing)}>
       <span className="absolute top-1 right-0 h-4 w-px bg-line-strong" aria-hidden/>
-      {pre ? <span className="absolute top-[11px] h-0.5" style={{ ...DASH, left: x(pre + o.days), width: `${(Math.min(pre, span) / span) * 100}%` }} aria-hidden/> : null}
-      <span className={cn("absolute top-2 right-0 h-2 rounded-full", AGE_BG[a])} style={{ left: x(o.days) }} aria-hidden/>
-      <span className="absolute top-[7px] -ml-[5px] size-2.5 rounded-full bg-surface shadow-[0_0_0_2px_var(--ink)]" style={{ left: x(o.days) }} aria-hidden/>
+      {pre ? <span className="absolute top-[11px] h-0.5" style={{ ...DASH, left: x(pre + wait), width: `${(Math.min(pre, span) / span) * 100}%` }} aria-hidden/> : null}
+      <span className={cn("absolute top-2 right-0 h-2 rounded-full", AGE_BG[a])} style={{ left: x(wait) }} aria-hidden/>
+      <span className="absolute top-[7px] -ml-[5px] size-2.5 rounded-full bg-surface shadow-[0_0_0_2px_var(--ink)]" style={{ left: x(wait) }} aria-hidden/>
       <span className="pointer-events-none absolute right-0 bottom-[calc(100%+8px)] z-20 grid w-max min-w-56 translate-y-1 grid-cols-[16px_auto_1fr] items-center gap-x-2.5 gap-y-1.5 rounded-[10px] bg-rail px-3 py-2.5 text-xs text-rail-ink opacity-0 shadow-[0_12px_28px_-8px_rgb(11_14_26/0.5)] transition-[opacity,translate] duration-150 group-hover/bar:translate-y-0 group-hover/bar:opacity-100 group-focus-visible/bar:translate-y-0 group-focus-visible/bar:opacity-100" aria-hidden>
         <i className="h-0.5" style={DASH}/><span className="text-rail-ink-tertiary">Created</span><b className="font-semibold">{created}</b>
         <i className="size-2 justify-self-center rounded-full bg-rail-ink"/><span className="text-rail-ink-tertiary">Ready</span><b className="font-semibold">{readyOn}<span className="font-normal text-rail-ink-secondary"> · {o.why}</span></b>
-        <i className={cn("h-1.5 rounded-full", AGE_BG[a])}/><span className="text-rail-ink-tertiary">Waiting</span><b className="font-semibold">{daysText(o.days)}</b>
+        <i className={cn("h-1.5 rounded-full", AGE_BG[a])}/><span className="text-rail-ink-tertiary">Waiting</span><b className="font-semibold">{daysText(wait)}</b>
       </span>
     </span>);
 }
