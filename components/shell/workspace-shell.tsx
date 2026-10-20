@@ -12,7 +12,6 @@ import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { triageCounts, type InquiryTriageRow } from "@/lib/inquiry-triage";
 import { canSearchProjects, primaryNavFor } from "@/lib/navigation";
 import { listProjects } from "@/services/project-service";
-import { useSidebarStore } from "@/store/use-sidebar-store";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
 
@@ -49,12 +48,6 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
     const homeHref = getRoleHomePath(role);
     const searchEnabled = canSearchProjects(role);
     const [searchOpen, setSearchOpen] = React.useState(false);
-
-    const collapsed = useSidebarStore((s) => s.isCollapsed);
-    const toggleCollapsed = useSidebarStore((s) => s.toggleSidebar);
-    React.useEffect(() => {
-        void useSidebarStore.persist.rehydrate();
-    }, []);
 
     const shortcutLabel = React.useSyncExternalStore(subscribeNoop, () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"), () => "Ctrl K");
 
@@ -106,7 +99,7 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
         <a href="#workspace-main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:text-white">
           Skip to content
         </a>
-        <Sidebar profile={profile} navItems={navItems} badges={badges} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} onOpenSearch={openSearch} shortcutLabel={shortcutLabel} notifications={notifications} homeHref={homeHref} projects={railProjects}/>
+        <Sidebar profile={profile} navItems={navItems} badges={badges} onOpenSearch={openSearch} shortcutLabel={shortcutLabel} notifications={notifications} homeHref={homeHref} projects={railProjects}/>
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileTopBar profile={profile} navItems={navItems} onOpenSearch={openSearch} notifications={notifications} homeHref={homeHref}/>
           <main id="workspace-main" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 outline-none sm:px-6 lg:px-8 lg:py-7">

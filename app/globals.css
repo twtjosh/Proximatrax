@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* The desktop rail is open while hovered, while it holds keyboard focus, or while one of its menus is open. */
+@custom-variant rail-open (&:where([data-rail]:is(:hover, :has(:focus-visible), :has([data-popup-open])), [data-rail]:is(:hover, :has(:focus-visible), :has([data-popup-open])) *));
 
 /* ─────────────────────────────────────────────────────────────────────────
    ProximaTrax design tokens

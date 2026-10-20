@@ -1,3 +1,4 @@
+import { RAIL_TEXT } from "@/components/shell/rail";
 import { cn } from "@/lib/utils";
 import { COMPANY_NAME } from "@/lib/vocabulary";
 
@@ -15,12 +16,13 @@ export function BrandMark({ className }: {
     </span>);
 }
 
+/** The rail's logo: the mark stays put, the name fades when the rail narrows. */
 export function BrandLockup({ className }: {
     className?: string;
 }) {
     return (<span className={cn("flex min-w-0 items-center gap-2.5", className)}>
       <BrandMark className="size-7"/>
-      <span className="min-w-0 leading-tight">
+      <span className={cn("min-w-0 leading-tight", RAIL_TEXT)}>
         <span className="block truncate text-[15px] font-semibold tracking-tight text-rail-ink">ProximaTrax</span>
         <span className="block truncate text-xs text-rail-ink-tertiary">{COMPANY_NAME}</span>
       </span>

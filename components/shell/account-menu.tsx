@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RAIL_TEXT } from "@/components/shell/rail";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROUTES } from "@/lib/constants";
 import { accountPathFor } from "@/lib/navigation";
@@ -42,15 +43,15 @@ export function AccountMenu({ profile, appearance, side = "bottom" }: AccountMen
     const accountHref = accountPathFor(profile.role);
     return (<DropdownMenu>
       <DropdownMenuTrigger type="button" aria-label={`Account menu for ${profile.full_name}`} className={cn("cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40", appearance === "row"
-            ? "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-rail-raised data-popup-open:bg-rail-raised"
+            ? "flex w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left hover:bg-rail-raised data-popup-open:bg-rail-raised"
             : "inline-flex size-9 items-center justify-center rounded-md hover:bg-rail-raised data-popup-open:bg-rail-raised")}>
-        <ProfileAvatar profile={profile}/>
+        <ProfileAvatar profile={profile} className="shrink-0"/>
         {appearance === "row" ? (<>
-            <span className="min-w-0 flex-1 leading-tight">
+            <span className={cn("min-w-0 flex-1 leading-tight", RAIL_TEXT)}>
               <span className="block truncate text-sm font-medium text-rail-ink">{profile.full_name}</span>
               <span className="block truncate text-xs text-rail-ink-tertiary">{ROLE_TERMS[profile.role]}</span>
             </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 text-rail-ink-tertiary" aria-hidden/>
+            <ChevronsUpDown className={cn("size-3.5 shrink-0 text-rail-ink-tertiary", RAIL_TEXT)} aria-hidden/>
           </>) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent side={side} align="end" sideOffset={8} className="w-60">

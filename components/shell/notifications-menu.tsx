@@ -1,5 +1,6 @@
 "use client";
 import { Bell } from "lucide-react";
+import { RAIL_DOT, RAIL_TEXT } from "@/components/shell/rail";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { UserNotification } from "@/types/database";
@@ -35,12 +36,15 @@ export function NotificationsMenu({ items, unreadCount, emptyMessage, onOpen, on
     const count = unreadCount > 99 ? "99+" : String(unreadCount);
     return (<DropdownMenu>
       <DropdownMenuTrigger type="button" aria-label={label} className={cn("relative cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40", appearance === "row"
-            ? "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised data-popup-open:text-rail-ink"
+            ? "flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised data-popup-open:text-rail-ink"
             : "inline-flex size-9 items-center justify-center rounded-md text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised")}>
         <Bell className="size-4 shrink-0" aria-hidden/>
         {appearance === "row" ? (<>
-            <span className="min-w-0 flex-1 truncate text-left">Notifications</span>
-            {unreadCount > 0 ? (<span className="rounded-sm bg-brand px-1.5 font-mono text-[11px] leading-5 font-medium text-white">{count}</span>) : null}
+            <span className={cn("min-w-0 flex-1 truncate text-left", RAIL_TEXT)}>Notifications</span>
+            {unreadCount > 0 ? (<>
+                <span className={cn("rounded-sm bg-brand px-1.5 font-mono text-[11px] leading-5 font-medium text-white", RAIL_TEXT)}>{count}</span>
+                <span className={RAIL_DOT} aria-hidden/>
+              </>) : null}
           </>) : unreadCount > 0 ? (<span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-bright ring-2 ring-rail" aria-hidden/>) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent side={side} align="end" sideOffset={8} className="w-[min(calc(100vw-2rem),24rem)] p-0">
