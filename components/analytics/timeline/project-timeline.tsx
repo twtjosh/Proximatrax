@@ -166,6 +166,7 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
         : edge.r ? "linear-gradient(to right, #000 calc(100% - 72px), transparent)" : edge.l ? "linear-gradient(to right, transparent, #000 72px)" : undefined;
     const { periods, stats } = model, units = model.unit === "week" ? "weeks" : "months";
     const max = Math.max(1, ...stats.map((s) => s.activities));
+    const startIndex = Math.max(0, periodOf(periods, model.project.start));
     const arrow = cn("grid size-8 cursor-pointer place-items-center rounded-full bg-surface text-ink shadow-[0_0_0_1px_var(--line)] transition-[background-color,box-shadow,opacity,scale] duration-150 hover:not-disabled:bg-surface-subtle hover:not-disabled:shadow-[0_0_0_1px_var(--line-strong),0_6px_14px_-8px_rgb(14_18_34/0.35)] active:not-disabled:scale-95 disabled:cursor-default disabled:opacity-35", focusRing);
 
     return (<>
@@ -190,10 +191,10 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
             const s = stats[i], on = model.selected === i, m = marks[i];
             const lines = [...m.phases.map((ph) => ph.text), ...(m.health ? [`${m.health.label}${m.health.note ? `: “${m.health.note}”` : ""}`] : [])];
             return (<div key={p.from} className="relative shrink-0 snap-center">
-              {i === 0 ? <Marker icon={Play} text={`Start · ${short(model.project.start < p.from ? model.project.start : p.from)}`}/> : null}
+              {i === startIndex ? <Marker icon={Play} text={`Start · ${short(model.project.start)}`}/> : null}
               {i === model.dueIndex ? <Marker icon={Flag} text={`Due · ${short(model.project.end)}`} right/> : null}
               <button type="button" data-period={i} aria-pressed={on} onClick={() => model.select(i)} data-tip={lines.length ? `${p.label} · ${p.range}\n${lines.join("\n")}` : undefined}
-                aria-label={`${p.label}, ${p.range}, ${plural(s.activities, "activity")}${lines.length ? `. ${lines.join(". ")}` : ""}`}
+                aria-label={`${p.label}, ${p.range}, ${s.activities} ${s.activities === 1 ? "activity" : "activities"}${lines.length ? `. ${lines.join(". ")}` : ""}`}
                 className={cn("flex w-[9.75rem] cursor-pointer flex-col gap-2 rounded-2xl px-3.5 py-3 text-left transition-[background-color,box-shadow,translate] duration-200 ease-out hover:-translate-y-0.5", focusRing,
                     on ? "bg-brand-soft shadow-[0_0_0_2px_var(--copper)]"
                         : p.beyond ? "bg-[color-mix(in_srgb,var(--danger-soft)_60%,var(--surface))] shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_var(--line-strong),0_12px_24px_-16px_rgb(14_18_34/0.35)]"

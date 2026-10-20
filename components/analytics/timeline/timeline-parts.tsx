@@ -51,6 +51,7 @@ const sortKinds = (kinds: LogKind[]) => [...kinds].sort((a, b) => KIND_ORDER.ind
 const day = (iso: string) => formatDate(iso, { month: "short", day: "numeric", year: "numeric" });
 const time = (instant: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(new Date(instant));
 const weekday = (iso: string) => formatDate(iso, { weekday: "short", month: "short", day: "numeric" });
+const activities = (n: number) => `${n} ${n === 1 ? "activity" : "activities"}`;
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const stageOf = (e: TimelineEntry): TaskStage | null => {
     if (e.action_type === "task_created") return "to_do";
@@ -116,7 +117,7 @@ export function ActivityHistory({ model, className }: { model: TimelineModel; cl
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3 sm:px-5">
         <div className="min-w-0 flex-1">
           <h3 className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-ink">{p.label}<span className="font-normal text-ink-tertiary tabular">{p.range}</span><PeriodFlags period={p} due={model.selected === model.dueIndex}/></h3>
-          <p className="text-[12.5px] text-ink-tertiary" aria-live="polite">{filtered ? `${rows.length} of ${plural(s.activities, "activity")} match the filters` : plural(s.activities, "activity")}</p>
+          <p className="text-[12.5px] text-ink-tertiary" aria-live="polite">{filtered ? `${rows.length} of ${activities(s.activities)} match the filters` : activities(s.activities)}</p>
         </div>
         <StepButtons model={model}/>
       </header>

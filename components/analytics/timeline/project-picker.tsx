@@ -25,8 +25,8 @@ const TONE = { ok: "bg-info-soft text-info", late: "bg-danger-soft text-danger",
 export function ProjectPicker({ projects, value, onChange }: { projects: ProjectOption[]; value: string; onChange: (id: string) => void }) {
     const selected = projects.find((p) => p.id === value) ?? null;
     return (<Combobox.Root items={projects} value={selected} onValueChange={(p) => p && onChange(p.id)} itemToStringLabel={(p: ProjectOption) => `${p.title} ${p.client}`} isItemEqualToValue={(a: ProjectOption, b: ProjectOption) => a.id === b.id}>
-      <Combobox.Trigger aria-label={`Project: ${selected?.title ?? "none"}. Change project`} className="group flex max-w-full min-w-0 items-center gap-3.5 rounded-2xl bg-surface py-2.5 pr-3 pl-4 text-left shadow-[0_0_0_1px_var(--line-strong),0_1px_2px_rgb(14_18_34/0.05)] outline-none transition-[box-shadow,background-color] duration-200 hover:bg-surface-subtle hover:shadow-[0_0_0_1px_var(--ink-tertiary),0_10px_22px_-16px_rgb(14_18_34/0.4)] focus-visible:shadow-[0_0_0_2px_var(--copper),0_0_0_6px_var(--copper-soft)] data-popup-open:shadow-[0_0_0_2px_var(--copper),0_0_0_6px_var(--copper-soft)]">
-        <span className="grid min-w-0">
+      <Combobox.Trigger title={selected?.title} aria-label={`Project: ${selected?.title ?? "none"}. Change project`} className="group flex w-[26rem] max-w-full min-w-0 items-center gap-4 justify-self-start rounded-2xl bg-surface py-2.5 pr-3 pl-4 text-left shadow-[0_0_0_1px_var(--line-strong),0_1px_2px_rgb(14_18_34/0.05)] outline-none transition-[box-shadow,background-color] duration-200 hover:bg-surface-subtle hover:shadow-[0_0_0_1px_var(--ink-tertiary),0_10px_22px_-16px_rgb(14_18_34/0.4)] focus-visible:shadow-[0_0_0_2px_var(--copper),0_0_0_6px_var(--copper-soft)] data-popup-open:shadow-[0_0_0_2px_var(--copper),0_0_0_6px_var(--copper-soft)]">
+        <span className="grid min-w-0 flex-1">
           <span className="text-[11px] font-semibold tracking-[0.06em] text-ink-tertiary uppercase">Project</span>
           <span className="truncate text-[1.3rem] leading-tight font-semibold tracking-[-0.025em] text-ink">{selected?.title ?? "Choose a project"}</span>
           {selected ? <span className="truncate text-[12.5px] text-ink-tertiary">{selected.client} · {selected.dates}</span> : null}
@@ -37,7 +37,7 @@ export function ProjectPicker({ projects, value, onChange }: { projects: Project
       </Combobox.Trigger>
       <Combobox.Portal>
         <Combobox.Positioner sideOffset={8} align="start" collisionPadding={12} className="z-50">
-          <Combobox.Popup className="w-[min(27rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-2xl bg-surface p-2 shadow-[0_0_0_1px_rgb(14_18_34/0.08),0_24px_48px_-20px_rgb(14_18_34/0.4)] transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
+          <Combobox.Popup className="w-(--anchor-width) min-w-[min(22rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-2xl bg-surface p-2 shadow-[0_0_0_1px_rgb(14_18_34/0.08),0_24px_48px_-20px_rgb(14_18_34/0.4)] transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
             <label className="flex h-10 items-center gap-2 rounded-[10px] bg-surface-subtle px-3 text-ink-tertiary shadow-[inset_0_0_0_1px_var(--line)] focus-within:shadow-[inset_0_0_0_1.5px_var(--copper)]">
               <Search className="size-4" aria-hidden/>
               <Combobox.Input placeholder="Search projects or clients" className="h-full w-full min-w-0 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-tertiary"/>
