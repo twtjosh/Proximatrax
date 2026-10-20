@@ -5,11 +5,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, FileText, Lock, Megaphone, MessageSquare, MoreHorizontal, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useLiveUnread } from "@/components/messenger/messenger-store";
 import { OpenChatButton } from "@/components/messenger/open-chat-button";
-import { FaceStack, focusRing, HEALTH_TONE, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
+import { focusRing, HEALTH_TONE, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { TeamMember } from "@/lib/data/project-context";
 import { agoPhrase, isoDateIn, type HealthTone } from "@/lib/dashboard";
-import { projectTeamPath, ROUTES } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { HEALTH, type StatusUpdate } from "@/lib/project-log";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -18,12 +17,12 @@ import { HEALTH_STYLE, postUpdate } from "./status-update-dialog";
 /**
  * The project's identity on every tab: the same ring and health words as its
  * Overview tile and the PM's latest status update, then what the PM reaches
- * for from anywhere: the review queue (when work waits), the team, Message,
- * and the project menu. Condenses while
+ * for from anywhere: the review queue (when work waits), Message, and the
+ * project menu. Condenses while
  * the page is scrolled, by scale and fade only: its height never changes, so
  * scrolling can't make it jump.
  */
-export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, update, calendar, team, unread, compact, reviewCount, reviewHref, closed, onSettings, onReport }: {
+export function PmProjectHeader({ projectId, title, client, accepted, total, tasksFailed, health, update, calendar, unread, compact, reviewCount, reviewHref, closed, onSettings, onReport }: {
     projectId: string;
     title: string;
     client: string;
@@ -35,7 +34,6 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
     /** The PM's own word on the project, shown beside the computed state. */
     update: StatusUpdate | null;
     calendar: string;
-    team: TeamMember[];
     unread: number;
     compact: boolean;
     /** Submissions waiting on the PM; the pill shows only when there are some. */
@@ -96,9 +94,6 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
               </Link>
             </motion.span>) : null}
         </AnimatePresence>
-        {team.length > 0 ? (<Link href={projectTeamPath(projectId)} aria-label={`Team: ${team.map((m) => m.name).join(", ")}`} className={cn("press rounded-full p-0.5 max-sm:hidden hover:bg-surface-sunken", focusRing)}>
-            <FaceStack people={team} max={3} size={28}/>
-          </Link>) : null}
         <OpenChatButton projectId={projectId} aria-label={liveUnread > 0 ? `Message, ${liveUnread} unread` : "Message"} className={cn(softAction, "relative h-9 px-3.5", liveUnread > 0 && "bg-brand-soft text-brand ring-1 ring-brand/20 hover:bg-brand-soft")}>
           <MessageSquare aria-hidden/>
           <span className="max-md:hidden">Message</span>

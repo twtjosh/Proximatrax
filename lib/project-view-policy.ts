@@ -1,4 +1,4 @@
-import { projectActivityPath, projectBoardPath, projectFilesPath, projectPath, projectPhotosPath, projectTeamPath, projectTimelinePath } from "@/lib/constants";
+import { projectBoardPath, projectFilesPath, projectPath, projectPhotosPath, projectTeamPath, projectTimelinePath } from "@/lib/constants";
 import type { UserRole } from "@/types/enums";
 export type ProjectWorkspaceTab = {
     href: string;
@@ -19,7 +19,6 @@ export function projectWorkspaceTabs(projectId: string, role: UserRole): Project
             { href: projectTimelinePath(projectId), label: "Timeline" },
             { href: projectFilesPath(projectId), label: "Files" },
             { href: projectTeamPath(projectId), label: "Team" },
-            { href: projectActivityPath(projectId), label: "Activity" },
         ];
     }
     if (role === "client") {

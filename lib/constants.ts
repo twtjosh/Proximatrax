@@ -8,7 +8,6 @@ export const ROUTES = {
     DASHBOARD: "/dashboard",
     PROJECTS: "/projects",
     ACTIVITY: "/activity",
-    TEAM: "/team",
     FILES: "/files",
     ACCOUNT: "/account",
     MIDDLEMAN_HOME: "/middleman",
@@ -55,7 +54,6 @@ export const projectTimelinePath = (id: string) => `${projectPath(id)}/timeline`
 export const projectReviewPath = (id: string) => `${projectPath(id)}/review`;
 export const projectFilesPath = (id: string) => `${projectPath(id)}/files`;
 export const projectChatPath = (id: string) => `${projectPath(id)}/chat`;
-export const projectActivityPath = (id: string) => `${projectPath(id)}/activity`;
 export const projectAnalyticsPath = (id: string) => `${projectPath(id)}/analytics`;
 export const projectTeamPath = (id: string) => `${projectPath(id)}/team`;
 export const projectPhotosPath = (id: string) => `${projectPath(id)}/photos`;

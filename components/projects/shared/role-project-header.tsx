@@ -1,19 +1,18 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MessageSquare } from "lucide-react";
-import { FaceStack, focusRing, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
+import { focusRing, ProgressRing, softAction } from "@/components/dashboard/overview-kit";
 import { useLiveUnread } from "@/components/messenger/messenger-store";
 import { OpenChatButton } from "@/components/messenger/open-chat-button";
-import type { TeamMember } from "@/lib/data/project-context";
 import { cn } from "@/lib/utils";
 
 /**
  * A crew member's or client's project identity on every tab: a ring, the
- * title, one status line, the team and Message. Condenses like the PM header,
+ * title, one status line and Message. Condenses like the PM header,
  * by scale and fade only: its height never changes, so scrolling can't make
  * it jump.
  */
-export function RoleProjectHeader({ projectId, title, share, done, status, team, unread, compact, home, messageLabel }: {
+export function RoleProjectHeader({ projectId, title, share, done, status, unread, compact, home, messageLabel }: {
     projectId: string;
     title: string;
     /** 0..1, drawn by the ring and shown inside it as a percentage. */
@@ -21,7 +20,6 @@ export function RoleProjectHeader({ projectId, title, share, done, status, team,
     /** Draw the ring green: everything it counts is finished. */
     done: boolean;
     status: React.ReactNode;
-    team: TeamMember[];
     unread: number;
     compact: boolean;
     /** Where Back goes when there is no in-app history. */
@@ -52,7 +50,6 @@ export function RoleProjectHeader({ projectId, title, share, done, status, team,
         <h1 className={cn("origin-left truncate text-[1.75rem] leading-[1.05] font-semibold tracking-[-0.034em] text-ink transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.68]")}>{title}</h1>
         <p className={cn("truncate text-[13px] text-ink-tertiary transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>{status}</p>
       </div>
-      {team.length > 0 ? <span className="max-sm:hidden" title={team.map((m) => m.name).join(", ")}><FaceStack people={team} max={3} size={28}/></span> : null}
       <OpenChatButton projectId={projectId} aria-label={liveUnread > 0 ? `${messageLabel}, ${liveUnread} unread` : messageLabel} className={cn(softAction, "relative h-9 px-3.5", liveUnread > 0 && "bg-brand-soft text-brand ring-1 ring-brand/20 hover:bg-brand-soft")}>
         <MessageSquare aria-hidden/>
         <span className="max-sm:hidden">{messageLabel}</span>

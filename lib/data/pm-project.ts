@@ -4,7 +4,6 @@ import { isoDateIn, type DashboardMilestone } from "@/lib/dashboard";
 import { loadProjectContext, projectContext, type TeamMember } from "@/lib/data/project-context";
 import type { PmTask } from "@/lib/pm-project";
 import { latestUpdate, type StatusUpdate } from "@/lib/project-log";
-import { listProjectActivityPage, type ActivityWithActor } from "@/services/activity-service";
 import { listInvitationsForProject } from "@/services/project-invitation-service";
 import { getProjectById, type ProjectWithRelations } from "@/services/project-service";
 import type { ProjectInvitationWithInvitee } from "@/types/database";
@@ -19,8 +18,6 @@ export type PmProjectData = {
     unread: number;
     /** Only loaded while the project waits on invites. */
     invitations: ProjectInvitationWithInvitee[];
-    /** The newest rows of the project log, newest first. */
-    activity: ActivityWithActor[];
     /** The PM's latest status update, however old. */
     update: StatusUpdate | null;
     /** Manila calendar date; overdue is measured against it. */
@@ -28,22 +25,19 @@ export type PmProjectData = {
     loadFailed: boolean;
 };
 
-const ACTIVITY_COUNT = 10;
-
 /**
  * Everything the PM's project shell and Overview read, once per request:
  * the layout and the page both call this and share the result.
  */
 export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: string): Promise<PmProjectData | null> => {
     // One round trip: nothing here waits on the project row, so it all leaves together.
-    const [project, taskResult, rows, pendingInvitations, activity, updateRows] = await Promise.all([
+    const [project, taskResult, rows, pendingInvitations, updateRows] = await Promise.all([
         getProjectById(projectId, supabase, { withMilestones: true }),
         supabase.from("tasks")
             .select("id, title, project_id, stage, due_date, client_visible_at, updated_at, assigned_to, milestone_id")
             .eq("project_id", projectId),
         loadProjectContext(supabase, [projectId]),
         listInvitationsForProject(projectId, supabase).catch(() => []),
-        listProjectActivityPage(projectId, { limit: ACTIVITY_COUNT }, supabase).catch(() => []),
         supabase.from("activity_feed").select("action_type, details, created_at, user_id")
             .eq("project_id", projectId).eq("action_type", "project_update")
             .order("created_at", { ascending: false }).limit(1),
@@ -61,7 +55,6 @@ export const loadPmProject = cache(async (supabase: SupabaseClient, projectId: s
         team,
         unread: context.unread[projectId] ?? 0,
         invitations,
-        activity,
         update: latestUpdate((updateRows.data ?? []) as Parameters<typeof latestUpdate>[0]),
         today: isoDateIn(new Date()),
         loadFailed: !!taskResult.error,

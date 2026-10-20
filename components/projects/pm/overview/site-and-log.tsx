@@ -1,18 +1,12 @@
 "use client";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { Face, focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
-import { KIND_DOT } from "@/components/projects/shared/task-history";
-import { projectActivityPath, projectBoardPath } from "@/lib/constants";
-import { agoPhrase, daysBetween, isoDateIn } from "@/lib/dashboard";
+import { projectBoardPath } from "@/lib/constants";
+import { daysBetween } from "@/lib/dashboard";
 import type { TeamMember } from "@/lib/data/project-context";
 import type { PmTask } from "@/lib/pm-project";
 import { onSiteNow } from "@/lib/project-insights";
-import { logDetail, logKind, logSentence } from "@/lib/project-log";
 import { cn } from "@/lib/utils";
-import type { ActivityWithActor } from "@/services/activity-service";
-
-const time = (iso: string) => new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(new Date(iso));
 
 /** Work under way right now, by person: who is doing what, and since when. */
 export function OnSiteNow({ projectId, tasks, team, today }: {
@@ -47,32 +41,5 @@ export function OnSiteNow({ projectId, tasks, team, today }: {
               </li>);
             })}
         </ul>)}
-    </OverviewCard>);
-}
-
-/** The newest rows of the project log. */
-export function RecentActivity({ projectId, rows, today }: {
-    projectId: string;
-    rows: ActivityWithActor[];
-    today: string;
-}) {
-    return (<OverviewCard id="recent-activity" title="Recent activity" aside={<Link href={projectActivityPath(projectId)} className={cn("inline-flex items-center gap-0.5 rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>Full log<ArrowUpRight className="size-3.5" aria-hidden/></Link>} className="materialize flex-1" style={stagger(6)}>
-      {rows.length === 0 ? <p className="px-6 pt-1 pb-6 text-sm text-ink-tertiary">Nothing has happened yet.</p> : (<ol className="pb-2">
-          {rows.slice(0, 7).map((r) => {
-                const detail = logDetail(r);
-                const d = isoDateIn(r.created_at);
-                return (<li key={r.id} className="flex gap-3 px-5 py-2.5 sm:px-6">
-                <span className="relative flex h-fit shrink-0">
-                  <Face person={{ id: r.user_id ?? "x", name: r.actor?.full_name ?? "Someone", avatarUrl: r.actor?.avatar_url ?? null, role: "" }} size={26}/>
-                  <span className={cn("absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-surface", KIND_DOT[logKind(r)])} aria-hidden/>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] leading-snug text-ink-secondary"><b className="font-semibold text-ink">{r.actor?.full_name.split(" ")[0] ?? "Someone"}</b> {logSentence(r)}</p>
-                  {detail ? <p className="mt-0.5 truncate text-xs text-ink-tertiary">“{detail}”</p> : null}
-                </div>
-                <span className="shrink-0 text-[11px] text-ink-tertiary tabular">{d === today ? time(r.created_at) : agoPhrase(d, today)}</span>
-              </li>);
-            })}
-        </ol>)}
     </OverviewCard>);
 }

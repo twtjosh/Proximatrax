@@ -35,7 +35,7 @@ export function CrewProjectShell({ data, viewerId, children }: {
       {" · "}
       {calendarPhrase(project.start_date, project.end_date, today)}
     </>);
-    return (<ProjectFrame live={{ channel: "crew-project", projectId: project.id, announce: "crew", viewerId }} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <RoleProjectHeader projectId={project.id} title={project.title} share={value} done={value >= 1 && health.tone !== "late"} status={status} team={data.team} unread={data.unread} compact={compact} home={ROUTES.MIDDLEMAN_HOME} messageLabel="Message"/>} banner={<ProjectClosedBanner project={project} variant="middleman"/>}>
+    return (<ProjectFrame live={{ channel: "crew-project", projectId: project.id, announce: "crew", viewerId }} tabs={tabs} renderTabs={(active) => <PmTabs tabs={tabs} active={active} reviewCount={0}/>} header={(compact) => <RoleProjectHeader projectId={project.id} title={project.title} share={value} done={value >= 1 && health.tone !== "late"} status={status} unread={data.unread} compact={compact} home={ROUTES.MIDDLEMAN_HOME} messageLabel="Message"/>} banner={<ProjectClosedBanner project={project} variant="middleman"/>}>
       {children}
     </ProjectFrame>);
 }
