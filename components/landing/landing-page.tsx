@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, LoaderCircle } from "lucide-react";
 import { stagger } from "@/components/dashboard/overview-kit";
 import { BrandMark } from "@/components/shell/brand-mark";
+import { Footer } from "@/components/landing/footer";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MILESTONES, WINDOWS } from "@/components/landing/journey-windows";
 import { ROUTES } from "@/lib/constants";
@@ -99,7 +100,7 @@ function NavBar({ onStart }: {
         <span aria-hidden className={cn("absolute inset-x-1 bottom-0 h-px bg-linear-to-r from-transparent via-land-line to-transparent transition-opacity duration-500", solid ? "opacity-0" : "opacity-100")}/>
         <a href="#overview" onClick={close} className={cn("group/brand flex items-center gap-2.5 justify-self-start rounded-xl py-1 pr-1.5 pl-1", ring)}>
           <BrandMark className="size-8 transition-transform duration-500 ease-spring group-hover/brand:-rotate-12 sm:size-9"/>
-          <span className="text-[17px] font-semibold tracking-[-0.02em] text-land-ink sm:text-lg">ProximaTrax</span>
+          <span className="text-[17px] font-semibold tracking-[-0.02em] whitespace-nowrap text-land-ink sm:text-lg">{COMPANY_NAME}</span>
         </a>
         <ul onMouseLeave={() => setHover(null)} className={cn("flex items-center gap-0.5 rounded-full p-1 text-[15px]/6 ring-1 transition-[background-color,box-shadow] duration-500 ease-spring max-md:hidden", scrolled ? "bg-transparent ring-transparent" : "bg-land-raised/40 ring-land-line/70")}>
           {SECTIONS.map((l) => (<li key={l.id}>
@@ -122,9 +123,8 @@ function NavBar({ onStart }: {
             </Link>
           </motion.span>
           <AnimatePresence initial={false}>
-            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-0.5 h-11 px-5 text-[15px] max-sm:h-9 max-sm:px-3.5 max-sm:text-sm")}>
-                <span className="sm:hidden">Inquire</span>
-                <span className="max-sm:hidden">Start an inquiry</span>
+            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-0.5 h-11 px-5 text-[15px] max-sm:hidden")}>
+                Start an inquiry
               </motion.button>) : null}
           </AnimatePresence>
           <button ref={menuButtonRef} type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="landing-menu" aria-label={open ? "Close menu" : "Open menu"} className={cn("press relative grid size-11 place-items-center rounded-full text-land-ink hover:bg-land-ink/6 max-sm:size-10 md:hidden", ring)}>
@@ -219,12 +219,12 @@ function Hero({ onStart }: {
     // Entrance is CSS (.materialize) so the headline paints before hydration.
     return (<section id="overview" className="relative mx-auto max-w-[1240px] px-4 pt-32 pb-24 sm:px-6 sm:pt-36 sm:pb-32">
       <div>
-        <h1 className="materialize text-[clamp(2.75rem,6.6vw,5rem)] leading-[1] font-semibold tracking-[-0.035em] text-land-ink max-md:text-balance">
-          Watch your space take shape,<br className="max-md:hidden"/> milestone by milestone.
-        </h1>
-        <p style={stagger(1)} className="materialize mt-7 max-w-[42rem] text-lg leading-relaxed text-pretty text-land-ink-2 sm:text-xl">
+        <p className="materialize max-w-[42rem] text-lg leading-relaxed text-pretty text-land-ink-2 sm:text-xl">
           {COMPANY_NAME} designs and builds interiors. On ProximaTrax you follow every approved step, survey to handover, without chasing anyone.
         </p>
+        <h1 style={stagger(1)} className="materialize mt-6 text-[clamp(2.75rem,6.6vw,5rem)] leading-[1] font-semibold tracking-[-0.035em] text-land-ink max-md:text-balance sm:mt-8">
+          Watch your space take shape,<br className="max-md:hidden"/> milestone by milestone.
+        </h1>
         <form id="hero-starter" style={stagger(2)} onSubmit={(e) => {
             e.preventDefault();
             onStart(idea.trim());
@@ -475,24 +475,6 @@ function Inquiry({ draft, nameRef }: {
         </div>
       </div>
     </section>);
-}
-
-function Footer() {
-    const link = cn("rounded transition-colors duration-300 hover:text-land-ink", ring);
-    return (<footer className="border-t border-land-line">
-      <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-4 py-12 text-sm text-land-ink-3 sm:px-6 md:flex-row md:items-center md:justify-between">
-        <span className="flex items-center gap-2.5">
-          <BrandMark className="size-6"/>
-          <span><span className="font-medium text-land-ink">ProximaTrax</span> · project tracking for {COMPANY_NAME}</span>
-        </span>
-        <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <a href="#journey" className={link}>How it runs</a>
-          <a href="#inquire" className={link}>Start a project</a>
-          <Link href={ROUTES.LOGIN} prefetch={false} className={link}>Log in</Link>
-          <span className="tabular md:ml-4">© {new Date().getFullYear()} {COMPANY_NAME}</span>
-        </nav>
-      </div>
-    </footer>);
 }
 
 export function LandingPage() {
