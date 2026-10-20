@@ -7,6 +7,7 @@ import { loadClientProject } from "@/lib/data/client-project";
 import { loadCrewProject } from "@/lib/data/crew-project";
 import { loadPmProject } from "@/lib/data/pm-project";
 import { getViewer } from "@/lib/supabase/server";
+import { listProjectAssignees } from "@/services/project-service";
 import type { Profile } from "@/types/database";
 
 /** A project's Overview, for each role. */
@@ -24,10 +25,10 @@ export default async function ProjectOverviewPage(props: {
         redirect(ROUTES.LOGIN);
     const role = (profile as Pick<Profile, "role"> | null)?.role;
     if (role === "project_manager") {
-        const data = await loadPmProject(supabase, id);
+        const [data, people] = await Promise.all([loadPmProject(supabase, id), listProjectAssignees(id, supabase)]);
         if (!data)
             notFound();
-        return <PmOverview data={data} viewerId={user.id}/>;
+        return <PmOverview data={data} viewerId={user.id} people={people}/>;
     }
     if (role === "middleman") {
         const data = await loadCrewProject(supabase, id, user.id);

@@ -2,12 +2,14 @@ import { projectLoads } from "@/lib/dashboard";
 import { forecastHandover, progressSeries } from "@/lib/project-insights";
 import type { PmProjectData } from "@/lib/data/pm-project";
 import { journeyStations, projectNeeds, projectStage } from "@/lib/pm-project";
+import type { Profile } from "@/types/database";
 import { ClosedRecord } from "./closed-record";
 import { CloseoutCard } from "./closeout-card";
 import { JourneyLine } from "./journey-line";
 import { ProjectNeedsYou } from "./project-needs-you";
 import { SetupChecklist } from "./setup-checklist";
 import { ProgressChart } from "./overview/progress-chart";
+import { NoOwner } from "./overview/no-owner";
 import { OnSiteNow } from "./overview/site-and-log";
 import { StatusStrip } from "./overview/status-strip";
 
@@ -15,11 +17,13 @@ import { StatusStrip } from "./overview/status-strip";
  * The PM's project Overview, the command centre. What it shows depends on
  * where the project is: setting up, running, ready to close, or closed. While
  * running: the PM's status and four numbers, the milestone line, what needs
- * them beside progress against plan, then who is on site.
+ * them (and work no one has yet) beside progress against plan, then who is on site.
  */
-export function PmOverview({ data, viewerId }: {
+export function PmOverview({ data, viewerId, people }: {
     data: PmProjectData;
     viewerId: string;
+    /** Who tasks can be given to: the PM and the project's crew. */
+    people: Profile[];
 }) {
     const { project, milestones, tasks, team, today } = data;
     const stage = projectStage(project.status, milestones, tasks, data.loadFailed);
@@ -53,6 +57,7 @@ export function PmOverview({ data, viewerId }: {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-5">
           <ProjectNeedsYou projectId={project.id} needs={projectNeeds(milestones, tasks, today)} team={team} today={today}/>
+          <NoOwner projectId={project.id} tasks={tasks} people={people} today={today} closed={closedNow}/>
           <OnSiteNow projectId={project.id} tasks={tasks} team={team} today={today}/>
         </div>
         <ProgressChart points={progressSeries(project.start_date, project.end_date, tasks, today)} total={load.tasksTotal}/>

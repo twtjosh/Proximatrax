@@ -1,12 +1,13 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, Lock, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing, primaryAction } from "@/components/dashboard/overview-kit";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
+import { projectPath } from "@/lib/constants";
 import { addDays, daysBetween, formatDate, plural } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { milestoneSpans, monthTicks, shiftLabel, timelineRange } from "@/lib/schedule";
@@ -14,8 +15,8 @@ import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import { updateMilestone } from "@/services/project-service";
 import { updateTask, type TaskWithRelations } from "@/services/task-service";
-import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
+import { AssignMenu, assignTask } from "../assign-menu";
 import { isLate } from "../board/board-meta";
 import { TaskSheet } from "../board/task-sheet";
 import { setQuery, useTaskActions } from "../board/use-task-actions";
@@ -132,11 +133,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
         const before = { assigned_to: t.assigned_to, assignee: t.assignee };
         patchTask(t.id, { assigned_to: p?.id ?? null, assignee: p ? { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null });
         try {
-            const snapshot = p ? await snapshotProjectTasksForNotify(projectId) : null;
-            await updateTask({ id: t.id, assigned_to: p?.id ?? null });
-            if (snapshot)
-                void notifyWorkReadyAfterProjectTaskChange(projectId, snapshot);
-            void logActivity({ project_id: projectId, action_type: "task_updated", details: { task_id: t.id, title: t.title } });
+            await assignTask(projectId, t, p);
             router.refresh();
         }
         catch (e) {
@@ -250,7 +247,9 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     return (<div className="grid gap-4 pt-2">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-ink-secondary">
-          <b className="font-semibold text-ink">{plural(ms.length, "milestone")}</b> · {plural(scheduled.length, "task")} on the timeline · handover {short(end)}
+          <b className="font-semibold text-ink">{plural(ms.length, "milestone")}</b> · {plural(scheduled.length, "task")} on the timeline
+          {unowned.length ? (<>{" · "}<Link href={`${projectPath(projectId)}#no-owner`} className={cn("rounded-sm font-medium text-warning underline-offset-4 hover:underline", focusRing)}>{unowned.length} not assigned</Link></>) : null}
+          {" · "}handover {short(end)}
         </p>
         <span className="text-xs text-ink-tertiary max-lg:hidden">Drag a bar to move it, its ends to change start or due</span>
         <div className="ml-auto flex items-center gap-2">
@@ -348,8 +347,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
                       <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r border-line bg-surface py-1 pr-2 pl-4 sm:pl-10 group-hover:bg-surface-subtle" style={{ width: "var(--label-w)" }}>
                         <button type="button" onClick={() => show(t)} className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md py-1 text-left text-[13px] text-ink", focusRing)}>{t.title}</button>
-                        {/* Choosing No one takes the task off the timeline, into the tray below. */}
-                        {movable ? (<AssignMenu task={t} people={people} onAssign={assign} className="grid shrink-0 cursor-pointer place-items-center rounded-full p-0.5 hover:bg-surface-sunken data-popup-open:bg-surface-sunken">
+                        {/* Choosing No one takes the task off the timeline, onto the Overview's No one assigned card. */}
+                        {movable ? (<AssignMenu task={t} owner={t.assignee?.full_name ?? null} people={people} onAssign={(p) => void assign(t, p)} className="grid shrink-0 cursor-pointer place-items-center rounded-full p-0.5 hover:bg-surface-sunken data-popup-open:bg-surface-sunken">
                             {owner}
                           </AssignMenu>) : <span className="p-0.5" title={t.assignee?.full_name ?? "No one"}>{owner}</span>}
                       </div>
@@ -368,25 +367,10 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                     </li>);
             })())}
             </ol>
-            {rows.length === 0 ? <p className="sticky left-0 px-6 py-10 text-sm text-ink-tertiary" style={{ width: "min(100%, 40rem)" }}>{unowned.length ? "Nothing on the timeline yet. Give the tasks below someone to do them." : "Nothing on the timeline yet. Add a milestone, then give tasks a due date."}</p> : null}
+            {rows.length === 0 ? <p className="sticky left-0 px-6 py-10 text-sm text-ink-tertiary" style={{ width: "min(100%, 40rem)" }}>{unowned.length ? "Nothing on the timeline yet. Assign its tasks from the Overview to put them here." :"Nothing on the timeline yet. Add a milestone, then give tasks a due date."}</p> : null}
           </div>
         </div>
       </section>
-
-      {unowned.length > 0 ? (<section aria-label="No one assigned" className="materialize rounded-[22px] material p-4 sm:p-5">
-          <h2 className="text-sm font-semibold">No one assigned <span className="font-normal text-ink-tertiary tabular">{unowned.length}</span></h2>
-          <p className="mt-0.5 text-xs text-ink-tertiary">These stay off the timeline until someone has them.</p>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {unowned.map((t) => (<li key={t.id} className="flex items-center gap-1.5 rounded-full bg-surface-sunken py-1 pr-1 pl-3 text-xs">
-                <button type="button" onClick={() => show(t)} className={cn("max-w-56 cursor-pointer truncate font-medium text-ink hover:underline", focusRing)}>{t.title}</button>
-                {t.due_date ? <span className="shrink-0 text-ink-tertiary tabular">due {short(t.due_date)}</span> : null}
-                {!closed ? (<AssignMenu task={t} people={people} onAssign={assign} className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full bg-surface pr-2.5 pl-1 font-medium text-ink-secondary hover:text-ink data-popup-open:text-ink">
-                    <span className="grid size-5 place-items-center rounded-full border border-dashed border-line-strong"><UserRound className="size-3" aria-hidden/></span>
-                    Assign
-                  </AssignMenu>) : null}
-              </li>))}
-          </ul>
-        </section>) : null}
 
       {unscheduled.length > 0 ? (<section aria-label="Not scheduled" className="materialize rounded-[22px] material p-4 sm:p-5">
           <h2 className="text-sm font-semibold">Not scheduled <span className="font-normal text-ink-tertiary tabular">{unscheduled.length}</span></h2>
@@ -409,26 +393,6 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             router.refresh();
         }}/>
     </div>);
-}
-
-/** Picks who does a task, or No one. */
-function AssignMenu({ task, people, onAssign, className, children }: {
-    task: TaskWithRelations;
-    people: Profile[];
-    onAssign: (task: TaskWithRelations, person: Profile | null) => void;
-    className: string;
-    children: React.ReactNode;
-}) {
-    return (<DropdownMenu>
-      <DropdownMenuTrigger aria-label={`Who does ${task.title}: ${task.assignee?.full_name ?? "no one yet"}`} className={cn(className, focusRing)}>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 min-w-48 overflow-y-auto">
-        {people.map((p) => <DropdownMenuItem key={p.id} disabled={p.id === task.assigned_to} onClick={() => onAssign(task, p)}>{p.full_name}{p.role === "project_manager" ? " (you)" : ""}</DropdownMenuItem>)}
-        <DropdownMenuSeparator/>
-        <DropdownMenuItem disabled={!task.assigned_to} onClick={() => onAssign(task, null)}>No one</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>);
 }
 
 function DragLabel({ x, text, shift }: {
