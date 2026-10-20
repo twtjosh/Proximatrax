@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
+import { readAll } from "@/lib/paged";
+import { isChatRow } from "@/lib/project-log";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { ActivityActionType } from "@/types/enums";
 import type { ActivityFeedItem, Profile } from "@/types/database";
@@ -72,6 +74,27 @@ export async function listProjectActivityPage(projectId: string, options: { limi
     if (error)
         throw error;
     return attachActors(sb, (data ?? []) as ActivityFeedItem[]);
+}
+export type LogActor = Pick<Profile, "id" | "full_name" | "avatar_url" | "role" | "classification">;
+/**
+ * A project's whole log, oldest first, without in-app chat, and everyone in
+ * it with their role: the Activity log report. Paged so long projects come
+ * back complete.
+ */
+export async function listProjectLog(projectId: string, client?: SupabaseClient): Promise<{ rows: ActivityFeedItem[]; people: Record<string, LogActor> }> {
+    const sb = resolveClient(client);
+    const { data, error } = await readAll<ActivityFeedItem>((from, to) => sb.from("activity_feed").select("*").eq("project_id", projectId).order("created_at").order("id").range(from, to));
+    throwIfSupabaseError(error);
+    const rows = data.filter((r) => !isChatRow(r));
+    const ids = [...new Set(rows.map((r) => r.user_id).filter(Boolean))] as string[];
+    const people: Record<string, LogActor> = {};
+    if (ids.length) {
+        const { data: profiles, error: peopleError } = await sb.from("profiles").select("id, full_name, avatar_url, role, classification").in("id", ids);
+        throwIfSupabaseError(peopleError);
+        for (const p of (profiles ?? []) as LogActor[])
+            people[p.id] = p;
+    }
+    return { rows, people };
 }
 export async function listRecentActivityForViewer(limit: number, client?: SupabaseClient): Promise<ActivityWithActor[]> {
     const sb = resolveClient(client);

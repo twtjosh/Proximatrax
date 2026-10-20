@@ -11,7 +11,7 @@ import { getErrorMessage } from "@/lib/utils";
 import { reopenProject } from "@/services/project-service";
 
 /** A closed project's Overview: what was delivered, the statement the client saw, and Reopen. */
-export function ClosedRecord({ projectId, title, start, end, completedAt, statement, milestones, tasks, people }: {
+export function ClosedRecord({ projectId, title, start, end, completedAt, statement, milestones, tasks, people, readOnly = false }: {
     projectId: string;
     title: string;
     start: string;
@@ -21,6 +21,8 @@ export function ClosedRecord({ projectId, title, start, end, completedAt, statem
     milestones: number;
     tasks: number;
     people: number;
+    /** The super admin looks; only the PM reopens. */
+    readOnly?: boolean;
 }) {
     const router = useRouter();
     const [open, setOpen] = React.useState(false);
@@ -47,7 +49,7 @@ export function ClosedRecord({ projectId, title, start, end, completedAt, statem
       <div className="flex items-center gap-3">
         <span className="rounded-full bg-surface-sunken px-2.5 py-0.5 text-xs font-medium text-ink-secondary">{completedAt ? `Closed ${short(isoDateIn(completedAt))}` : "Closed"}</span>
         <span className="flex-1"/>
-        <button type="button" onClick={() => setOpen(true)} className={softAction}>Reopen</button>
+        {readOnly ? null : <button type="button" onClick={() => setOpen(true)} className={softAction}>Reopen</button>}
       </div>
       <h2 id="closed-heading" className="mt-4 text-[17px] font-semibold tracking-[-0.016em] text-ink">{title} was delivered</h2>
       <p className="mt-1 text-sm text-ink-tertiary">{short(start)} – {short(end)} · {plural(milestones, "milestone")} · {plural(tasks, "task")} · {people} {people === 1 ? "person" : "people"}</p>

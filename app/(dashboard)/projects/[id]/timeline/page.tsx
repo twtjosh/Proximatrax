@@ -29,7 +29,7 @@ export default async function ProjectTimelinePage(props: {
             notFound();
         return <CrewSchedule data={data} viewerId={user.id}/>;
     }
-    if (role !== "project_manager")
+    if (role !== "project_manager" && role !== "super_admin")
         redirect(projectPath(id));
     const [project, milestones, tasks, people, attachments, comments] = await Promise.all([
         getProjectById(id, supabase),
@@ -41,5 +41,5 @@ export default async function ProjectTimelinePage(props: {
     ]);
     if (!project)
         notFound();
-    return <PmTimeline projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} attachments={attachments} comments={comments} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed"}/>;
+    return <PmTimeline projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} attachments={attachments} comments={comments} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"}/>;
 }

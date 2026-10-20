@@ -100,6 +100,11 @@ export function logSentence(row: LogRow): string {
     }
 }
 
+/** In-app chat is confidential: its messages and the photos sent in it never appear in a log shown outside the chat. */
+export function isChatRow(row: LogRow): boolean {
+    return row.action_type === "message_sent" || (row.action_type === "file_uploaded" && typeof row.details?.message_id === "string");
+}
+
 /** The extra line some rows carry: the update's note, a send-back reason, a comment. */
 export function logDetail(row: LogRow): string | null {
     const d = row.details ?? {};

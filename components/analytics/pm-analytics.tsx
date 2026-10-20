@@ -97,7 +97,7 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /** Elapsed (or delivered) time against the planned span: the part beyond the plan in red, a tick at the planned end. */
-function ScheduleBar({ row, today }: { row: ProjectRow; today: string }) {
+export function ScheduleBar({ row, today }: { row: ProjectRow; today: string }) {
     const p = row.project;
     const endAt = p.completed_at ? dateOf(p.completed_at) : today;
     const planned = Math.max(1, daysBetween(p.start_date, p.end_date));

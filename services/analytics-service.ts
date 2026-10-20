@@ -111,6 +111,35 @@ export async function loadOwnerAnalytics(supabase: SupabaseClient, today: string
     };
 }
 
+export type ManagerProjects = {
+    pm: Person;
+    rows: { active: ProjectRow[]; delivered: ProjectRow[] };
+    clientNames: Record<string, string>;
+};
+
+/** One project manager's projects, active and completed, planned against actual: the super admin's way into them. */
+export async function loadManagerProjects(supabase: SupabaseClient, pm: { id: string; full_name: string; avatar_url?: string | null }, today: string): Promise<ManagerProjects> {
+    const projectsRes = await supabase.from("projects").select(PROJECT_COLS).eq("pm_id", pm.id);
+    throwIfSupabaseError(projectsRes.error);
+    const projects = (projectsRes.data ?? []) as AProject[];
+    const ids = projects.map((p) => p.id);
+    const [tasksRes, milestonesRes, clientsRes] = ids.length > 0
+        ? await Promise.all([
+            readAll((from, to) => supabase.from("tasks").select(TASK_COLS).in("project_id", ids).order("id").range(from, to)),
+            readAll((from, to) => supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids).order("id").range(from, to)),
+            supabase.from("profiles").select("id, full_name").in("id", [...new Set(projects.map((p) => p.client_id))]),
+        ])
+        : [none, none, none];
+    for (const r of [tasksRes, milestonesRes, clientsRes])
+        throwIfSupabaseError(r.error);
+    const clientName = new Map(((clientsRes.data ?? []) as { id: string; full_name: string }[]).map((c) => [c.id, c.full_name]));
+    return {
+        pm: { id: pm.id, name: pm.full_name, avatarUrl: pm.avatar_url ?? null },
+        rows: projectRows(projects, (milestonesRes.data ?? []) as AMilestone[], (tasksRes.data ?? []) as ATask[], today),
+        clientNames: Object.fromEntries(projects.map((p) => [p.id, clientName.get(p.client_id) ?? "Client"])),
+    };
+}
+
 export type PmAnalytics = {
     pm: Person & { firstName: string };
     firstDelivery: string | null;

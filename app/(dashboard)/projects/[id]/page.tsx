@@ -30,6 +30,12 @@ export default async function ProjectOverviewPage(props: {
             notFound();
         return <PmOverview data={data} viewerId={user.id} people={people}/>;
     }
+    if (role === "super_admin") {
+        const data = await loadPmProject(supabase, id);
+        if (!data)
+            notFound();
+        return <PmOverview data={data} viewerId={user.id} people={[]} readOnly/>;
+    }
     if (role === "middleman") {
         const data = await loadCrewProject(supabase, id, user.id);
         if (!data)

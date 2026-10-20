@@ -16,7 +16,8 @@ export default async function ProjectTeamPage(props: {
     const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    if (profile?.role !== "project_manager")
+    const owner = profile?.role === "super_admin";
+    if (profile?.role !== "project_manager" && !owner)
         redirect(projectPath(id));
     const data = await loadPmProject(supabase, id);
     if (!data)
@@ -27,5 +28,5 @@ export default async function ProjectTeamPage(props: {
         supabase.from("profiles").select("id, contact_number").in("id", data.team.map((m) => m.id)),
     ]);
     const phones = Object.fromEntries(((contacts.data ?? []) as { id: string; contact_number: string | null }[]).filter((c) => c.contact_number).map((c) => [c.id, c.contact_number!]));
-    return <ProjectTeam projectId={id} projectTitle={data.project.title} viewerId={user.id} team={data.team} contacts={phones} tasks={data.tasks} invitations={invitations} crewPool={pool.map((p) => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, classification: p.classification }))} today={data.today} closed={data.project.status === "completed"}/>;
+    return <ProjectTeam projectId={id} projectTitle={data.project.title} viewerId={user.id} team={data.team} contacts={phones} tasks={data.tasks} invitations={invitations} crewPool={pool.map((p) => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, classification: p.classification }))} today={data.today} closed={data.project.status === "completed" || owner} canMessage={!owner}/>;
 }

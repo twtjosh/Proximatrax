@@ -1,16 +1,17 @@
 import { notFound, redirect } from "next/navigation";
-import { PmAnalyticsView } from "@/components/analytics/pm-analytics";
+import { ManagerProjectsView } from "@/components/analytics/manager-projects";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { isoDateIn } from "@/lib/dashboard";
 import { getViewer } from "@/lib/supabase/server";
 import { throwIfSupabaseError } from "@/lib/utils";
-import { loadPmAnalytics } from "@/services/analytics-service";
+import { loadManagerProjects } from "@/services/analytics-service";
 import type { Profile } from "@/types/database";
 
 /** Profile ids are UUIDs; anything else would make Postgres throw instead of finding nothing. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function ManagerAnalyticsPage(props: { params: Promise<{ pmId: string }> }) {
+/** The super admin's page for one project manager: their active and completed projects, each opening read only. */
+export default async function ManagerProjectsPage(props: { params: Promise<{ pmId: string }> }) {
     const { pmId } = await props.params;
     const { supabase, user, profile } = await getViewer();
     if (!user)
@@ -25,6 +26,6 @@ export default async function ManagerAnalyticsPage(props: { params: Promise<{ pm
     if (!pm || pm.role !== "project_manager")
         notFound();
     const today = isoDateIn(new Date());
-    const data = await loadPmAnalytics(supabase, pm, today);
-    return <PmAnalyticsView data={data} viewer="owner" today={today}/>;
+    const data = await loadManagerProjects(supabase, pm, today);
+    return <ManagerProjectsView data={data} today={today}/>;
 }

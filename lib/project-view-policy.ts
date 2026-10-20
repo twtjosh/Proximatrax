@@ -7,8 +7,8 @@ export type ProjectWorkspaceTab = {
 };
 /**
  * Each role's tabs inside a project. The PM's review queue, settings and
- * report open over any tab instead of being tabs. Super admins never reach
- * project pages.
+ * report open over any tab instead of being tabs. Super admins see the PM's
+ * tabs, read only.
  */
 export function projectWorkspaceTabs(projectId: string, role: UserRole): ProjectWorkspaceTab[] {
     const overview: ProjectWorkspaceTab = { href: projectPath(projectId), label: "Overview", exact: true };

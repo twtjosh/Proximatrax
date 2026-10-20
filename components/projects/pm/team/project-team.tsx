@@ -29,7 +29,7 @@ type TeamTask = { id: string; title: string; assigned_to: string | null; stage: 
  * and the means to change the team: invite more crew, take someone off
  * (their open work goes back to no one), follow up on invitations.
  */
-export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts, tasks, invitations, crewPool, today, closed }: {
+export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts, tasks, invitations, crewPool, today, closed, canMessage = true }: {
     projectId: string;
     projectTitle: string;
     viewerId: string;
@@ -42,6 +42,8 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
     crewPool: Pick<Profile, "id" | "full_name" | "avatar_url" | "classification">[];
     today: string;
     closed: boolean;
+    /** False for the super admin, who is not in the project's chat. */
+    canMessage?: boolean;
 }) {
     const router = useRouter();
     const reduce = useReducedMotion();
@@ -125,7 +127,7 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
                 </div>
                 <footer className="flex flex-wrap gap-1.5">
                   {contacts[p.id] ? <a href={`tel:${contacts[p.id].replace(/\s+/g, "")}`} className={cn(softAction, "h-9 px-3.5")}><Phone aria-hidden/>{contacts[p.id]}</a> : null}
-                  <button type="button" onClick={() => openChat(projectId)} className={cn(softAction, "h-9 px-3.5")}><MessageSquare aria-hidden/>Message</button>
+                  {canMessage ? <button type="button" onClick={() => openChat(projectId)} className={cn(softAction, "h-9 px-3.5")}><MessageSquare aria-hidden/>Message</button> : null}
                   <Link href={projectBoardPath(projectId, { assignee: p.id })} className={cn(softAction, "ml-auto h-9 px-3.5")}>Their tasks<ArrowUpRight aria-hidden/></Link>
                 </footer>
               </motion.article>);
@@ -158,7 +160,7 @@ export function ProjectTeam({ projectId, projectTitle, viewerId, team, contacts,
                 <span className="block text-xs text-ink-tertiary">{p.role}{p.role === ROLE_TERMS.client ? " · sees accepted work and shared files" : p.open ? ` · ${plural(p.open, "open task")}` : ""}</span>
               </span>
               {contacts[p.id] && p.id !== viewerId ? <a href={`tel:${contacts[p.id].replace(/\s+/g, "")}`} aria-label={`Call ${p.name}`} className={cn(softAction, "h-9 px-3")}><Phone aria-hidden/><span className="max-sm:hidden">{contacts[p.id]}</span></a> : null}
-              {p.id !== viewerId ? <button type="button" onClick={() => openChat(projectId)} aria-label={`Message ${p.name}`} className={cn(softAction, "h-9 px-3")}><MessageSquare aria-hidden/></button> : null}
+              {canMessage && p.id !== viewerId ? <button type="button" onClick={() => openChat(projectId)} aria-label={`Message ${p.name}`} className={cn(softAction, "h-9 px-3")}><MessageSquare aria-hidden/></button> : null}
             </li>))}
         </ul>
       </section>

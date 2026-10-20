@@ -16,7 +16,8 @@ export default async function ProjectFilesPage(props: {
     const { supabase, user, profile } = await getViewer();
     if (!user)
         redirect(ROUTES.LOGIN);
-    if (profile?.role !== "project_manager")
+    const owner = profile?.role === "super_admin";
+    if (profile?.role !== "project_manager" && !owner)
         redirect(`${projectPath(id)}?chat=${id}`);
     const [data, library, attachments] = await Promise.all([
         loadPmProject(supabase, id),
@@ -31,5 +32,5 @@ export default async function ProjectFilesPage(props: {
         .filter((a) => a.media_kind === "photo")
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map((a) => ({ id: a.id, url: publicTaskAttachmentUrl(a.storage_path), taskTitle: titles.get(a.task_id) ?? "Site photo", by: names[a.uploaded_by] ?? "Someone", at: a.created_at, shared: !!a.approved_for_client_at }));
-    return <ProjectFiles projectId={id} files={library.files} missing={library.missing} photos={photos} people={names} closed={data.project.status === "completed"}/>;
+    return <ProjectFiles projectId={id} files={library.files} missing={library.missing} photos={photos} people={names} closed={data.project.status === "completed" || owner}/>;
 }

@@ -30,7 +30,7 @@ export default async function ProjectBoardPage(props: {
             notFound();
         return <UpdatesFeed data={data}/>;
     }
-    if (role !== "project_manager")
+    if (role !== "project_manager" && role !== "super_admin")
         redirect(ROUTES.DASHBOARD);
     const [project, tasks, attachments, milestones, people, comments] = await Promise.all([
         getProjectById(id, supabase),
@@ -42,5 +42,5 @@ export default async function ProjectBoardPage(props: {
     ]);
     if (!project)
         notFound();
-    return <PmBoard projectId={id} tasks={tasks} attachments={attachments} comments={comments} milestones={milestones} people={people} projectStart={project.start_date} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed"}/>;
+    return <PmBoard projectId={id} tasks={tasks} attachments={attachments} comments={comments} milestones={milestones} people={people} projectStart={project.start_date} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"}/>;
 }
