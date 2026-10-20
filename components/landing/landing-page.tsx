@@ -217,27 +217,32 @@ function Hero({ onStart }: {
 }) {
     const [idea, setIdea] = useState("");
     // Entrance is CSS (.materialize) so the headline paints before hydration.
-    return (<section id="overview" className="relative mx-auto max-w-[1240px] px-4 pt-32 pb-24 sm:px-6 sm:pt-36 sm:pb-32">
-      <div>
-        <p className="materialize max-w-[42rem] text-lg leading-relaxed text-pretty text-land-ink-2 sm:text-xl">
-          {COMPANY_NAME} designs and builds interiors. On ProximaTrax you follow every approved step, survey to handover, without chasing anyone.
-        </p>
-        <h1 style={stagger(1)} className="materialize mt-6 text-[clamp(2.75rem,6.6vw,5rem)] leading-[1] font-semibold tracking-[-0.035em] text-land-ink max-md:text-balance sm:mt-8">
-          Watch your space take shape,<br className="max-md:hidden"/> milestone by milestone.
+    return (<section id="overview" className="relative mx-auto max-w-[1240px] px-4 pt-28 pb-24 sm:px-6 sm:pt-32 sm:pb-32">
+      {/* Editorial split: the client's name carries the left; the product line and the way in sit on the right,
+          resting on the headline's last line, so both halves of the column hold something. */}
+      <div className="grid gap-8 sm:gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-end lg:gap-16">
+        <h1 className="materialize max-w-3xl text-[clamp(2.5rem,5vw,4.25rem)] leading-[1.02] font-semibold tracking-[-0.035em] text-balance text-land-ink">
+          {COMPANY_NAME} designs and builds interiors.
         </h1>
-        <form id="hero-starter" style={stagger(2)} onSubmit={(e) => {
-            e.preventDefault();
-            onStart(idea.trim());
-        }} className="materialize mt-10 flex max-w-xl items-center gap-2 rounded-full border border-land-line bg-land-raised p-1.5 pl-5 transition-[border-color,box-shadow] duration-300 focus-within:border-land-accent/70 focus-within:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] max-sm:flex-col max-sm:rounded-3xl max-sm:p-2 max-sm:pl-2">
-          <label htmlFor="hero-idea" className="sr-only">What are you planning?</label>
-          <input id="hero-idea" value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="What are you planning?" className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-land-ink caret-copper outline-none placeholder:text-land-ink-3 max-sm:w-full max-sm:px-3"/>
-          <button type="submit" className={cn(copperButton, "h-11 px-5 text-sm max-sm:w-full")}>
-            Start an inquiry
-            <ArrowRight className={cn("size-4", arrowNudge)} aria-hidden/>
-          </button>
-        </form>
+        <div className="flex flex-col gap-6 lg:pb-1.5">
+          <p style={stagger(1)} className="materialize max-w-xl text-lg leading-relaxed text-pretty text-land-ink-2">
+            <span className="font-medium text-land-ink">Watch your space take shape, milestone by milestone.</span>{" "}
+            On ProximaTrax you follow every approved step, survey to handover, without chasing anyone.
+          </p>
+          <form id="hero-starter" style={stagger(2)} onSubmit={(e) => {
+              e.preventDefault();
+              onStart(idea.trim());
+          }} className="materialize flex w-full max-w-xl items-center gap-2 rounded-full border border-land-line bg-land-raised p-1.5 pl-5 transition-[border-color,box-shadow] duration-300 focus-within:border-land-accent/70 focus-within:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] max-sm:flex-col max-sm:rounded-3xl max-sm:p-2 max-sm:pl-2">
+            <label htmlFor="hero-idea" className="sr-only">What are you planning?</label>
+            <input id="hero-idea" value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="What are you planning?" className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-land-ink caret-copper outline-none placeholder:text-land-ink-3 max-sm:w-full max-sm:px-3"/>
+            <button type="submit" className={cn(copperButton, "h-11 px-5 text-sm max-sm:w-full")}>
+              Start an inquiry
+              <ArrowRight className={cn("size-4", arrowNudge)} aria-hidden/>
+            </button>
+          </form>
+        </div>
       </div>
-      <div style={stagger(3)} className="materialize mt-20 sm:mt-24">
+      <div style={stagger(3)} className="materialize mt-16 sm:mt-20">
         <HeroRoute />
       </div>
     </section>);
