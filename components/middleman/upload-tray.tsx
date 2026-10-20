@@ -28,7 +28,7 @@ export function UploadTray({ items, uploading, onRemove, onClear, onUpload }: {
         <p className="text-xs text-ink-tertiary tabular" aria-live="polite">{summary.text || "Nothing to send yet"}{summary.tooBig > 0 ? <span className="text-danger"> · {summary.tooBig} too big</span> : null}</p>
         <span className="ml-auto flex items-center gap-2">
           <button type="button" disabled={uploading} onClick={onClear} className={cn("press h-9 cursor-pointer rounded-full px-3.5 text-[13px] font-medium text-ink-secondary hover:bg-surface-sunken disabled:opacity-50", focusRing)}>Clear</button>
-          <button type="button" disabled={uploading || summary.sendable === 0} onClick={onUpload} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-ink px-4 text-[13px] font-semibold text-white hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-45", focusRing)}>
+          <button type="button" disabled={uploading || summary.sendable === 0} onClick={onUpload} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-brand px-4 text-[13px] font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-45", focusRing)}>
             {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Upload className="size-4" aria-hidden/>}
             {uploading ? "Uploading…" : failed.length > 0 && failed.length === summary.sendable ? "Try again" : `Upload ${summary.sendable || ""}`.trim()}
           </button>

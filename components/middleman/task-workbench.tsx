@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Camera, Check, Film, Hourglass, ImagePlus, Images, Loader2, Paperclip, Play, Send, Upload, Video } from "lucide-react";
+import { Camera, Check, Film, Hourglass, ImagePlus, Images, Loader2, Paperclip, Play, Send, Video } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing } from "@/components/dashboard/overview-kit";
 import { UploadTray, type StagedFile } from "@/components/middleman/upload-tray";
@@ -116,7 +116,6 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
             toast.error(added.length > 0 ? `${added.length} uploaded, ${failed} didn’t. They’re still in the tray.` : "Nothing uploaded. Check your signal and try again.");
     }
 
-    const openPicker = () => (touch ? photoRef : libraryRef).current?.click();
 
     return (<>
       <div className="px-5 pb-5 sm:px-7 sm:pb-7">
@@ -176,14 +175,14 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
         <input ref={libraryRef} type="file" accept={touch ? "image/*,video/*" : "image/*,video/*,.pdf"} multiple className="hidden" onChange={(e) => add(e.target.files)}/>
       </div>
 
-      {/* The next step stays in reach of a thumb while the task is on screen. */}
+      {/* The next step stays in reach of a thumb while the task is on screen; it appears once there is something to submit, so adding photos happens in the section above. */}
       <div className="sticky bottom-0 z-10 rounded-b-[inherit] border-t border-line bg-surface/90 p-4 backdrop-blur-md sm:px-7">
         {disabledReason ? (<p className="flex min-h-14 items-center justify-center rounded-full bg-neutral-soft px-4 text-center text-sm font-medium text-ink-secondary">{disabledReason}</p>) : stage === "review" ? (<p className="flex h-14 items-center justify-center gap-2 rounded-full bg-warning-soft text-[15px] font-medium text-warning">
             <Hourglass className="size-4" aria-hidden/>
             Waiting for your project manager to accept
-          </p>) : handoff ? (<button type="button" disabled={busy || uploading} onClick={pending > 0 ? () => void uploadAll() : needsMedia ? openPicker : onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
-            {busy || uploading ? <Loader2 className="size-5 animate-spin" aria-hidden/> : pending > 0 ? <Upload className="size-5" aria-hidden/> : needsMedia ? (touch ? <Camera className="size-5" aria-hidden/> : <ImagePlus className="size-5" aria-hidden/>) : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
-            {uploading ? "Uploading…" : pending > 0 ? `Upload ${pending} to continue` : needsMedia ? "Add a photo or video to submit" : handoff.variant === "submit" ? "Submit for review" : "Start work"}
+          </p>) : handoff && !needsMedia && pending === 0 && !uploading ? (<button type="button" disabled={busy} onClick={onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
+            {busy ? <Loader2 className="size-5 animate-spin" aria-hidden/> : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
+            {handoff.variant === "submit" ? "Submit for review" : "Start work"}
           </button>) : null}
         {footer}
       </div>
