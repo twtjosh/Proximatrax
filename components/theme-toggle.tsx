@@ -74,7 +74,7 @@ export function ThemeToggle() {
                     ? `Switch to ${isDark ? "light" : "dark"} mode`
                     : "Toggle theme"
             }
-            className="press relative grid size-10 place-items-center overflow-hidden rounded-full max-sm:size-9 text-land-ink-2 outline-none hover:bg-land-raised hover:text-land-ink focus-visible:ring-2 focus-visible:ring-land-accent"
+            className="press relative grid size-11 place-items-center overflow-hidden rounded-full max-sm:size-10 text-land-ink-2 outline-none hover:bg-land-ink/6 hover:text-land-ink focus-visible:ring-2 focus-visible:ring-land-accent"
         >
             <Sun
                 aria-hidden="true"

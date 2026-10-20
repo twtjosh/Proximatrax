@@ -38,7 +38,7 @@ function useNavState() {
         const top = (id: string) => document.getElementById(id)?.getBoundingClientRect().top ?? Infinity;
         const section: SectionId = top("inquire") < line ? "inquire" : top("journey") < line ? "journey" : "overview";
         const starter = document.getElementById("hero-starter")?.getBoundingClientRect().bottom ?? Infinity;
-        const next = { scrolled: window.scrollY > 4, section, cta: starter < 64 && section !== "inquire" };
+        const next = { scrolled: window.scrollY > 16, section, cta: starter < 80 && section !== "inquire" };
         setState((s) => (s.scrolled === next.scrolled && s.section === next.section && s.cta === next.cta ? s : next));
     }, []);
     useMotionValueEvent(scrollY, "change", read);
@@ -50,44 +50,113 @@ function useNavState() {
 }
 
 /**
- * A quiet bar that belongs to the page: clear over the hero, frosted with a
- * hairline once content passes under it. The current section carries the
- * pill, and the primary action joins the bar once the hero's own starter has
- * scrolled away.
+ * Clear over the hero, sitting on the page column. Once content passes under
+ * it the bar lifts into a frosted island in that same column, so nothing
+ * shifts sideways, and a copper line along its foot tracks how far down the
+ * page the visitor is, the same route the milestones ride. The current
+ * section carries the pill, a softer one follows the pointer, and the primary
+ * action joins once the hero's own starter has scrolled away. Below md the
+ * sections fold into a menu that drops from the island.
  */
 function NavBar({ onStart }: {
     onStart: () => void;
 }) {
     const { scrolled, section, cta } = useNavState();
+    const { scrollYProgress } = useScroll();
     const reduce = useReducedMotion();
-    return (<header className={cn("fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-500 ease-spring", scrolled ? "border-land-line/80 bg-land/72 backdrop-blur-2xl backdrop-saturate-[1.8]" : "border-transparent bg-transparent")}>
-      <nav aria-label="Main" className="mx-auto grid h-16 max-w-[1240px] grid-cols-[1fr_auto_1fr] items-center px-4 max-md:grid-cols-[1fr_auto] sm:px-6">
-        <a href="#overview" className={cn("group/brand flex items-center gap-2.5 justify-self-start rounded-xl py-1 pr-1.5", ring)}>
-          <BrandMark className="size-8 transition-transform duration-500 ease-spring group-hover/brand:-rotate-12"/>
-          <span className="text-[17px] font-semibold tracking-[-0.02em] text-land-ink">ProximaTrax</span>
+    const [hover, setHover] = useState<SectionId | null>(null);
+    const [open, setOpen] = useState(false);
+    const navRef = useRef<HTMLElement>(null);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const solid = scrolled || open;
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e: PointerEvent) => {
+            if (!navRef.current?.contains(e.target as Node)) setOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return;
+            setOpen(false);
+            menuButtonRef.current?.focus();
+        };
+        document.addEventListener("pointerdown", onDown);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("pointerdown", onDown);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [open]);
+    const close = () => setOpen(false);
+    return (<header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-3 sm:px-4">
+      {/* Content passing under the bar dissolves into the top edge instead of being sliced off at a hard line. */}
+      <div aria-hidden className={cn("absolute inset-x-0 top-0 -z-10 h-28 bg-linear-to-b from-land via-land/85 to-transparent backdrop-blur-[6px] transition-opacity duration-500 mask-[linear-gradient(to_bottom,black_55%,transparent)] motion-reduce:transition-none", solid ? "opacity-100" : "opacity-0")}/>
+      {/* Blur stays on at rest (nothing sits behind it over the hero): browsers snap backdrop-filter rather than fade it.
+          Lifted, the bar takes the raised surface (white on the canvas, navy on midnight) so it reads as its own layer above the page. */}
+      <nav ref={navRef} aria-label="Main" className={cn("materialize pointer-events-auto relative mx-auto grid max-w-[1208px] grid-cols-[1fr_auto_1fr] items-center rounded-[22px] border backdrop-blur-2xl backdrop-saturate-[1.8] transition-[height,padding,translate,background-color,border-color,box-shadow] duration-500 ease-spring max-md:grid-cols-[1fr_auto] motion-reduce:transition-none", solid
+            ? "h-14 translate-y-2.5 border-land-line bg-land-raised/90 px-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(14_18_34/0.08),0_24px_56px_-24px_rgb(14_18_34/0.4)] sm:h-16 sm:translate-y-3 sm:px-3 dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.4),0_24px_56px_-20px_rgb(0_0_0/0.7)]"
+            : "h-16 border-transparent bg-transparent px-0 sm:h-18 sm:px-1")}>
+        {/* At rest, a hairline marks where the bar ends and the hero begins. */}
+        <span aria-hidden className={cn("absolute inset-x-1 bottom-0 h-px bg-linear-to-r from-transparent via-land-line to-transparent transition-opacity duration-500", solid ? "opacity-0" : "opacity-100")}/>
+        <a href="#overview" onClick={close} className={cn("group/brand flex items-center gap-2.5 justify-self-start rounded-xl py-1 pr-1.5 pl-1", ring)}>
+          <BrandMark className="size-8 transition-transform duration-500 ease-spring group-hover/brand:-rotate-12 sm:size-9"/>
+          <span className="text-[17px] font-semibold tracking-[-0.02em] text-land-ink sm:text-lg">ProximaTrax</span>
         </a>
-        <ul className="flex items-center gap-0.5 rounded-full bg-land-raised/40 p-1 text-sm ring-1 ring-land-line/70 max-md:hidden">
+        <ul onMouseLeave={() => setHover(null)} className={cn("flex items-center gap-0.5 rounded-full p-1 text-[15px]/6 ring-1 transition-[background-color,box-shadow] duration-500 ease-spring max-md:hidden", scrolled ? "bg-transparent ring-transparent" : "bg-land-raised/40 ring-land-line/70")}>
           {SECTIONS.map((l) => (<li key={l.id}>
-              <a href={`#${l.id}`} aria-current={section === l.id ? "location" : undefined} className={cn("relative isolate block rounded-full px-4 py-2 font-medium transition-colors duration-300", section === l.id ? "text-land-ink" : "text-land-ink-2 hover:text-land-ink", ring)}>
-                {section === l.id ? <motion.span layoutId="nav-current" aria-hidden className="absolute inset-0 -z-10 rounded-full bg-land-raised shadow-[0_1px_2px_rgb(0_0_0/0.25)] ring-1 ring-land-line" transition={reduce ? { duration: 0 } : SPRING}/> : null}
+              <a href={`#${l.id}`} onMouseEnter={() => setHover(l.id)} aria-current={section === l.id ? "location" : undefined} className={cn("relative isolate block rounded-full px-5 py-2 font-medium transition-colors duration-300", section === l.id || hover === l.id ? "text-land-ink" : "text-land-ink-2", ring)}>
+                {/* On the raised bar the pill sinks to the canvas tone; at rest over the canvas it rises to the surface. */}
+                {section === l.id ? <motion.span layoutId="nav-current" aria-hidden className={cn("absolute inset-0 -z-10 rounded-full ring-1 ring-land-line transition-colors duration-500", scrolled ? "bg-land" : "bg-land-raised shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_1px_2px_rgb(0_0_0/0.18)]")} transition={reduce ? { duration: 0 } : SPRING}/> : null}
+                <AnimatePresence>
+                  {hover === l.id && section !== l.id ? <motion.span key="hover" layoutId="nav-hover" aria-hidden className="absolute inset-0 -z-20 rounded-full bg-land-ink/6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} transition={reduce ? { duration: 0 } : SPRING}/> : null}
+                </AnimatePresence>
                 {l.label}
               </a>
             </li>))}
         </ul>
         <div className="flex items-center gap-1.5 justify-self-end">
           <ThemeToggle />
-          <motion.span layout={!reduce} transition={SPRING}>
-            <Link href={ROUTES.LOGIN} prefetch={false} className={cn("press inline-flex h-10 items-center rounded-full px-4 text-sm font-medium text-land-ink hover:bg-land-raised max-sm:h-9 max-sm:px-3", ring)}>
+          <span aria-hidden className="mx-1 h-6 w-px bg-land-line max-md:hidden"/>
+          <motion.span layout={!reduce} transition={SPRING} className="max-md:hidden">
+            <Link href={ROUTES.LOGIN} prefetch={false} className={cn("press inline-flex h-11 items-center rounded-full px-5 text-[15px] font-medium text-land-ink hover:bg-land-ink/6", ring)}>
               Log in
             </Link>
           </motion.span>
           <AnimatePresence initial={false}>
-            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-0.5 h-10 px-4.5 text-sm max-sm:h-9 max-sm:px-3.5")}>
+            {cta ? (<motion.button key="cta" type="button" onClick={onStart} initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0, transition: SPRING }} exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.18 } }} className={cn(copperButton, "ml-0.5 h-11 px-5 text-[15px] max-sm:h-9 max-sm:px-3.5 max-sm:text-sm")}>
                 <span className="sm:hidden">Inquire</span>
                 <span className="max-sm:hidden">Start an inquiry</span>
               </motion.button>) : null}
           </AnimatePresence>
+          <button ref={menuButtonRef} type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="landing-menu" aria-label={open ? "Close menu" : "Open menu"} className={cn("press relative grid size-11 place-items-center rounded-full text-land-ink hover:bg-land-ink/6 max-sm:size-10 md:hidden", ring)}>
+            <span aria-hidden className={cn("absolute h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ease-spring", open ? "rotate-45" : "-translate-y-[3.5px]")}/>
+            <span aria-hidden className={cn("absolute h-[1.5px] w-4 rounded-full bg-current transition-transform duration-300 ease-spring", open ? "-rotate-45" : "translate-y-[3.5px]")}/>
+          </button>
         </div>
+        <span aria-hidden className={cn("absolute inset-x-5 -bottom-px h-px overflow-hidden rounded-full transition-opacity duration-500", scrolled && !open ? "opacity-100" : "opacity-0")}>
+          <motion.span className="absolute inset-0 origin-left bg-linear-to-r from-copper/0 via-copper to-brand-bright shadow-[0_0_10px_rgb(240_160_75/0.6)]" style={{ scaleX: scrollYProgress }}/>
+        </span>
+        <AnimatePresence>
+          {open ? (<motion.div key="menu" id="landing-menu" initial={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1, transition: SPRING }} exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98, transition: { duration: 0.16 } }} className="absolute inset-x-0 top-[calc(100%+8px)] origin-top rounded-[22px] border border-land-line bg-land-raised/95 p-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_24px_56px_-24px_rgb(14_18_34/0.45)] backdrop-blur-2xl backdrop-saturate-[1.8] md:hidden dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_24px_56px_-20px_rgb(0_0_0/0.7)]">
+              <ul>
+                {SECTIONS.map((l, i) => (<li key={l.id}>
+                    <a href={`#${l.id}`} onClick={close} aria-current={section === l.id ? "location" : undefined} className={cn("press flex h-12 items-center gap-3 rounded-2xl px-3 text-[15px] font-medium transition-colors", section === l.id ? "bg-land text-land-ink ring-1 ring-land-line" : "text-land-ink-2 hover:bg-land-ink/6 hover:text-land-ink", ring)}>
+                      <span className={cn("w-5 text-xs tabular", section === l.id ? "text-copper" : "text-land-ink-3")}>0{i + 1}</span>
+                      {l.label}
+                      {section === l.id ? <span aria-hidden className="ml-auto size-1.5 rounded-full bg-copper shadow-[0_0_8px_rgb(240_160_75/0.7)]"/> : null}
+                    </a>
+                  </li>))}
+              </ul>
+              <div className="mt-2 flex gap-2 border-t border-land-line pt-2">
+                <Link href={ROUTES.LOGIN} prefetch={false} className={cn("press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-medium text-land-ink ring-1 ring-land-line hover:bg-land-ink/6", ring)}>
+                  Log in<ArrowUpRight className="size-3.5" aria-hidden/>
+                </Link>
+                <button type="button" onClick={() => { close(); onStart(); }} className={cn(copperButton, "h-11 flex-1 text-sm")}>
+                  Start an inquiry
+                  <ArrowRight className={cn("size-4", arrowNudge)} aria-hidden/>
+                </button>
+              </div>
+            </motion.div>) : null}
+        </AnimatePresence>
       </nav>
     </header>);
 }
@@ -263,7 +332,7 @@ function Journey() {
 
     const shown = Math.max(active, 0);
     const Window = WINDOWS[shown]!;
-    return (<section id="journey" aria-labelledby="journey-title" className="relative scroll-mt-16 border-t border-land-line">
+    return (<section id="journey" aria-labelledby="journey-title" className="relative scroll-mt-28 border-t border-land-line">
       {/* Along the section edge from today's drop to the gutter, so hero and journey are one route. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 mx-auto max-w-[1240px] px-4 sm:px-6">
         <div className="relative">
@@ -337,7 +406,7 @@ function Inquiry({ draft, nameRef }: {
         }
     }
     const field = "w-full rounded-xl border border-line bg-surface-subtle px-4 text-[15px] text-ink caret-copper transition-[border-color,box-shadow,background-color] duration-300 ease-spring placeholder:text-ink-tertiary hover:border-line-strong focus:border-brand focus:bg-surface focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none";
-    return (<section id="inquire" aria-labelledby="inquire-title" className="relative scroll-mt-16 border-t border-land-line">
+    return (<section id="inquire" aria-labelledby="inquire-title" className="relative scroll-mt-28 border-t border-land-line">
       <div className="mx-auto grid max-w-[1240px] gap-16 px-4 py-28 sm:px-6 sm:py-36 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-20">
         <div>
           <h2 id="inquire-title" className="max-w-[14ch] text-[clamp(2.25rem,4.6vw,3.75rem)] leading-[1.02] font-semibold tracking-[-0.035em] text-balance text-land-ink">
