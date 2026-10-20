@@ -1,15 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { behindSchedule, deliveries, deliveryRecord, lastMonths, managingCount, openLoad, peopleCount, projectRows, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskMove } from "@/lib/analytics";
 import type { FlowPhase, FlowTask } from "@/lib/flow";
+import type { TimelineData, TimelineEntry } from "@/lib/project-timeline";
+import { personTitle } from "@/lib/vocabulary";
 import { readAll } from "@/lib/paged";
 import { throwIfSupabaseError } from "@/lib/utils";
-import type { UserRole } from "@/types/enums";
+import type { CrewClassification, UserRole } from "@/types/enums";
 
 export const PROJECT_COLS = "id, title, pm_id, client_id, status, start_date, end_date, completed_at";
 export const TASK_COLS = "id, project_id, milestone_id, title, stage, assigned_to, due_date, completed_at, start_date, created_at, updated_at";
 export const MILESTONE_COLS = "id, project_id, title, due_date, completed, completed_at";
 
-type ProfileRow = { id: string; full_name: string; role: UserRole; avatar_url: string | null };
+type ProfileRow = { id: string; full_name: string; role: UserRole; avatar_url: string | null; classification?: CrewClassification | null };
 const person = (p: ProfileRow): Person => ({ id: p.id, name: p.full_name, avatarUrl: p.avatar_url });
 
 /** `task_moved` rows from the activity feed, as moves. Rows missing a field are skipped. */
@@ -124,6 +126,8 @@ export type PmAnalytics = {
         /** Active projects first, then delivered; colours follow this order. */
         projects: { id: string; title: string; active: boolean }[];
         crew: Person[];
+        /** Each project's log and dates, for the Project timeline. */
+        timeline: TimelineData;
     };
 };
 
@@ -135,21 +139,23 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
     throwIfSupabaseError(projectsRes.error);
     const projects = (projectsRes.data ?? []) as AProject[];
     const ids = projects.map((p) => p.id);
-    const [tasksRes, milestonesRes, movesRes] = ids.length > 0
+    const [tasksRes, milestonesRes, logRes] = ids.length > 0
         ? await Promise.all([
             readAll((from, to) => supabase.from("tasks").select(TASK_COLS).in("project_id", ids).order("id").range(from, to)),
             readAll((from, to) => supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids).order("id").range(from, to)),
-            readAll((from, to) => supabase.from("activity_feed").select("details, created_at").eq("action_type", "task_moved").in("project_id", ids).order("created_at").order("id").range(from, to)),
+            // The whole log: the timeline shows it all, and its task_moved rows are the moves.
+            readAll((from, to) => supabase.from("activity_feed").select("project_id, user_id, action_type, details, created_at").in("project_id", ids).order("created_at").order("id").range(from, to)),
         ])
         : [none, none, none];
-    for (const r of [tasksRes, milestonesRes, movesRes])
+    for (const r of [tasksRes, milestonesRes, logRes])
         throwIfSupabaseError(r.error);
     const tasks = (tasksRes.data ?? []) as FlowTask[];
     const milestones = (milestonesRes.data ?? []) as AMilestone[];
-    const moves = toMoves(movesRes.data ?? []);
+    const log = (logRes.data ?? []) as TimelineEntry[];
+    const moves = toMoves(log.filter((r) => r.action_type === "task_moved"));
 
-    const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id)])];
-    const peopleRes = peopleIds.length > 0 ? await supabase.from("profiles").select("id, full_name, role, avatar_url").in("id", peopleIds) : none;
+    const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id), ...log.flatMap((r) => (r.user_id ? [r.user_id] : []))])];
+    const peopleRes = peopleIds.length > 0 ? await supabase.from("profiles").select("id, full_name, role, avatar_url, classification").in("id", peopleIds) : none;
     throwIfSupabaseError(peopleRes.error);
     const people = (peopleRes.data ?? []) as ProfileRow[];
     const nameOf = new Map(people.map((p) => [p.id, p.full_name]));
@@ -167,7 +173,13 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
             moves,
             phases: milestones.map(({ id, project_id, title, due_date }) => ({ id, project_id, title, due_date })),
             projects: [...rows.active, ...rows.delivered].map((r) => ({ id: r.project.id, title: r.project.title, active: r.project.status !== "completed" })),
-            crew: people.filter((p) => p.role !== "client").sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),
+            crew: people.filter((p) => p.role !== "client" && tasks.some((t) => t.assigned_to === p.id)).sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),
+            timeline: {
+                projects: projects.map((p) => ({ id: p.id, title: p.title, client: nameOf.get(p.client_id) ?? "Client", start: p.start_date, end: p.end_date, completedAt: p.completed_at, active: p.status !== "completed" })),
+                milestones: milestones.map(({ project_id, title, due_date, completed_at }) => ({ project_id, title, due_date, completed_at })),
+                log,
+                people: Object.fromEntries(people.map((p) => [p.id, { name: p.full_name, role: personTitle(p), avatarUrl: p.avatar_url }])),
+            },
         },
     };
 }
