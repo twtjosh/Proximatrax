@@ -2,9 +2,10 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronRight, Lock, Plus } from "lucide-react";
+import { ChevronRight, Lock, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing, primaryAction } from "@/components/dashboard/overview-kit";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
 import { addDays, daysBetween, formatDate, plural } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
 import { updateMilestone } from "@/services/project-service";
 import { updateTask, type TaskWithRelations } from "@/services/task-service";
+import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { isLate } from "../board/board-meta";
 import { TaskSheet } from "../board/task-sheet";
@@ -30,6 +32,10 @@ const BAR: Record<BoardColumnStage, string> = {
     review: "bg-stage-review text-ink",
     done: "bg-stage-done text-white",
 };
+/** Open work no one has been given: it stays off the timeline until someone has it. */
+const needsOwner = (t: TaskWithRelations) => !t.assigned_to && t.stage !== "done";
+/** A dated task with an owner (or already accepted) is drawn on the timeline. */
+const onTimeline = (t: TaskWithRelations) => !!t.due_date && !needsOwner(t);
 const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
 const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
 
@@ -64,9 +70,11 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     }
     const actions = useTaskActions({ projectId, viewerId, closed, milestones: ms, tasks, attachments, comments });
     const { items, patchTask, gate, show } = actions;
-    const zoom: Zoom = params.get("zoom") === "month" ? "month" : "week";
+    // Opens on months, the whole project at a glance; days is the close-up.
+    const zoom: Zoom = params.get("zoom") === "days" ? "week" : "month";
     const px = PX[zoom];
-    const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set());
+    // Every group starts folded to its milestone line; open the ones you're working in.
+    const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set());
     const [drag, setDrag] = React.useState<Drag | null>(null);
     const [adding, setAdding] = React.useState(false);
     const scroller = React.useRef<HTMLDivElement>(null);
@@ -85,7 +93,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     const msDue = (m: Milestone) => (drag?.kind === "milestone" && drag.id === m.id ? addDays(drag.due, drag.delta) : m.due_date);
 
     const sorted = [...ms].sort((a, b) => a.due_date.localeCompare(b.due_date));
-    const scheduled = items.filter((t) => t.due_date);
+    const scheduled = items.filter(onTimeline);
     const range = React.useMemo(() => timelineRange(start, end, [...ms, ...scheduled.map((t) => ({ due_date: t.due_date! })), ...scheduled.filter((t) => t.start_date).map((t) => ({ due_date: t.start_date! }))]),
     // The window holds still while dragging so the bar doesn't run from the pointer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,15 +114,36 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     type Row = { type: "group"; id: string; label: string; milestone?: Milestone; count: number; done: number } | { type: "task"; task: TaskWithRelations };
     const rows: Row[] = [];
     const groupOf = (id: string, label: string, list: TaskWithRelations[], milestone?: Milestone) => {
+        // The group counts all its dated work; only tasks with an owner get a bar.
+        const shown = list.filter(onTimeline);
         rows.push({ type: "group", id, label, milestone, count: list.length, done: list.filter((t) => t.stage === "done").length });
-        if (!collapsed.has(id))
-            list.sort((a, b) => (a.start_date ?? a.due_date ?? "9999").localeCompare(b.start_date ?? b.due_date ?? "9999")).forEach((task) => rows.push({ type: "task", task }));
+        if (expanded.has(id))
+            shown.sort((a, b) => (a.start_date ?? a.due_date ?? "9999").localeCompare(b.start_date ?? b.due_date ?? "9999")).forEach((task) => rows.push({ type: "task", task }));
     };
     sorted.forEach((m) => groupOf(m.id, m.title, items.filter((t) => t.milestone_id === m.id && t.due_date), m));
-    const loose = items.filter((t) => !t.milestone_id && t.due_date);
+    const loose = items.filter((t) => !t.milestone_id && onTimeline(t));
     if (loose.length)
         groupOf("loose", "No milestone", loose);
-    const unscheduled = items.filter((t) => !t.due_date && t.stage !== "done");
+    const unscheduled = items.filter((t) => !t.due_date && t.stage !== "done" && t.assigned_to);
+    const unowned = items.filter(needsOwner);
+
+    /** Gives a task to someone (or no one) from its row: shown at once, put back if the save fails. */
+    async function assign(t: TaskWithRelations, p: Profile | null) {
+        const before = { assigned_to: t.assigned_to, assignee: t.assignee };
+        patchTask(t.id, { assigned_to: p?.id ?? null, assignee: p ? { id: p.id, full_name: p.full_name, avatar_url: p.avatar_url } : null });
+        try {
+            const snapshot = p ? await snapshotProjectTasksForNotify(projectId) : null;
+            await updateTask({ id: t.id, assigned_to: p?.id ?? null });
+            if (snapshot)
+                void notifyWorkReadyAfterProjectTaskChange(projectId, snapshot);
+            void logActivity({ project_id: projectId, action_type: "task_updated", details: { task_id: t.id, title: t.title } });
+            router.refresh();
+        }
+        catch (e) {
+            patchTask(t.id, before);
+            toast.error(e instanceof Error ? e.message : "That change didn't save.");
+        }
+    }
 
     async function saveTask(t: TaskWithRelations, next: { start: string | null; due: string }, undoable = true) {
         const before = { start_date: t.start_date, due_date: t.due_date };
@@ -226,7 +255,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
         <span className="text-xs text-ink-tertiary max-lg:hidden">Drag a bar to move it, its ends to change start or due</span>
         <div className="ml-auto flex items-center gap-2">
           <div role="radiogroup" aria-label="Zoom" className="flex rounded-full bg-surface-sunken p-1">
-            {(["week", "month"] as const).map((z) => (<button key={z} type="button" role="radio" aria-checked={zoom === z} onClick={() => setQuery({ zoom: z === "month" ? "month" : null })} className={cn("relative isolate h-7 cursor-pointer rounded-full px-3 text-xs font-medium transition-colors duration-300", zoom === z ? "text-ink" : "text-ink-secondary hover:text-ink", focusRing)}>
+            {(["week", "month"] as const).map((z) => (<button key={z} type="button" role="radio" aria-checked={zoom === z} onClick={() => setQuery({ zoom: z === "week" ? "days" : null })} className={cn("relative isolate h-7 cursor-pointer rounded-full px-3 text-xs font-medium transition-colors duration-300", zoom === z ? "text-ink" : "text-ink-secondary hover:text-ink", focusRing)}>
                 {zoom === z ? <motion.span layoutId="timeline-zoom" transition={SPRING} className="absolute inset-0 -z-10 rounded-full bg-surface shadow-card"/> : null}
                 {z === "week" ? "Days" : "Months"}
               </button>))}
@@ -273,15 +302,15 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             <ol>
               {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H }}>
                     <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)" }}>
-                      <button type="button" onClick={() => setCollapsed((c) => {
+                      <button type="button" onClick={() => setExpanded((c) => {
                         const n = new Set(c);
                         if (n.has(r.id))
                             n.delete(r.id);
                         else
                             n.add(r.id);
                         return n;
-                    })} aria-expanded={!collapsed.has(r.id)} aria-label={`${collapsed.has(r.id) ? "Show" : "Hide"} ${r.label}`} className={cn("grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-tertiary hover:bg-surface-sunken", focusRing)}>
-                        <ChevronRight className={cn("size-4 transition-transform duration-300 ease-spring", !collapsed.has(r.id) && "rotate-90")} aria-hidden/>
+                    })} aria-expanded={expanded.has(r.id)} aria-label={`${expanded.has(r.id) ? "Hide" : "Show"} ${r.label}`} className={cn("grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-tertiary hover:bg-surface-sunken", focusRing)}>
+                        <ChevronRight className={cn("size-4 transition-transform duration-300 ease-spring", expanded.has(r.id) && "rotate-90")} aria-hidden/>
                       </button>
                       <button type="button" disabled={!r.milestone} onClick={() => r.milestone && setQuery({ milestone: r.milestone.id })} className={cn("min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 py-1 text-left hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", focusRing)}>
                         <span className="block truncate text-[13px] font-semibold text-ink">{r.label}</span>
@@ -315,13 +344,17 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 const blocked = stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null;
                 const movable = !closed && stage !== "done";
                 const inside = barW > 110;
+                const owner =t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={22}/> : (<span className="grid size-5.5 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>);
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
-                      <button type="button" onClick={() => show(t)} className={cn("sticky left-0 z-10 flex shrink-0 cursor-pointer items-center gap-2.5 border-r border-line bg-surface py-1 pr-3 pl-4 text-left sm:pl-10 group-hover:bg-surface-subtle", focusRing, "focus-visible:ring-inset focus-visible:ring-offset-0")} style={{ width: "var(--label-w)" }}>
-                        <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{t.title}</span>
-                        {t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={20}/> : null}
-                      </button>
+                      <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r border-line bg-surface py-1 pr-2 pl-4 sm:pl-10 group-hover:bg-surface-subtle" style={{ width: "var(--label-w)" }}>
+                        <button type="button" onClick={() => show(t)} className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md py-1 text-left text-[13px] text-ink", focusRing)}>{t.title}</button>
+                        {/* Choosing No one takes the task off the timeline, into the tray below. */}
+                        {movable ? (<AssignMenu task={t} people={people} onAssign={assign} className="grid shrink-0 cursor-pointer place-items-center rounded-full p-0.5 hover:bg-surface-sunken data-popup-open:bg-surface-sunken">
+                            {owner}
+                          </AssignMenu>) : <span className="p-0.5" title={t.assignee?.full_name ?? "No one"}>{owner}</span>}
+                      </div>
                       <div className="relative" style={{ width }}>
-                        <div role="slider" tabIndex={movable ? 0 : -1} aria-label={`${t.title}: ${s ? `${short(s)} to ` : "due "}${short(due!)}`} aria-valuetext={s ? `${short(s)} to ${short(due!)}` : `Due ${short(due!)}`} aria-valuenow={daysBetween(range.from, due!)} aria-valuemin={0} aria-valuemax={days} onKeyDown={(e) => onBarKey(e, t)} onPointerDown={(e) => movable && begin(e, { kind: "task", id: t.id, mode: "move", start: t.start_date, due: t.due_date! })} onClick={() => !moved.current && show(t)} className={cn("absolute top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 overflow-hidden rounded-lg px-2 text-[11px] font-semibold shadow-[0_1px_2px_rgb(14_18_34/0.12)] transition-[box-shadow,filter] duration-200 touch-none", BAR[stage], movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", late && "ring-2 ring-stage-late ring-offset-1 ring-offset-surface", !s && "[mask-image:linear-gradient(to_right,transparent,black_10px)]", dragging && "z-10 shadow-[0_10px_24px_-8px_rgb(14_18_34/0.45)] brightness-105", focusRing)} style={{ left, width: barW }}>
+                        <div role="slider" tabIndex={movable ? 0 : -1} aria-label={`${t.title}: ${s ? `${short(s)} to ` : "due "}${short(due!)}${t.assignee ? `, ${t.assignee.full_name}` : ""}`} aria-valuetext={s ? `${short(s)} to ${short(due!)}` : `Due ${short(due!)}`} aria-valuenow={daysBetween(range.from, due!)} aria-valuemin={0} aria-valuemax={days} onKeyDown={(e) => onBarKey(e, t)} onPointerDown={(e) => movable && begin(e, { kind: "task", id: t.id, mode: "move", start: t.start_date, due: t.due_date! })} onClick={() => !moved.current && show(t)} className={cn("absolute top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 overflow-hidden rounded-lg px-2 text-[11px] font-semibold shadow-[0_1px_2px_rgb(14_18_34/0.12)] transition-[box-shadow,filter] duration-200 touch-none", BAR[stage], movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", late && "ring-2 ring-stage-late ring-offset-1 ring-offset-surface", !s && "[mask-image:linear-gradient(to_right,transparent,black_10px)]", dragging && "z-10 shadow-[0_10px_24px_-8px_rgb(14_18_34/0.45)] brightness-105", focusRing)} style={{ left, width: barW }}>
                           {blocked && blocked !== "Needs owner" ? <Lock className="size-3 shrink-0 opacity-70" aria-hidden/> : null}
                           {inside ? <span className="truncate">{t.title}</span> : null}
                           {movable ? (<>
@@ -335,10 +368,25 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                     </li>);
             })())}
             </ol>
-            {rows.length === 0 ? <p className="sticky left-0 px-6 py-10 text-sm text-ink-tertiary" style={{ width: "min(100%, 40rem)" }}>Nothing on the timeline yet. Add a milestone, then give tasks a due date.</p> : null}
+            {rows.length === 0 ? <p className="sticky left-0 px-6 py-10 text-sm text-ink-tertiary" style={{ width: "min(100%, 40rem)" }}>{unowned.length ? "Nothing on the timeline yet. Give the tasks below someone to do them." : "Nothing on the timeline yet. Add a milestone, then give tasks a due date."}</p> : null}
           </div>
         </div>
       </section>
+
+      {unowned.length > 0 ? (<section aria-label="No one assigned" className="materialize rounded-[22px] material p-4 sm:p-5">
+          <h2 className="text-sm font-semibold">No one assigned <span className="font-normal text-ink-tertiary tabular">{unowned.length}</span></h2>
+          <p className="mt-0.5 text-xs text-ink-tertiary">These stay off the timeline until someone has them.</p>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {unowned.map((t) => (<li key={t.id} className="flex items-center gap-1.5 rounded-full bg-surface-sunken py-1 pr-1 pl-3 text-xs">
+                <button type="button" onClick={() => show(t)} className={cn("max-w-56 cursor-pointer truncate font-medium text-ink hover:underline", focusRing)}>{t.title}</button>
+                {t.due_date ? <span className="shrink-0 text-ink-tertiary tabular">due {short(t.due_date)}</span> : null}
+                {!closed ? (<AssignMenu task={t} people={people} onAssign={assign} className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full bg-surface pr-2.5 pl-1 font-medium text-ink-secondary hover:text-ink data-popup-open:text-ink">
+                    <span className="grid size-5 place-items-center rounded-full border border-dashed border-line-strong"><UserRound className="size-3" aria-hidden/></span>
+                    Assign
+                  </AssignMenu>) : null}
+              </li>))}
+          </ul>
+        </section>) : null}
 
       {unscheduled.length > 0 ? (<section aria-label="Not scheduled" className="materialize rounded-[22px] material p-4 sm:p-5">
           <h2 className="text-sm font-semibold">Not scheduled <span className="font-normal text-ink-tertiary tabular">{unscheduled.length}</span></h2>
@@ -361,6 +409,26 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             router.refresh();
         }}/>
     </div>);
+}
+
+/** Picks who does a task, or No one. */
+function AssignMenu({ task, people, onAssign, className, children }: {
+    task: TaskWithRelations;
+    people: Profile[];
+    onAssign: (task: TaskWithRelations, person: Profile | null) => void;
+    className: string;
+    children: React.ReactNode;
+}) {
+    return (<DropdownMenu>
+      <DropdownMenuTrigger aria-label={`Who does ${task.title}: ${task.assignee?.full_name ?? "no one yet"}`} className={cn(className, focusRing)}>
+        {children}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-72 min-w-48 overflow-y-auto">
+        {people.map((p) => <DropdownMenuItem key={p.id} disabled={p.id === task.assigned_to} onClick={() => onAssign(task, p)}>{p.full_name}{p.role === "project_manager" ? " (you)" : ""}</DropdownMenuItem>)}
+        <DropdownMenuSeparator/>
+        <DropdownMenuItem disabled={!task.assigned_to} onClick={() => onAssign(task, null)}>No one</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>);
 }
 
 function DragLabel({ x, text, shift }: {
