@@ -37,7 +37,7 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
             <ArrowLeft className="size-4" aria-hidden/>Overview
           </Link>) : null}/>
 
-      <OverviewCard id="projects-heading" title="Projects" sub="Every project handled, planned against actual · forecasts follow each project’s last 4 weeks" aside={<span className="hidden items-center gap-3.5 md:flex">
+      <OverviewCard id="projects-heading" title="Projects" sub="Every project handled, planned against actual · status follows each project’s last 4 weeks" aside={<span className="hidden items-center gap-3.5 md:flex">
             <Key swatch="bg-copper" label="Elapsed"/><Key swatch="bg-stage-done" label="Delivered"/><Key swatch="bg-stage-late" label="Beyond plan"/>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-0.5 rounded-full bg-ink" aria-hidden/>Planned end</span>
           </span>} className="materialize mt-4" style={stagger(4)}>
@@ -47,7 +47,7 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
                 <th className="py-2.5 pr-3 pl-5 font-medium sm:pl-6">Project</th>
                 <th className="px-3 font-medium">Planned against actual</th>
                 <th className="px-3 font-medium">Result</th>
-                <th className="px-3 font-medium">Forecast</th>
+                <th className="px-3 font-medium">Status</th>
                 <th className="px-3 text-right font-medium">Milestones on time</th>
                 <th className="pr-5 pl-3 text-right font-medium sm:pr-6">Tasks accepted</th>
               </tr>
@@ -61,7 +61,7 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
                       </td>
                       <td className="w-[28%] px-3 max-md:col-span-2 max-md:w-auto max-md:p-0"><ScheduleBar row={r} today={today}/></td>
                       <td data-label="Result" className={cn("px-3", LABEL, RESULT_TONE[resultTone(r.result)])}>{resultPhrase(r.result)}</td>
-                      {r.forecast ? <td data-label="Forecast" className={cn("px-3", LABEL)}><ForecastCell f={r.forecast} day={day}/></td> : <td className="max-md:hidden"/>}
+                      {r.forecast ? <td data-label="Status" className={cn("px-3", LABEL)}><ForecastCell f={r.forecast} day={day}/></td> : <td className="max-md:hidden"/>}
                       <td data-label="Milestones on time" className={cn("px-3 text-right tabular", LABEL)}>
                         {r.milestones.done > 0 ? <>{r.milestones.onTime} <span className="text-ink-tertiary">of {r.milestones.done}</span></> : <span className="text-ink-tertiary">None yet</span>}
                         {r.milestones.overdue > 0 ? <span className="ml-1.5 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">{r.milestones.overdue} overdue</span> : null}
