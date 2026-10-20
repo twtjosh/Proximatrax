@@ -1,19 +1,20 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChartLine, ChevronDown, Table2, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChartLine, ChevronDown, Layers, Table2, Undo2 } from "lucide-react";
 import { AreaChart, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
 import { openLoad, type Person, type TaskMove } from "@/lib/analytics";
 import { projectBoardPath, projectReviewPath } from "@/lib/constants";
-import { addDays, isoDateIn, plural } from "@/lib/dashboard";
-import { daysPerTask, flowSummary, journeyDays, openNow, scopeFlow, type FlowTask, type OpenTask } from "@/lib/flow";
+import { addDays, daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
+import { daysPerTask, flowSummary, journeyDays, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask, type Later, type OpenTask } from "@/lib/flow";
 import { cn } from "@/lib/utils";
 
 export type FlowData = {
     tasks: FlowTask[];
     moves: TaskMove[];
+    phases: FlowPhase[];
     projects: { id: string; title: string; active: boolean }[];
     crew: Person[];
 };
@@ -28,6 +29,12 @@ const age = (d: number) => (d >= 7 ? "stale" : d >= 3 ? "aging" : "fresh");
 const AGE_BG = { fresh: "bg-[var(--age-fresh)]", aging: "bg-stage-review", stale: "bg-stage-late" } as const;
 const pill = "inline-flex h-[22px] items-center gap-0.5 rounded-full px-2 text-xs font-semibold whitespace-nowrap tabular [&_svg]:size-3";
 const daysText = (d: number) => (d === 0 ? "Today" : plural(d, "day"));
+/** A hollow ring: a task that can't start yet. Shape, not just colour, sets it apart from the age dots. */
+const RING = "size-[9px] shrink-0 rounded-full border-[1.5px] border-[var(--age-fresh)]";
+/** The dashed stretch before a task was ready: not counted as waiting. */
+const DASH = { backgroundImage: "repeating-linear-gradient(90deg, var(--age-fresh) 0 4px, transparent 4px 8px)" };
+const shortDay = (instant: string) => formatDate(isoDateIn(instant), { month: "short", day: "numeric" });
+const laterText = (l: Later) => (l.phase ? `After ${l.phase.title}` : `Starts ${formatDate(l.date!, { month: "short", day: "numeric" })}`);
 
 /**
  * The Analytics page's Flow: how work moves through a manager's projects.
@@ -51,6 +58,8 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     const [step, setStep] = React.useState(2);
     const [showAll, setShowAll] = React.useState(false);
     const [table, setTable] = React.useState(false);
+    /** To do's list: the tasks ready now, or the ones that can't start yet. */
+    const [later, setLater] = React.useState(false);
     const root = React.useRef<HTMLDivElement>(null);
 
     const you = viewer === "pm" ? "you" : firstName;
@@ -64,7 +73,9 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
         const id = filter.slice(2), byProject = filter.startsWith("p:");
         return scopeFlow(data.tasks, data.moves, (t) => (byProject ? t.project_id === id : t.assigned_to === id));
     }, [data, filter]);
-    const s = React.useMemo(() => flowSummary(scoped.tasks, scoped.moves, today, period), [scoped, today, period]);
+    // From every task: a phase opens only when all of its tasks are accepted, whoever they belong to.
+    const ready = React.useMemo(() => readiness(data.tasks, data.phases, today), [data.tasks, data.phases, today]);
+    const s = React.useMemo(() => flowSummary(scoped.tasks, scoped.moves, today, period, ready), [scoped, today, period, ready]);
     const from = addDays(today, 1 - period * 7);
     const scopeName = !scope ? null : scope.kind === "project" ? projectOf.get(scope.id)?.title : personOf.get(scope.id)?.name;
     const pick = (f: string) => {
@@ -110,7 +121,11 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
     // A floor so 0-day steps still get a share of the row (all zeros = equal thirds) and the loop maths never divides by 0.
     const grow = s.now.steps.map((d) => Math.max(d ?? 1, 0.5)), sum = grow.reduce((a, b) => a + b, 0);
     const mid1 = ((grow[0] + grow[1] / 2) / sum) * 100, mid2 = ((grow[0] + grow[1] + grow[2] / 2) / sum) * 100;
-    const list = s.open[step], shown = showAll ? list : list.slice(0, 5);
+    const waiting = s.open[0].filter((o) => !o.later), planned = s.open[0].filter((o) => o.later);
+    const lists = [waiting, s.open[1], s.open[2]];
+    const list = step === 0 && later && planned.length ? planned : lists[step], shown = showAll ? list : list.slice(0, 5);
+    // One scale for every wait bar in To do: the oldest task's age.
+    const span = Math.max(7, ...waiting.map((o) => daysBetween(isoDateIn(o.task.created_at), isoDateIn(o.since)) + o.days));
     const net = s.now.added - s.now.accepted;
 
     return (<div ref={root} className="relative scroll-mt-6">
@@ -132,7 +147,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
         </div>}/>
 
       {/* Task journey: the page's one place for the flow numbers and their change against the period before. */}
-      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step · each dot is a task there now" className="materialize mt-6" style={stagger(1)} aside={<AgeKey/>}>
+      <OverviewCard id="journey-heading" title={scopeName ? `Task journey · ${scopeName}` : "Task journey"} sub="Typical days at each step · each dot is a task there now" className="materialize mt-6" style={stagger(1)} aside={<AgeKey later={planned.length > 0}/>}>
         <div className="px-5 pb-5 sm:px-6">
           <div className="mt-3 mb-2.5 grid gap-2 lg:grid-cols-[minmax(0,1fr)_150px]">
             <div className="flex items-center gap-2.5">
@@ -143,7 +158,7 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_150px]">
             <div className="flex flex-col gap-2 lg:flex-row">
-              {[0, 1, 2].map((i) => <StepBox key={i} i={i} name={STEP_NAMES[i]} tag={TAGS[i]} days={s.now.steps[i]} before={s.before.steps[i]} open={s.open[i]} grow={grow[i]} pressed={step === i} flag={i === 2 ? `${your} step` : i === slowest ? "Slowest" : null} projectOf={projectOf} personOf={personOf} onClick={() => { setStep(i); setShowAll(false); }}/>)}
+              {[0, 1, 2].map((i) => <StepBox key={i} i={i} name={STEP_NAMES[i]} tag={TAGS[i]} days={s.now.steps[i]} before={s.before.steps[i]} open={lists[i]} later={i === 0 ? planned : []} grow={grow[i]} pressed={step === i} flag={i === 2 ? `${your} step` : i === slowest ? "Slowest" : null} projectOf={projectOf} personOf={personOf} onClick={() => { setStep(i); setShowAll(false); setLater(false); }}/>)}
             </div>
             <div className="flex flex-col gap-2.5 rounded-2xl bg-success-soft p-3.5">
               <span className="text-[13.5px] font-semibold">Accepted<span className="block text-xs font-normal text-ink-tertiary">Done</span></span>
@@ -169,10 +184,21 @@ export function FlowView({ data, viewer, firstName, today, title, sub, before }:
               </span>
             </div>
           </div>
-          <div id="flow-step-tasks" className="overflow-hidden rounded-2xl bg-surface-subtle shadow-[0_0_0_1px_var(--line)]" aria-live="polite">
-            <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2"><h3 className="text-sm font-semibold">{STEP_NAMES[step]}</h3><span className="text-[13px] text-ink-tertiary">{plural(list.length, "task")} · longest wait first</span></div>
-            {list.length === 0 ? <p className="border-t border-line px-4 py-3.5 text-sm text-ink-tertiary">Nothing here right now.</p> : shown.map((o) => <TaskRow key={o.task.id} o={o} viewer={viewer} projectOf={projectOf} personOf={personOf}/>)}
-            {list.length > 5 ? <button type="button" onClick={() => setShowAll((v) => !v)} className={cn("block w-full border-t border-line px-4 py-2.5 text-left text-[13px] font-semibold text-brand hover:bg-brand-soft", focusRing)}>{showAll ? "Show fewer" : `Show all ${list.length}`}</button> : null}
+          <div id="flow-step-tasks" className="rounded-2xl bg-surface-subtle shadow-[0_0_0_1px_var(--line)]" aria-live="polite">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 pb-2">
+              <h3 className="text-sm font-semibold">{STEP_NAMES[step]}</h3>
+              {step === 0 && planned.length ? (<div role="group" aria-label="Which tasks" className="inline-flex gap-0.5 rounded-[10px] bg-surface-sunken p-[3px]">
+                  {[false, true].map((l) => {
+                        const on = later === l;
+                        return (<button key={String(l)} type="button" aria-pressed={on} onClick={() => { setLater(l); setShowAll(false); }} className={cn("inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold transition-[background-color,color,box-shadow] duration-150", on ? "bg-surface text-ink shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" : "text-ink-secondary hover:text-ink", focusRing)}>
+                          {l ? <><span className={RING} aria-hidden/>Later</> : "Ready"}
+                          <span className={cn("min-w-[18px] rounded-full px-1.5 text-center text-[11px] leading-[17px] tabular", on ? "bg-ink text-surface" : "bg-line text-ink-secondary")}>{l ? planned.length : waiting.length}</span>
+                        </button>);
+                    })}
+                </div>) : <span className="text-[13px] text-ink-tertiary">{plural(list.length, "task")} · longest wait first</span>}
+            </div>
+            {list.length === 0 ? <p className="border-t border-line px-4 py-3.5 text-sm text-ink-tertiary">{step === 0 && planned.length ? "Nothing is ready to start. Everything here is waiting on an earlier phase or its start date." : "Nothing here right now."}</p> : shown.map((o) => <TaskRow key={o.task.id} o={o} viewer={viewer} projectOf={projectOf} personOf={personOf} span={step === 0 ? span : undefined}/>)}
+            {list.length > 5 ? <button type="button" onClick={() => setShowAll((v) => !v)} className={cn("block w-full rounded-b-2xl border-t border-line px-4 py-2.5 text-left text-[13px] font-semibold text-brand hover:bg-brand-soft", focusRing)}>{showAll ? "Show fewer" : `Show all ${list.length}`}</button> : null}
           </div>
         </div>
       </OverviewCard>
@@ -238,20 +264,21 @@ function Delta({ now, before, worseWhenUp = true, unit = "", whole = false }: { 
     </span>);
 }
 
-function AgeKey() {
+function AgeKey({ later }: { later: boolean }) {
     return (<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
       <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", AGE_BG.fresh)} aria-hidden/>Under 3 days</span>
       <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", AGE_BG.aging)} aria-hidden/>3 to 6 days</span>
       <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", AGE_BG.stale)} aria-hidden/>A week or more</span>
+      {later ? <span className="inline-flex items-center gap-1.5"><span className={cn(RING, "size-2.5")} aria-hidden/>Not ready yet</span> : null}
     </span>);
 }
 
 type ProjectMap = Map<string, { id: string; title: string; active: boolean; color: string }>;
 type PersonMap = Map<string, Person & { color: string }>;
 
-/** One step of the journey: typical days, its change, a dot per task there now. Pressing it lists those tasks below. */
-function StepBox({ i, name, tag, days, before, open, grow, pressed, flag, projectOf, personOf, onClick }: {
-    i: number; name: string; tag: string; days: number | null; before: number | null; open: OpenTask[]; grow: number; pressed: boolean; flag: string | null;
+/** One step of the journey: typical days, its change, a dot per task there now (a ring per To do task that can't start yet). Pressing it lists those tasks below. */
+function StepBox({ i, name, tag, days, before, open, later, grow, pressed, flag, projectOf, personOf, onClick }: {
+    i: number; name: string; tag: string; days: number | null; before: number | null; open: OpenTask[]; later: OpenTask[]; grow: number; pressed: boolean; flag: string | null;
     projectOf: ProjectMap; personOf: PersonMap; onClick: () => void;
 }) {
     const mine = i === 2, stale = open.filter((o) => o.days >= 7).length, unassigned = i === 0 ? open.filter((o) => !o.task.assigned_to).length : 0;
@@ -269,29 +296,64 @@ function StepBox({ i, name, tag, days, before, open, grow, pressed, flag, projec
         <Delta now={days} before={before} unit=" d"/>
       </span>
       <span className="flex min-h-[22px] flex-wrap content-start gap-1" aria-hidden>
-        {open.length === 0 ? <span className="text-[12.5px] text-ink-tertiary">Empty</span> : open.map((o) => {
+        {open.length + later.length === 0 ? <span className="text-[12.5px] text-ink-tertiary">Empty</span> : open.map((o) => {
                 const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to)?.name : null;
-                return <i key={o.task.id} className={cn("size-[9px] rounded-[3px] transition-transform hover:scale-150", AGE_BG[age(o.days)])} data-tip={`${o.task.title}\n${p?.title ?? ""} · ${who ?? "Unassigned"}\n${o.days === 0 ? "Arrived today" : `${plural(o.days, "day")} in this step`}`}/>;
+                const wait = i === 0 ? (o.days === 0 ? "Ready today" : `Ready since ${shortDay(o.since)} · ${plural(o.days, "day")} waiting`) : o.days === 0 ? "Arrived today" : `${plural(o.days, "day")} in this step`;
+                return <i key={o.task.id} className={cn("size-[9px] rounded-[3px] transition-transform hover:scale-150", AGE_BG[age(o.days)])} data-tip={`${o.task.title}\n${p?.title ?? ""} · ${who ?? "Unassigned"}\n${wait}`}/>;
             })}
+        {later.length ? <>
+            {open.length ? <span className="mx-1 h-[9px] w-px self-center bg-line-strong"/> : null}
+            {later.map((o) => {
+                const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to)?.name : null;
+                return <i key={o.task.id} className={cn(RING, "transition-transform hover:scale-150")} data-tip={`${o.task.title}\n${p?.title ?? ""} · ${who ?? "Unassigned"}\nNot ready yet · ${laterText(o.later!)}`}/>;
+            })}
+          </> : null}
       </span>
       <span className={cn("mt-auto flex items-center justify-between gap-2 border-t pt-2.5 text-[12.5px] text-ink-secondary", mine ? "border-copper/20" : "border-line")}>
-        <span><b className="font-semibold text-ink tabular">{open.length}</b> {mine ? "waiting" : "here"}{stale ? <span className="text-danger"> · {stale} over a week</span> : null}{unassigned ? <> · <b className="font-semibold text-ink tabular">{unassigned}</b> unassigned</> : null}</span>
+        <span><b className="font-semibold text-ink tabular">{open.length}</b> {mine ? "waiting" : i === 0 ? "ready" : "here"}{stale ? <span className="text-danger"> · {stale} over a week</span> : null}{unassigned ? <> · <b className="font-semibold text-ink tabular">{unassigned}</b> unassigned</> : null}{later.length ? <span className="text-ink-tertiary"> · <b className="font-semibold tabular">{later.length}</b> later</span> : null}</span>
         <ChevronDown className={cn("size-3.5 transition-transform duration-300", pressed ? "rotate-180 text-ink" : "text-ink-tertiary")} aria-hidden/>
       </span>
     </button>);
 }
 
-function TaskRow({ o, viewer, projectOf, personOf }: { o: OpenTask; viewer: Viewer; projectOf: ProjectMap; personOf: PersonMap }) {
+/** One open task. In To do (`span` set) its wait shows as a bar on that shared scale, or what it still waits on when it can't start yet. */
+function TaskRow({ o, viewer, projectOf, personOf, span }: { o: OpenTask; viewer: Viewer; projectOf: ProjectMap; personOf: PersonMap; span?: number }) {
     const p = projectOf.get(o.task.project_id), who = o.task.assigned_to ? personOf.get(o.task.assigned_to) : null, a = age(o.days);
-    return (<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t border-line px-4 py-2.5 text-[13.5px] sm:grid-cols-[minmax(0,1fr)_170px_84px_auto]">
-      <span className="min-w-0"><span className="block truncate font-semibold">{o.task.title}</span><span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-ink-tertiary"><span className="size-2 shrink-0 rounded-full" style={{ background: p?.color ?? OTHER }} aria-hidden/><span className="truncate">{p?.title}</span></span></span>
+    const days = <span className={cn("inline-flex shrink-0 items-center gap-1.5 font-semibold tabular", a === "stale" && "text-danger")}><span className={cn("size-2 rounded-[2.5px]", AGE_BG[a])} aria-hidden/>{daysText(o.days)}</span>;
+    return (<div className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t border-line px-4 py-2.5 text-[13.5px] transition-colors hover:bg-surface/70", span ? "sm:grid-cols-[minmax(0,1fr)_170px_minmax(150px,260px)_auto]" : "sm:grid-cols-[minmax(0,1fr)_170px_84px_auto]")}>
+      <span className="min-w-0"><span className={cn("block truncate", o.later ? "font-medium" : "font-semibold")}>{o.task.title}</span><span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-ink-tertiary"><span className="size-2 shrink-0 rounded-full" style={{ background: p?.color ?? OTHER }} aria-hidden/><span className="truncate">{p?.title}</span></span></span>
       <span className="flex min-w-0 items-center gap-2 text-[13px] max-sm:hidden">{who ? <><Face person={asMember(who)} size={22}/><span className="truncate">{who.name}</span></> : <span className="text-ink-tertiary">Unassigned</span>}</span>
-      <span className={cn("inline-flex items-center gap-1.5 font-semibold tabular", a === "stale" && "text-danger")}><span className={cn("size-2 rounded-[2.5px]", AGE_BG[a])} aria-hidden/>{daysText(o.days)}</span>
+      {o.later ? (<span className="flex min-w-0 items-center gap-3">
+          <span className="relative h-6 w-20 shrink-0 max-sm:hidden" aria-hidden><span className="absolute top-[11px] right-1.5 left-0 h-0.5" style={DASH}/><span className="absolute top-[7px] right-0 size-2.5 rounded-full border-2 border-[var(--age-fresh)] bg-surface"/></span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-ink-secondary [&_svg]:size-3.5 [&_svg]:shrink-0">{o.later.phase ? <Layers aria-hidden/> : <CalendarDays aria-hidden/>}<span className="truncate">{laterText(o.later)}</span></span>
+        </span>) : span ? <span className="flex min-w-0 items-center justify-end gap-3"><WaitBar o={o} span={span}/>{days}</span> : days}
       {viewer === "pm" ? (o.step === 2
             ? <Link href={`${projectReviewPath(o.task.project_id)}?task=${o.task.id}`} className={cn("justify-self-end rounded-full bg-brand px-3 text-[12.5px] leading-7 font-semibold text-white hover:bg-brand-hover max-sm:col-span-2 max-sm:justify-self-start", focusRing)}>Review</Link>
             : <Link href={`${projectBoardPath(o.task.project_id)}?task=${o.task.id}`} className={cn("justify-self-end rounded-full bg-surface-sunken px-3 text-[12.5px] leading-7 font-semibold text-ink hover:bg-line max-sm:col-span-2 max-sm:justify-self-start", focusRing)}>Open</Link>)
         : <span className="max-sm:hidden"/>}
     </div>);
+}
+
+/**
+ * A To do task's wait on the list's shared scale: dashed from creation to the
+ * day it could start (not counted), a pin on that day, then a solid bar to
+ * today in its age colour. Hover or focus shows the dates.
+ */
+function WaitBar({ o, span }: { o: OpenTask; span: number }) {
+    const pre = Math.max(0, daysBetween(isoDateIn(o.task.created_at), isoDateIn(o.since)));
+    const x = (d: number) => `${Math.max(0, 100 - (d / span) * 100)}%`;
+    const a = age(o.days), created = shortDay(o.task.created_at), readyOn = shortDay(o.since);
+    return (<span tabIndex={0} role="img" aria-label={`Created ${created}. Ready ${readyOn}, ${o.why}. Waiting ${daysText(o.days)}.`} className={cn("group/bar relative block h-6 min-w-0 flex-1 rounded max-sm:hidden", focusRing)}>
+      <span className="absolute top-1 right-0 h-4 w-px bg-line-strong" aria-hidden/>
+      {pre ? <span className="absolute top-[11px] h-0.5" style={{ ...DASH, left: x(pre + o.days), width: `${(Math.min(pre, span) / span) * 100}%` }} aria-hidden/> : null}
+      <span className={cn("absolute top-2 right-0 h-2 rounded-full", AGE_BG[a])} style={{ left: x(o.days) }} aria-hidden/>
+      <span className="absolute top-[7px] -ml-[5px] size-2.5 rounded-full bg-surface shadow-[0_0_0_2px_var(--ink)]" style={{ left: x(o.days) }} aria-hidden/>
+      <span className="pointer-events-none absolute right-0 bottom-[calc(100%+8px)] z-20 grid w-max min-w-56 translate-y-1 grid-cols-[16px_auto_1fr] items-center gap-x-2.5 gap-y-1.5 rounded-[10px] bg-rail px-3 py-2.5 text-xs text-rail-ink opacity-0 shadow-[0_12px_28px_-8px_rgb(11_14_26/0.5)] transition-[opacity,translate] duration-150 group-hover/bar:translate-y-0 group-hover/bar:opacity-100 group-focus-visible/bar:translate-y-0 group-focus-visible/bar:opacity-100" aria-hidden>
+        <i className="h-0.5" style={DASH}/><span className="text-rail-ink-tertiary">Created</span><b className="font-semibold">{created}</b>
+        <i className="size-2 justify-self-center rounded-full bg-rail-ink"/><span className="text-rail-ink-tertiary">Ready</span><b className="font-semibold">{readyOn}<span className="font-normal text-rail-ink-secondary"> · {o.why}</span></b>
+        <i className={cn("h-1.5 rounded-full", AGE_BG[a])}/><span className="text-rail-ink-tertiary">Waiting</span><b className="font-semibold">{daysText(o.days)}</b>
+      </span>
+    </span>);
 }
 
 /** The page's hover tooltip: reads `data-tip` ("Title\nline\nline") from whatever is under the pointer. Only this re-renders on move. */

@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysPerTask, flowSummary, journeyDays, median, openNow, reworkDays, scopeFlow, stepMedians, stepOf, visits, weekStarts } from "../lib/flow.ts";
+import { daysPerTask, flowSummary, journeyDays, median, openNow, readiness, reworkDays, scopeFlow, stepMedians, stepOf, visits, weekStarts } from "../lib/flow.ts";
 
 const TODAY = "2026-10-15"; // a Thursday
 /** 02:00Z is 10:00 in Manila: the same calendar date. */
 const at = (date, hour = 2) => `${date}T${String(hour).padStart(2, "0")}:00:00Z`;
-const task = (o = {}) => ({ id: "t1", project_id: "p1", title: "Upper cabinets", stage: "to_do", assigned_to: "ana", due_date: null, completed_at: null, created_at: at("2026-10-01"), updated_at: at("2026-10-01"), ...o });
+const task = (o = {}) => ({ id: "t1", project_id: "p1", milestone_id: null, title: "Upper cabinets", stage: "to_do", assigned_to: "ana", start_date: null, due_date: null, completed_at: null, created_at: at("2026-10-01"), updated_at: at("2026-10-01"), ...o });
 const move = (task_id, from, to, date, hour) => ({ task_id, from, to, at: at(date, hour) });
 
 // t1: created Oct 1, started Oct 4, submitted Oct 9, sent back Oct 10, resubmitted Oct 12, accepted Oct 14.
@@ -103,4 +103,33 @@ test("scopeFlow keeps one person's tasks and only their moves", () => {
     assert.deepEqual(tasks.map((t) => t.id), ["t2"]);
     assert.equal(moves.length, t2Moves.length);
     assert.equal(daysPerTask(tasks, moves, TODAY, 30), 2);
+});
+
+test("readiness: the latest of created, planned start and the earlier phases' last acceptance", () => {
+    const phases = [
+        { id: "build", project_id: "p1", title: "Carpentry", due_date: "2026-10-05" },
+        { id: "fit", project_id: "p1", title: "Installation", due_date: "2026-10-20" },
+        { id: "end", project_id: "p1", title: "Turnover", due_date: "2026-11-01" },
+    ];
+    const tasks = [
+        task({ id: "frame", milestone_id: "build", stage: "done", completed_at: at("2026-10-06") }),
+        task({ id: "wardrobe", milestone_id: "fit" }),
+        task({ id: "blinds", milestone_id: "fit", start_date: "2026-10-27" }),
+        task({ id: "shelf", milestone_id: "fit", start_date: "2026-10-08" }),
+        task({ id: "keys", milestone_id: "end" }),
+        task({ id: "loose", created_at: at("2026-10-12") }),
+    ];
+    const r = readiness(tasks, phases, TODAY);
+    assert.deepEqual([r.get("wardrobe").at, r.get("wardrobe").why, r.get("wardrobe").later], [at("2026-10-06"), "Carpentry finished", null]);
+    assert.deepEqual([r.get("shelf").why, r.get("shelf").later], ["Planned start", null]);
+    assert.deepEqual(r.get("blinds").later, { phase: null, date: "2026-10-27" });
+    assert.equal(r.get("keys").later.phase.id, "fit");
+    assert.deepEqual([r.get("loose").at, r.get("loose").why, r.get("loose").later], [at("2026-10-12"), "Created", null]);
+
+    // Open To do: ready tasks timed from ready, longest first; later ones after, start dates before phases.
+    const open = openNow(tasks, [], TODAY, r)[0];
+    assert.deepEqual(open.map((o) => [o.task.id, o.days]), [["wardrobe", 9], ["shelf", 7], ["loose", 3], ["blinds", 0], ["keys", 0]]);
+    // A stay that ended before its task was ready counts as 0, not negative.
+    const vs = visits([tasks[3]], [move("shelf", "to_do", "in_progress", "2026-10-07")], r);
+    assert.deepEqual(stepMedians(vs, "2026-10-01", TODAY), [0, null, null]);
 });

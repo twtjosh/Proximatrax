@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { behindSchedule, deliveries, deliveryRecord, lastMonths, managingCount, openLoad, peopleCount, projectRows, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskMove } from "@/lib/analytics";
-import type { FlowTask } from "@/lib/flow";
+import type { FlowPhase, FlowTask } from "@/lib/flow";
 import { readAll } from "@/lib/paged";
 import { throwIfSupabaseError } from "@/lib/utils";
 import type { UserRole } from "@/types/enums";
 
 export const PROJECT_COLS = "id, title, pm_id, client_id, status, start_date, end_date, completed_at";
-export const TASK_COLS = "id, project_id, title, stage, assigned_to, due_date, completed_at, created_at, updated_at";
+export const TASK_COLS = "id, project_id, milestone_id, title, stage, assigned_to, due_date, completed_at, start_date, created_at, updated_at";
 export const MILESTONE_COLS = "id, project_id, title, due_date, completed, completed_at";
 
 type ProfileRow = { id: string; full_name: string; role: UserRole; avatar_url: string | null };
@@ -119,6 +119,8 @@ export type PmAnalytics = {
     flow: {
         tasks: FlowTask[];
         moves: TaskMove[];
+        /** Every phase, so a To do task is timed from when it could start. */
+        phases: FlowPhase[];
         /** Active projects first, then delivered; colours follow this order. */
         projects: { id: string; title: string; active: boolean }[];
         crew: Person[];
@@ -163,6 +165,7 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
         flow: {
             tasks,
             moves,
+            phases: milestones.map(({ id, project_id, title, due_date }) => ({ id, project_id, title, due_date })),
             projects: [...rows.active, ...rows.delivered].map((r) => ({ id: r.project.id, title: r.project.title, active: r.project.status !== "completed" })),
             crew: people.filter((p) => p.role !== "client").sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),
         },
