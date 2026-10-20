@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Camera, Film, X } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing } from "@/components/dashboard/overview-kit";
-import { projectPath } from "@/lib/constants";
+import { projectBoardPath, projectPath } from "@/lib/constants";
 import { SPRING } from "@/lib/motion";
 import { reviewQueue } from "@/lib/review-queue";
 import { hasSiteEvidence, mediaCountPhrase } from "@/lib/media-kind";
@@ -61,6 +61,18 @@ export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTas
         else
             router.push(projectPath(projectId));
     }, [projectId, router]);
+
+    // An empty queue is not a place to stay: once any Accept is past its undo
+    // window, go to Tasks, which shows the decisions live. Undo or a new
+    // submission refills the queue and cancels the trip.
+    const empty = queue.length === 0;
+    const toTasks = React.useCallback(() => router.replace(projectBoardPath(projectId)), [projectId, router]);
+    React.useEffect(() => {
+        if (!empty)
+            return;
+        const timer = window.setTimeout(toTasks, pending.current.size > 0 ? UNDO_MS + 300 : 1400);
+        return () => window.clearTimeout(timer);
+    }, [empty, toTasks]);
 
     // Leaving commits whatever is still waiting out its undo window.
     React.useEffect(() => {
@@ -167,7 +179,7 @@ export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTas
         <button type="button" onClick={leave} aria-label="Close review" className={cn("press grid size-10 cursor-pointer place-items-center rounded-full bg-surface-sunken hover:bg-line", focusRing)}><X className="size-5" aria-hidden/></button>
       </header>
 
-      {queue.length === 0 ? (<CaughtUp onLeave={leave}/>) : (<div className="grid min-h-0 flex-1 max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[20rem_minmax(0,1fr)]">
+      {empty ? (<CaughtUp onLeave={toTasks}/>) : (<div className="grid min-h-0 flex-1 max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[20rem_minmax(0,1fr)]">
           <nav aria-label="Waiting for review" className="min-h-0 overflow-y-auto border-line p-3 max-lg:flex max-lg:gap-2 max-lg:overflow-x-auto max-lg:border-b lg:border-r">
             <ul className="grid gap-1.5 max-lg:flex">
               {queue.map((t) => {
@@ -202,7 +214,7 @@ export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTas
     </motion.div>, document.body);
 }
 
-/** Nothing waiting: a check draws itself. */
+/** Nothing waiting: a check draws itself on the way back to Tasks. */
 function CaughtUp({ onLeave }: {
     onLeave: () => void;
 }) {
@@ -215,9 +227,9 @@ function CaughtUp({ onLeave }: {
         </svg>
         <div>
           <h2 className="text-[1.4rem] font-semibold tracking-[-0.025em]">All caught up</h2>
-          <p className="mt-1 text-sm text-ink-secondary">New submissions land here live.</p>
+          <p className="mt-1 text-sm text-ink-secondary">Taking you back to Tasks…</p>
         </div>
-        <button type="button" onClick={onLeave} className={cn("press mt-1 inline-flex h-10 cursor-pointer items-center rounded-full bg-surface-sunken px-5 text-sm font-medium hover:bg-line", focusRing)}>Back to the project</button>
+        <button type="button" onClick={onLeave} className={cn("press mt-1 inline-flex h-10 cursor-pointer items-center rounded-full bg-surface-sunken px-5 text-sm font-medium hover:bg-line", focusRing)}>Go now</button>
       </div>
     </div>);
 }
