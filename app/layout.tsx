@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,6 +17,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
     title: "ProximaTrax",
     description: "Project management and real-time task monitoring for AEG Home Fashion.",
+    // iPhones read these instead of the manifest when added to the home screen.
+    appleWebApp: { capable: true, title: "ProximaTrax", statusBarStyle: "black" },
+};
+/** Matches the midnight mobile header, so the phone's status bar blends into it. */
+export const viewport: Viewport = {
+    themeColor: "#0B0E1A",
 };
 export default function RootLayout({ children, }: Readonly<{
     children: React.ReactNode;
