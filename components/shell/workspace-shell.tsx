@@ -3,14 +3,15 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MotionConfig } from "framer-motion";
 import { Messenger } from "@/components/messenger/messenger";
-import { MobileTabBar, MobileTopBar } from "@/components/shell/mobile-nav";
-import type { NotificationsState } from "@/components/shell/notifications-menu";
+import { DOCK_CLEARANCE, MobileDock, MobileTabBar, MobileTopBar } from "@/components/shell/mobile-nav";
+import { NotificationsMenu, type NotificationsState } from "@/components/shell/notifications-menu";
 import { ProjectSearch } from "@/components/shell/project-search";
 import { Sidebar, type RailProject } from "@/components/shell/sidebar";
 import { useWorkNotifications } from "@/hooks/use-work-notifications";
 import { getRoleHomePath, ROUTES } from "@/lib/constants";
 import { triageCounts, type InquiryTriageRow } from "@/lib/inquiry-triage";
 import { canSearchProjects, primaryNavFor } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 import { listProjects } from "@/services/project-service";
 import type { Profile } from "@/types/database";
 import type { UserRole } from "@/types/enums";
@@ -92,6 +93,8 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
 
     const openSearch = searchEnabled ? () => setSearchOpen(true) : null;
     const railProjects = useRailProjects(searchEnabled);
+    // Clients and crew live on their phones: no top bar there, a floating bell and dock instead.
+    const docked = role === "client" || role === "middleman";
 
 
     return (<MotionConfig reducedMotion="user">
@@ -101,14 +104,18 @@ export function WorkspaceShell({ profile, inquirySummaries, viewedInquiryIds, ch
         </a>
         <Sidebar profile={profile} navItems={navItems} badges={badges} onOpenSearch={openSearch} shortcutLabel={shortcutLabel} notifications={notifications} homeHref={homeHref} projects={railProjects}/>
         <div className="flex min-w-0 flex-1 flex-col">
-          <MobileTopBar profile={profile} navItems={navItems} onOpenSearch={openSearch} notifications={notifications} homeHref={homeHref}/>
-          <main id="workspace-main" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 outline-none sm:px-6 lg:px-8 lg:py-7">
+          {docked ? null : <MobileTopBar profile={profile} navItems={navItems} onOpenSearch={openSearch} notifications={notifications} homeHref={homeHref}/>}
+          {/* With no top bar, notifications float at the top right; pages keep that corner clear of their own controls. */}
+          {docked && notifications ? (<div className="fixed top-3 right-4 z-30 lg:hidden">
+              <NotificationsMenu {...notifications} appearance="float"/>
+            </div>) : null}
+          <main id="workspace-main" tabIndex={-1} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 outline-none sm:px-6 lg:px-8 lg:py-7", docked && DOCK_CLEARANCE)}>
             {children}
           </main>
-          <MobileTabBar navItems={navItems} badges={badges}/>
+          {docked ? <MobileDock navItems={navItems} profile={profile}/> : <MobileTabBar navItems={navItems} badges={badges}/>}
         </div>
         {searchEnabled ? (<ProjectSearch open={searchOpen} onOpenChange={setSearchOpen} navItems={navItems}/>) : null}
-        {role !== "super_admin" ? <Messenger viewer={profile}/> : null}
+        {role !== "super_admin" ? <Messenger viewer={profile} docked={docked}/> : null}
       </div>
     </MotionConfig>);
 }

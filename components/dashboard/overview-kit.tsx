@@ -1,4 +1,4 @@
-import type { HealthTone } from "@/lib/dashboard";
+import { formatDate, type HealthTone } from "@/lib/dashboard";
 import type { TeamMember } from "@/lib/data/project-context";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,24 @@ export function OverviewHeader({ title, sub, actions }: {
         {sub ? <p className="mt-2 text-[15px] text-ink-tertiary [&_b]:font-medium [&_b]:text-ink">{sub}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </header>);
+}
+
+/**
+ * The top of a client's or crew member's day, phone first: the date set small
+ * in capitals over one large title, the way a phone's own Today screen reads.
+ */
+export function DayHeader({ today, title, sub }: {
+    /** ISO date (Manila). */
+    today: string;
+    title: React.ReactNode;
+    sub?: React.ReactNode;
+}) {
+    // On phones the floating notifications button holds the top-right corner.
+    return (<header className="materialize max-lg:pr-14">
+      <p className="text-[13px] font-semibold tracking-[0.04em] text-ink-tertiary uppercase">{formatDate(today, { weekday: "long", month: "long", day: "numeric" })}</p>
+      <h1 className="mt-1 text-[2rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-ink sm:text-[2.5rem]">{title}</h1>
+      {sub ? <p className="mt-1.5 text-[15px] text-ink-tertiary [&_b]:font-medium [&_b]:text-ink">{sub}</p> : null}
     </header>);
 }
 

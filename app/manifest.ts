@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
         scope: "/",
         display: "standalone",
         background_color: "#F4F5F8",
-        theme_color: "#0B0E1A",
+        theme_color: "#F4F5F8",
         // ponytail: one 512px "any" icon; add a padded maskable icon if Android crops the mark.
         icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" }],
     };

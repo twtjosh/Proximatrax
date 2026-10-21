@@ -25,7 +25,7 @@ function ProfileAvatar({ profile, className }: {
     </Avatar>);
 }
 
-async function signOut() {
+export async function signOut() {
     try {
         await logout();
     }

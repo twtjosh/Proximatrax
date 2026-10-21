@@ -10,6 +10,7 @@ const PROTECTED_PREFIXES = [
     "/analytics",
     "/files",
     "/account",
+    ROUTES.MESSAGES,
     ROUTES.MIDDLEMAN_HOME,
     "/inquiries",
     "/settings",

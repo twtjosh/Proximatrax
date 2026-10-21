@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { askDraft } from "@/lib/calendar";
+import type { InboxItem } from "@/lib/messenger";
 
 type MessengerState = {
     open: boolean;
@@ -11,13 +12,18 @@ type MessengerState = {
     openedAt: number;
     /** Live unread per project from the inbox; null until it loads. */
     unread: Record<string, number> | null;
+    /** The live inbox, for the phone Messages screen; null until it loads. */
+    inbox: Inbox | null;
     /** Open the panel: on `projectId` when given, else where the viewer left off. */
     openChat: (projectId?: string) => void;
     minimize: () => void;
     back: () => void;
     setDraft: (projectId: string, text: string) => void;
     setUnread: (unread: Record<string, number> | null) => void;
+    setInbox: (inbox: Inbox | null) => void;
 };
+
+export type Inbox = { active: InboxItem[]; closed: InboxItem[] };
 
 export const useMessenger = create<MessengerState>()((set) => ({
     open: false,
@@ -25,11 +31,13 @@ export const useMessenger = create<MessengerState>()((set) => ({
     drafts: {},
     openedAt: 0,
     unread: null,
+    inbox: null,
     openChat: (projectId) => set((s) => ({ open: true, activeProjectId: projectId ?? s.activeProjectId, openedAt: Date.now() })),
     minimize: () => set({ open: false }),
     back: () => set({ activeProjectId: null }),
     setDraft: (projectId, text) => set((s) => ({ drafts: { ...s.drafts, [projectId]: text } })),
     setUnread: (unread) => set({ unread }),
+    setInbox: (inbox) => set({ inbox }),
 }));
 
 /** A badge's count: live from the messenger once loaded, else the server's. */

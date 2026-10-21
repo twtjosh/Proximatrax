@@ -67,7 +67,7 @@ export default async function ProjectsPage(props: {
             : isPm
                 ? "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
                 : "flex flex-col gap-5 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between"}>
-        <div className={cn("space-y-2", isPm && "space-y-1.5")}>
+        <div className={cn("space-y-2", isPm && "space-y-1.5", (isClient || isMiddleman) && "max-lg:pr-14")}>
           {!isPm ? (<p className={isClient
                 ? "text-[11px] font-medium uppercase tracking-[0.16em] text-stone-500"
                 : "font-mono text-[10px] uppercase tracking-[0.24em] text-[#d97706]"}>

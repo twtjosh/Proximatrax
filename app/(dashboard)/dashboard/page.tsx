@@ -13,7 +13,7 @@ import { loadOwnerAnalytics } from "@/services/analytics-service";
 import { getSuperAdminInquirySummaries, getSuperAdminViewedInquiryIds } from "@/lib/data/inquiry-shell";
 import { triageCounts } from "@/lib/inquiry-triage";
 import { loadProjectContext, projectContext } from "@/lib/data/project-context";
-import { listApprovedAttachmentsForProject, publicTaskAttachmentUrl } from "@/services/task-attachment-service";
+import { loadClientProject } from "@/lib/data/client-project";
 import type { Profile } from "@/types/database";
 export default async function DashboardPage() {
     const { supabase, user, profile } = await getViewer();
@@ -55,22 +55,13 @@ export default async function DashboardPage() {
         redirect(getRoleHomePath(role));
     const projects = await listProjects(supabase, { lifecycle: "active" });
     const projectIds = projects.map((p) => p.id);
-    const [milestoneResult, pendingInvitations] = await Promise.all([
+    // The lead project is read the way its own pages read it: approved photos, accepted work, the PM's latest word.
+    const [milestoneResult, pendingInvitations, lead] = await Promise.all([
         projectIds.length > 0
             ? supabase.from("milestones").select("id, title, project_id, due_date, completed").in("project_id", projectIds)
             : { data: [] },
         listPendingInvitationsForUser(user.id, supabase),
+        projects[0] ? loadClientProject(supabase, projects[0].id) : null,
     ]);
-    // The lead project's PM-approved site photos and the size of its site team; both optional.
-    const featured = projects[0];
-    const [approved, siteCount] = featured
-        ? await Promise.all([
-            listApprovedAttachmentsForProject(featured.id, supabase).catch(() => []),
-            supabase.from("project_members").select("user_id", { count: "exact", head: true }).eq("project_id", featured.id).eq("role_in_project", "middleman")
-                .then((r) => (r.error ? null : r.count ?? 0)),
-        ])
-        : [[], null];
-    // Newest first; the first leads the page, the next few sit beside the progress.
-    const photos = approved.filter((a) => a.media_kind === "photo").slice(0, 5).map((a) => ({ url: publicTaskAttachmentUrl(a.storage_path), caption: a.task?.title ?? null, at: a.approved_for_client_at ?? a.created_at }));
-    return (<ClientPortalHome firstName={firstName ?? "there"} greeting={greeting(now)} today={today} projects={projects} milestones={(milestoneResult.data ?? []) as DashboardMilestone[]} photos={photos} siteCount={siteCount} notice={pendingInvitations.length > 0 ? <ProjectInvitationsInbox invitations={pendingInvitations}/> : null}/>);
+    return (<ClientPortalHome firstName={firstName ?? "there"} greeting={greeting(now)} today={today} projects={projects} milestones={(milestoneResult.data ?? []) as DashboardMilestone[]} lead={lead} notice={pendingInvitations.length > 0 ? <ProjectInvitationsInbox invitations={pendingInvitations}/> : null}/>);
 }

@@ -10,6 +10,8 @@ export const ROUTES = {
     ACTIVITY: "/activity",
     FILES: "/files",
     ACCOUNT: "/account",
+    /** Clients' and crew's conversations as a screen of their own, on phones and tablets. */
+    MESSAGES: "/messages",
     MIDDLEMAN_HOME: "/middleman",
     MIDDLEMAN_ACCOUNT: "/middleman/account",
     INQUIRIES: "/inquiries",

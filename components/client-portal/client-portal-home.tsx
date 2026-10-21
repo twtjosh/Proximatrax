@@ -1,28 +1,21 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { OpenChatButton } from "@/components/messenger/open-chat-button";
 import { motion } from "framer-motion";
-import { ArrowUpRight, CalendarRange, Check, HardHat, MessageSquare } from "lucide-react";
+import { CalendarRange, ChevronRight, MessageSquare } from "lucide-react";
 import { LiveRefresh } from "@/components/dashboard/live-refresh";
-import { Face, focusRing, OverviewCard, ProgressRing, softAction, stagger, trackSpotlight } from "@/components/dashboard/overview-kit";
+import { DayHeader, Face, focusRing, ProgressRing, softAction, stagger, trackSpotlight } from "@/components/dashboard/overview-kit";
+import { useLiveUnread } from "@/components/messenger/messenger-store";
+import { OpenChatButton } from "@/components/messenger/open-chat-button";
+import { RecentUpdates } from "@/components/projects/client/recent-updates";
+import { useVisitBaseline } from "@/components/projects/client/visit-baseline";
+import { clientHealth, newSince, type ClientPhoto } from "@/lib/client-project";
 import { projectPath, projectTimelinePath, ROUTES } from "@/lib/constants";
+import type { ClientProjectData } from "@/lib/data/client-project";
 import { agoPhrase, daysBetween, formatDate, isoDateIn, plural, type DashboardMilestone } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
+import { ROLE_TERMS } from "@/lib/vocabulary";
 import type { ProjectWithRelations } from "@/services/project-service";
-
-/** Milestones shown at once: the current one with two either side; the rest open on request. */
-const STEPS_SHOWN = 5;
-/** Approved photos shown beside the progress, after the one leading the page. */
-const MORE_PHOTOS = 4;
-
-export type SitePhoto = {
-    url: string;
-    /** The approved work the photo belongs to. */
-    caption: string | null;
-    /** When the PM approved it for the client. */
-    at: string;
-};
 
 type ClientPortalHomeProps = {
     firstName: string;
@@ -33,36 +26,31 @@ type ClientPortalHomeProps = {
     /** Active projects the client belongs to; the first leads the page. */
     projects: ProjectWithRelations[];
     milestones: DashboardMilestone[];
-    /** The lead project's site photos the PM approved for the client, newest first. */
-    photos: SitePhoto[];
-    /** Messages on the lead project the client has not read. */
-    /** Middlemen on the featured project; null when it couldn't be read. */
-    siteCount: number | null;
+    /** The lead project as its own pages read it; null when there is none or it couldn't be read. */
+    lead: ClientProjectData | null;
     /** Pending project invitations, shown under the greeting. */
     notice?: React.ReactNode;
 };
 
 const byDue = (a: DashboardMilestone, b: DashboardMilestone) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999");
+const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
 
 /**
- * The client's home: their space taking shape. The project is the headline,
- * a site photo leads when the PM has approved one, progress is told in
- * milestones (the phases a client recognises, never internal tasks), and the
- * project manager is one tap away. Every fact appears once.
+ * The client's home: their space taking shape. The newest approved photo
+ * leads; progress is told in milestones (the phases a client recognises,
+ * never internal tasks) as one compact card; their project manager's latest
+ * word sits with a way to answer it; then the newest accepted work. Built to
+ * read on one phone screen before anything needs a scroll.
  */
-export function ClientPortalHome({ firstName, greeting, today, projects, milestones, photos, siteCount, notice }: ClientPortalHomeProps) {
+export function ClientPortalHome({ firstName, greeting, today, projects, milestones, lead, notice }: ClientPortalHomeProps) {
     const featured = projects[0];
     const others = projects.slice(1);
     const own = featured ? milestones.filter((m) => m.project_id === featured.id).sort(byDue) : [];
-    const [lead, ...rest] = photos;
+    const photo = lead?.photos[0];
 
     return (<div className="mx-auto w-full max-w-6xl pb-8">
       <LiveRefresh channel="client-overview"/>
-
-      <h1 className="materialize text-sm text-ink-secondary">
-        <span className="font-medium text-ink">{greeting}, {firstName}</span>
-        <span className="text-ink-tertiary"> · {formatDate(today, { weekday: "long", month: "long", day: "numeric" })}</span>
-      </h1>
+      <DayHeader today={today} title={`${greeting}, ${firstName}`}/>
 
       {notice ? <div className="materialize mt-5" style={stagger(1)}>{notice}</div> : null}
 
@@ -71,14 +59,13 @@ export function ClientPortalHome({ firstName, greeting, today, projects, milesto
           <p className="mt-2 text-sm leading-relaxed text-ink-secondary">Once your project manager adds you to a project, you&apos;ll see its progress, photos from the site and a direct line to your project manager.</p>
           <Link href={ROUTES.PROJECTS} className={cn(softAction, "mt-5")}>See past projects</Link>
         </div>) : (<>
-          {lead ? <PhotoHero project={featured} photo={lead} today={today}/> : <TitleBand project={featured} today={today}/>}
+          {photo ? <PhotoHero project={featured} photo={photo} today={today}/> : <TitleBand project={featured} today={today}/>}
 
+          {/* Phone: progress, then the PM, then updates. Desk: the PM holds the right column beside the other two. */}
           <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <Progress project={featured} milestones={own} today={today}/>
-            <div className="grid gap-5">
-              <TeamCard project={featured} siteCount={siteCount}/>
-              {rest.length > 0 ? <MorePhotos photos={rest.slice(0, MORE_PHOTOS)} today={today}/> : null}
-            </div>
+            <Progress project={featured} milestones={own} today={today} className="lg:col-start-1"/>
+            <ManagerCard project={featured} lead={lead} today={today} className="lg:col-start-2 lg:row-span-2 lg:row-start-1"/>
+            {lead ? <LeadUpdates data={lead} className="lg:col-start-1"/> : null}
           </div>
 
           {others.length > 0 ? (<section aria-labelledby="other-projects-heading" className="mt-10">
@@ -112,7 +99,7 @@ function handover(end: string, today: string): { text: string; late: boolean } {
         return { text: "Handover tomorrow", late: false };
     if (days === 0)
         return { text: "Handover today", late: false };
-    return { text: `Planned handover ${formatDate(end, { month: "short", day: "numeric" })} · running late`, late: true };
+    return { text: `Planned handover ${short(end)} · running late`, late: true };
 }
 
 function ProjectTitle({ project: p, className }: {
@@ -127,12 +114,12 @@ function ProjectTitle({ project: p, className }: {
 /** The site itself, leading the page: the newest photo the project manager approved. */
 function PhotoHero({ project: p, photo, today }: {
     project: ProjectWithRelations;
-    photo: SitePhoto;
+    photo: ClientPhoto;
     today: string;
 }) {
     const due = handover(p.end_date, today);
-    return (<section aria-labelledby="project-title" className="materialize relative isolate mt-4 h-[14rem] overflow-hidden rounded-[24px] shadow-[0_30px_60px_-30px_rgb(60_30_5/0.45)] sm:h-[15rem]" style={stagger(2)}>
-      <motion.img src={photo.url} alt={photo.caption ? `Site photo: ${photo.caption}` : "Latest site photo"} initial={{ scale: 1.08 }} animate={{ scale: 1 }} transition={{ duration: 2.4, ease: [0.22, 1, 0.36, 1] }} className="absolute inset-0 -z-20 size-full object-cover"/>
+    return (<section aria-labelledby="project-title" className="materialize relative isolate mt-5 h-58 overflow-hidden rounded-[24px] shadow-[0_30px_60px_-30px_rgb(60_30_5/0.45)] sm:h-64" style={stagger(2)}>
+      <motion.img src={photo.url} alt={`Site photo: ${photo.taskTitle}`} initial={{ scale: 1.08 }} animate={{ scale: 1 }} transition={{ duration: 2.4, ease: [0.22, 1, 0.36, 1] }} className="absolute inset-0 -z-20 size-full object-cover"/>
       <div aria-hidden className="absolute inset-0 -z-10 bg-linear-to-t from-black/75 via-black/20 to-black/5"/>
       <div className="flex h-full flex-col justify-between p-5 sm:px-7 sm:py-6">
         <span className={cn("inline-flex h-8 items-center gap-1.5 self-end rounded-full px-3.5 text-xs font-medium ring-1 backdrop-blur-md", due.late ? "bg-black/35 text-amber-200 ring-amber-200/40" : "bg-white/15 text-white ring-white/25")}>
@@ -140,8 +127,8 @@ function PhotoHero({ project: p, photo, today }: {
           {due.text}
         </span>
         <div className="min-w-0">
-          <ProjectTitle project={p} className="text-[1.75rem] text-white sm:text-[2.25rem] [&_a]:focus-visible:ring-white"/>
-          <p className="mt-1.5 truncate text-sm text-white/80">{photo.caption ? `${photo.caption} · ` : ""}approved {agoPhrase(isoDateIn(photo.at), today)}</p>
+          <p className="truncate text-[13px] text-white/85">{photo.taskTitle} · approved {agoPhrase(isoDateIn(photo.at), today)}</p>
+          <ProjectTitle project={p} className="mt-1 text-[1.75rem] text-white sm:text-[2.25rem] [&_a]:focus-visible:ring-white"/>
         </div>
       </div>
     </section>);
@@ -153,7 +140,7 @@ function TitleBand({ project: p, today }: {
     today: string;
 }) {
     const due = handover(p.end_date, today);
-    return (<section aria-labelledby="project-title" className="materialize mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-[24px] material px-6 py-5 sm:px-7" style={stagger(2)}>
+    return (<section aria-labelledby="project-title" className="materialize mt-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-[24px] material px-6 py-5 sm:px-7" style={stagger(2)}>
       <div className="min-w-0">
         <ProjectTitle project={p} className="text-[1.5rem] text-ink sm:text-[1.875rem]"/>
         <p className="mt-1 text-sm text-ink-tertiary">Site photos appear here once your project manager approves them.</p>
@@ -165,109 +152,112 @@ function TitleBand({ project: p, today }: {
     </section>);
 }
 
-function whenFromNow(iso: string, today: string) {
-    const days = daysBetween(today, iso);
-    return days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
-}
-
-/** The project as a short journey of milestones: what is done, what is next, what follows, and what is late. */
-function Progress({ project: p, milestones, today }: {
-    project: ProjectWithRelations;
-    milestones: DashboardMilestone[];
-    today: string;
-}) {
-    const [all, setAll] = React.useState(false);
-    const delivered = milestones.filter((m) => m.completed).length;
-    const next = milestones.find((m) => !m.completed);
-    const at = next ? milestones.indexOf(next) : milestones.length - 1;
-    const start = all ? 0 : Math.max(0, Math.min(at - 2, milestones.length - STEPS_SHOWN));
-    const shown = all ? milestones : milestones.slice(start, start + STEPS_SHOWN);
-    return (<OverviewCard id="progress-heading" title="Progress" aside={milestones.length ? <span className="tabular">{delivered} of {plural(milestones.length, "milestone")} complete</span> : undefined} className="materialize" style={stagger(3)}>
-      <div className="px-5 pb-5 sm:px-6">
-        {milestones.length === 0 ? <p className="pt-1 text-sm leading-relaxed text-ink-tertiary">Your project manager is setting out the phases of your project. They will appear here as the plan firms up.</p> : (<>
-            <ol className="relative mt-2">
-              {shown.map((m, i) => {
-                const isNext = m.id === next?.id;
-                const late = !m.completed && !!m.due_date && m.due_date < today;
-                return (<li key={m.id} className="relative flex gap-3.5 pb-3.5 last:pb-0">
-                    {i < shown.length - 1 ? <span aria-hidden className={cn("absolute top-6 bottom-0 left-[11px] w-0.5 rounded-full", m.completed ? "bg-copper/60" : "bg-line")}/> : null}
-                    <span aria-hidden className={cn("relative grid size-6 shrink-0 place-items-center rounded-full", m.completed ? "bg-copper text-white" : isNext ? "border-2 border-copper bg-surface" : "border-2 border-line-strong bg-surface")}>
-                      {m.completed ? <Check className="size-3" strokeWidth={3}/> : isNext ? (<>
-                          <span className="size-2 rounded-full bg-copper"/>
-                          <span className="absolute inset-0 animate-ping rounded-full border-2 border-copper/40 [animation-duration:2.4s] motion-reduce:animate-none"/>
-                        </>) : null}
-                    </span>
-                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
-                      <p className={cn("text-sm leading-6 font-medium", m.completed ? "text-ink-secondary" : "text-ink")}>{m.title}</p>
-                      <p className={cn("text-xs", m.completed ? "text-success" : late ? "font-medium text-warning" : isNext ? "font-medium text-brand" : "text-ink-tertiary")}>
-                        {m.completed ? "Complete" : !m.due_date ? "Date to be set" : late ? `Late · was due ${formatDate(m.due_date, { month: "short", day: "numeric" })}` : isNext ? `Next · ${whenFromNow(m.due_date, today)}` : formatDate(m.due_date, { month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-                  </li>);
-            })}
-            </ol>
-            <div className="mt-4 flex items-center justify-between gap-3">
-              {milestones.length > STEPS_SHOWN ? (<button type="button" aria-expanded={all} onClick={() => setAll((v) => !v)} className={cn("cursor-pointer rounded-sm text-xs font-medium text-ink-secondary hover:text-ink", focusRing)}>
-                  {all ? "Show fewer" : `Show all ${milestones.length}`}
-                </button>) : <span/>}
-              <Link href={projectTimelinePath(p.id)} className={cn("inline-flex items-center gap-0.5 rounded-sm text-xs font-medium text-ink-secondary hover:text-ink", focusRing)}>Full timeline<ArrowUpRight className="size-3.5" aria-hidden/></Link>
-            </div>
-          </>)}
-      </div>
-    </OverviewCard>);
+/** When the next milestone falls, honest when it is late. */
+function nextWhen(m: DashboardMilestone, today: string): { text: string; late: boolean } {
+    if (!m.due_date)
+        return { text: "Date to be set", late: false };
+    const days = daysBetween(today, m.due_date);
+    if (days < 0)
+        return { text: `Was due ${short(m.due_date)} · ${plural(-days, "day")} late`, late: true };
+    if (days === 0)
+        return { text: "Due today", late: false };
+    if (days === 1)
+        return { text: "Due tomorrow", late: false };
+    return { text: `Due ${short(m.due_date)} · in ${plural(days, "day")}`, late: false };
 }
 
 /**
- * Who works on this home. The project manager is named and one tap away; the
- * site team is a headcount, since clients deal with the project manager.
+ * Progress in one glance: a ring and "x of y", how it stands in plain words,
+ * one segment per milestone, and the next one with its date, which opens the
+ * full timeline. The whole route lives on the project's own Overview.
  */
-function TeamCard({ project: p, siteCount }: {
+function Progress({ project: p, milestones, today, className }: {
     project: ProjectWithRelations;
-    /** Middlemen on the project; null when it couldn't be read. */
-    siteCount: number | null;
+    milestones: DashboardMilestone[];
+    today: string;
+    className?: string;
+}) {
+    const delivered = milestones.filter((m) => m.completed).length;
+    const next = milestones.find((m) => !m.completed);
+    const health = clientHealth(p.status, milestones, today);
+    const when = next ? nextWhen(next, today) : null;
+    const tone = health.tone === "late" ? "text-danger" : p.status === "on_hold" ? "text-ink-secondary" : "text-success";
+    return (<section aria-labelledby="progress-heading" className={cn("materialize rounded-[20px] material p-5 sm:p-6", className)} style={stagger(3)}>
+      <div className="flex items-center gap-4">
+        <ProgressRing value={milestones.length ? delivered / milestones.length : 0} size={56} stroke={6}>
+          <span className="text-[13px] font-semibold text-ink tabular">{delivered}/{milestones.length}</span>
+        </ProgressRing>
+        <div className="min-w-0 flex-1">
+          <h2 id="progress-heading" className="text-[13px] text-ink-tertiary">Progress</h2>
+          <p className="text-[17px] font-semibold tracking-[-0.016em] text-ink tabular">{milestones.length ? `${delivered} of ${plural(milestones.length, "milestone")}` : "Plan in progress"}</p>
+          {milestones.length ? (<p className={cn("flex items-center gap-1.5 text-[13px] font-medium", tone)}>
+              <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden/>
+              <span className="truncate">{health.text}</span>
+            </p>) : null}
+        </div>
+      </div>
+
+      {milestones.length === 0 ? (<p className="mt-3 text-sm leading-relaxed text-ink-tertiary">Your project manager is setting out the phases of your project. They will appear here as the plan firms up.</p>) : (<>
+          <div aria-hidden className="mt-4 flex gap-1">
+            {milestones.map((m) => (<span key={m.id} className={cn("h-1.5 flex-1 rounded-full", m.completed ? "bg-copper" : m.due_date && m.due_date < today ? "bg-stage-late" : m.id === next?.id ? "bg-copper/35" : "bg-surface-sunken")}/>))}
+          </div>
+          <Link href={projectTimelinePath(p.id)} className={cn("group -mx-2 mt-3 flex items-center gap-3 rounded-2xl p-2 transition-colors duration-300 hover:bg-surface-subtle", focusRing)}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand" aria-hidden><CalendarRange className="size-4.5"/></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-semibold text-ink">{next ? `Next · ${next.title}` : "Every milestone is delivered"}</span>
+              <span className={cn("block truncate text-[13px]", when?.late ? "font-medium text-danger" : "text-ink-tertiary")}>{when ? when.text : "See the full timeline"}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-ink-tertiary transition-transform duration-300 ease-spring group-hover:translate-x-0.5" aria-hidden/>
+          </Link>
+        </>)}
+    </section>);
+}
+
+/**
+ * Who runs this home, and their latest word on it. The site team is a
+ * headcount, since clients deal with the project manager; one wide button
+ * answers them.
+ */
+function ManagerCard({ project: p, lead, today, className }: {
+    project: ProjectWithRelations;
+    lead: ClientProjectData | null;
+    today: string;
+    className?: string;
 }) {
     const pm = p.pm;
     const name = pm?.full_name ?? "Your project manager";
-    return (<OverviewCard id="team-heading" title="Your team" className="materialize" style={stagger(4)}>
-      <div className="px-5 pb-5 sm:px-6">
-        <div className="flex items-center gap-3">
-          {pm ? <Face person={{ id: pm.id, name, avatarUrl: pm.avatar_url, role: "Project manager" }} size={40}/> : null}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-ink">{name}</p>
-            <p className="text-xs text-ink-tertiary">Project manager</p>
-          </div>
-          <OpenChatButton projectId={p.id} aria-label={`Message ${name}`} className={cn(softAction, "shrink-0")}>
-            <MessageSquare aria-hidden/>
-            Message
-          </OpenChatButton>
+    const first = pm?.full_name?.split(" ")[0];
+    const note = lead?.update ?? null;
+    const site = lead ? lead.team.filter((m) => m.role === ROLE_TERMS.middleman).length : 0;
+    const unread = useLiveUnread(p.id, lead?.unread ?? 0);
+    return (<section aria-labelledby="team-heading" className={cn("materialize rounded-[20px] material p-5 sm:p-6", className)} style={stagger(4)}>
+      <div className="flex items-center gap-3">
+        {pm ? <Face person={{ id: pm.id, name, avatarUrl: pm.avatar_url, role: ROLE_TERMS.project_manager }} size={44}/> : null}
+        <div className="min-w-0 flex-1">
+          <h2 id="team-heading" className="truncate text-[15px] font-semibold text-ink">{name}</h2>
+          <p className="truncate text-[13px] text-ink-tertiary">Your project manager{site > 0 ? ` · ${site === 1 ? "1 person" : `${site} people`} on site` : ""}</p>
         </div>
-        {siteCount !== null ? (<div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-secondary" aria-hidden>
-              <HardHat className="size-[18px]"/>
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-ink">{siteCount > 0 ? `${siteCount === 1 ? "1 person" : `${siteCount} people`} on site` : "Site team not assigned yet"}</p>
-              <p className="text-xs text-ink-tertiary">{siteCount > 0 ? "Coordinated by your project manager" : "Your project manager assigns them"}</p>
-            </div>
-          </div>) : null}
       </div>
-    </OverviewCard>);
+      {note ? (<figure className="mt-4">
+          <blockquote className="line-clamp-5 text-[15px] leading-relaxed text-pretty whitespace-pre-wrap text-ink-secondary">{note.note}</blockquote>
+          <figcaption className="mt-1.5 text-xs text-ink-tertiary">Project update · {agoPhrase(isoDateIn(note.at), today)}</figcaption>
+        </figure>) : null}
+      <OpenChatButton projectId={p.id} aria-label={unread > 0 ? `Message ${name}, ${unread} unread` : `Message ${name}`} className={cn("press mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-surface-sunken text-[15px] font-semibold text-ink transition-colors hover:bg-line [&_svg]:size-4.5", unread > 0 && "bg-brand-soft text-brand hover:bg-brand-soft", focusRing)}>
+        <MessageSquare aria-hidden/>
+        {first ? `Message ${first}` : "Message"}
+        {unread > 0 ? <span aria-hidden className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white tabular">{unread > 9 ? "9+" : unread}</span> : null}
+      </OpenChatButton>
+    </section>);
 }
 
-/** The approved photos after the one leading the page. */
-function MorePhotos({ photos, today }: {
-    photos: SitePhoto[];
-    today: string;
+/** The newest accepted work on the lead project, with what is new since the last visit marked. */
+function LeadUpdates({ data, className }: {
+    data: ClientProjectData;
+    className?: string;
 }) {
-    return (<OverviewCard id="photos-heading" title="From the site" count={photos.length} className="materialize" style={stagger(5)}>
-      <ul className="grid grid-cols-2 gap-2 px-4 pb-4">
-        {photos.map((ph) => (<li key={ph.url}>
-            <a href={ph.url} target="_blank" rel="noopener noreferrer" title={ph.caption ?? undefined} className={cn("group press relative block aspect-[4/3] overflow-hidden rounded-xl bg-surface-sunken", focusRing)}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- approved site photo from storage */}
-              <img src={ph.url} alt={ph.caption ? `Site photo: ${ph.caption}` : "Site photo"} className="size-full object-cover transition-[scale] duration-500 ease-spring group-hover:scale-105"/>
-              <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 to-transparent px-2 pt-4 pb-1.5 text-[10px] font-medium text-white">{agoPhrase(isoDateIn(ph.at), today).replace(/^./, (c) => c.toUpperCase())}</span>
-            </a>
-          </li>))}
-      </ul>
-    </OverviewCard>);
+    const baseline = useVisitBaseline(data.project.id);
+    const fresh = new Set(newSince(data.updates, baseline).map((u) => u.id));
+    return (<div className={cn("min-w-0", className)} style={stagger(5)}>
+      <RecentUpdates projectId={data.project.id} updates={data.updates} milestones={data.milestones} fresh={fresh}/>
+    </div>);
 }

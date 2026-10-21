@@ -23,6 +23,8 @@ export function useTouch() {
     return React.useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
 }
 
+/** On phones the three ways in sit side by side as equal tiles, one row at any width, instead of pills that wrap. */
+const pickTile = cn("press flex h-20 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl bg-brand-soft px-1 text-center text-[13px] leading-tight font-semibold text-brand ring-1 ring-copper/30 hover:ring-copper disabled:opacity-50", focusRing);
 const pickButton = cn("press inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-brand-soft px-4 text-sm font-semibold text-brand ring-1 ring-copper/30 hover:bg-brand-soft/70 hover:ring-copper disabled:opacity-50", focusRing);
 
 /**
@@ -117,6 +119,14 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
     }
 
 
+    const next = disabledReason ? (<p className="flex min-h-14 items-center justify-center rounded-full bg-neutral-soft px-4 text-center text-sm font-medium text-ink-secondary">{disabledReason}</p>) : stage === "review" ? (<p className="flex h-14 items-center justify-center gap-2 rounded-full bg-warning-soft text-[15px] font-medium text-warning">
+        <Hourglass className="size-4" aria-hidden/>
+        Waiting for your project manager to accept
+      </p>) : handoff && !needsMedia && pending === 0 && !uploading ? (<button type="button" disabled={busy} onClick={onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
+        {busy ? <Loader2 className="size-5 animate-spin" aria-hidden/> : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
+        {handoff.variant === "submit" ? "Submit for review" : "Start work"}
+      </button>) : null;
+
     return (<>
       <div className="px-5 pb-5 sm:px-7 sm:pb-7">
         {checklist.length > 0 ? (<div className="mt-6 first:mt-0">
@@ -159,11 +169,11 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
                 {attachments.map((a) => <Thumb key={a.id} item={a}/>)}
               </div>) : editable ? <p className="mt-1 text-[13px] text-ink-tertiary">Show the work: a photo or a short video is enough to submit.</p> : null}
             {editable ? (<div className="mt-3 flex flex-wrap items-center gap-2">
-                {touch ? (<>
-                    <button type="button" disabled={uploading} onClick={() => photoRef.current?.click()} className={pickButton}><Camera className="size-4" aria-hidden/>Take photo</button>
-                    <button type="button" disabled={uploading} onClick={() => videoRef.current?.click()} className={pickButton}><Video className="size-4" aria-hidden/>Record video</button>
-                    <button type="button" disabled={uploading} onClick={() => libraryRef.current?.click()} className={pickButton}><Images className="size-4" aria-hidden/>From gallery</button>
-                  </>) : (<>
+                {touch ? (<div className="grid w-full grid-cols-3 gap-2">
+                    <button type="button" disabled={uploading} onClick={() => photoRef.current?.click()} className={pickTile}><Camera className="size-6" aria-hidden/>Take photo</button>
+                    <button type="button" disabled={uploading} onClick={() => videoRef.current?.click()} className={pickTile}><Video className="size-6" aria-hidden/>Record video</button>
+                    <button type="button" disabled={uploading} onClick={() => libraryRef.current?.click()} className={pickTile}><Images className="size-6" aria-hidden/>From gallery</button>
+                  </div>) : (<>
                     <button type="button" disabled={uploading} onClick={() => libraryRef.current?.click()} className={pickButton}><ImagePlus className="size-4" aria-hidden/>Add photos or videos</button>
                     <span className="text-xs text-ink-tertiary">or drop files here · up to 50 MB each</span>
                   </>)}
@@ -175,17 +185,12 @@ export function TaskWorkbench({ task, viewerId, attachments, busy, disabledReaso
         <input ref={libraryRef} type="file" accept={touch ? "image/*,video/*" : "image/*,video/*,.pdf"} multiple className="hidden" onChange={(e) => add(e.target.files)}/>
       </div>
 
-      {/* The next step stays in reach of a thumb while the task is on screen; it appears once there is something to submit, so adding photos happens in the section above. */}
-      <div className="sticky bottom-0 z-10 rounded-b-[inherit] border-t border-line bg-surface/90 p-4 backdrop-blur-md sm:px-7">
-        {disabledReason ? (<p className="flex min-h-14 items-center justify-center rounded-full bg-neutral-soft px-4 text-center text-sm font-medium text-ink-secondary">{disabledReason}</p>) : stage === "review" ? (<p className="flex h-14 items-center justify-center gap-2 rounded-full bg-warning-soft text-[15px] font-medium text-warning">
-            <Hourglass className="size-4" aria-hidden/>
-            Waiting for your project manager to accept
-          </p>) : handoff && !needsMedia && pending === 0 && !uploading ? (<button type="button" disabled={busy} onClick={onAdvance} className={cn("press flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_10px_24px_-10px_rgb(180_83_9/0.6)] hover:bg-brand-hover disabled:opacity-60", focusRing)}>
-            {busy ? <Loader2 className="size-5 animate-spin" aria-hidden/> : handoff.variant === "submit" ? <Send className="size-5" aria-hidden/> : <Play className="size-5" aria-hidden/>}
-            {handoff.variant === "submit" ? "Submit for review" : "Start work"}
-          </button>) : null}
-        {footer}
-      </div>
+      {/* The next step stays in reach of a thumb while the task is on screen; it appears once there is something to submit, so adding photos happens in the section above.
+          With no step to take, the footer just closes the card: a sticky bar of links alone would slide over the photos above it. */}
+      {next || footer ? (<div className={cn("rounded-b-[inherit] border-t border-line p-4 sm:px-7", next && "sticky bottom-0 z-10 bg-surface/95 backdrop-blur-md")}>
+          {next}
+          {footer}
+        </div>) : null}
     </>);
 }
 

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, MessageCircle, Minus } from "lucide-react";
 import { focusRing } from "@/components/dashboard/overview-kit";
+import { ROUTES } from "@/lib/constants";
 import { plural } from "@/lib/dashboard";
 import { buildInbox, resolveActive, totalUnread, unreadByProject, type InboxProject, type InboxRow } from "@/lib/messenger";
 import { SPRING } from "@/lib/motion";
@@ -47,9 +48,25 @@ function usePhone() {
     return React.useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE).matches, () => false);
 }
 
+/** Where the dock shows (below lg). */
+const BELOW_LG = "(max-width: 1023px)";
+const subscribeBelowLg = (onChange: () => void) => {
+    const mq = window.matchMedia(BELOW_LG);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+};
+function useBelowLg() {
+    return React.useSyncExternalStore(subscribeBelowLg, () => window.matchMedia(BELOW_LG).matches, () => false);
+}
+
 /** The one place to chat: a bubble that opens every project conversation the viewer belongs to. */
-export function Messenger({ viewer }: {
+export function Messenger({ viewer, docked = false }: {
     viewer: Pick<Profile, "id" | "full_name" | "avatar_url">;
+    /**
+     * Clients and crew: below lg the dock carries Messages, and a conversation
+     * opens as the Messages screen rather than this panel. Desktop is unchanged.
+     */
+    docked?: boolean;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -59,6 +76,8 @@ export function Messenger({ viewer }: {
     const minimize = useMessenger((s) => s.minimize);
     const back = useMessenger((s) => s.back);
     const setUnread = useMessenger((s) => s.setUnread);
+    const setInbox = useMessenger((s) => s.setInbox);
+    const asScreen = useBelowLg() && docked;
     const panelRef = React.useRef<HTMLElement>(null);
     const bubbleRef = React.useRef<HTMLButtonElement>(null);
     const headingRef = React.useRef<HTMLHeadingElement>(null);
@@ -153,10 +172,19 @@ export function Messenger({ viewer }: {
             back();
     }, [fallBack, back]);
 
-    // Badges outside the messenger follow the same counts.
+    // Badges outside the messenger, and the Messages screen, follow the same live inbox.
     React.useEffect(() => {
         setUnread(inbox ? unreadByProject([...inbox.active, ...inbox.closed]) : null);
-    }, [inbox, setUnread]);
+        setInbox(inbox);
+    }, [inbox, setUnread, setInbox]);
+
+    // Docked below lg, every "Message" and "Ask about this" lands on the Messages screen instead of the panel.
+    React.useEffect(() => {
+        if (!open || !asScreen)
+            return;
+        minimize();
+        router.push(activeProjectId ? `${ROUTES.MESSAGES}?project=${activeProjectId}` : ROUTES.MESSAGES);
+    }, [open, asScreen, activeProjectId, minimize, router]);
 
     // Focus follows the panel: its heading on open, the bubble again on minimize
     // (unless the viewer clicked away onto something else).
@@ -176,7 +204,7 @@ export function Messenger({ viewer }: {
 
     return (<>
       <AnimatePresence>
-        {!open ? (<motion.button key="bubble" ref={bubbleRef} type="button" onClick={() => openChat()} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} whileTap={{ scale: 0.94 }} transition={SPRING} aria-label={unread > 0 ? `Messages, ${plural(unread, "unread message")}` : "Messages"} className={cn("fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 grid size-14 cursor-pointer place-items-center rounded-full bg-brand text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_14px_30px_-10px_rgb(180_83_9/0.6)] transition-colors hover:bg-brand-hover lg:right-6 lg:bottom-6", focusRing)}>
+        {!open ? (<motion.button key="bubble" ref={bubbleRef} type="button" onClick={() => openChat()} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} whileTap={{ scale: 0.94 }} transition={SPRING} aria-label={unread > 0 ? `Messages, ${plural(unread, "unread message")}` : "Messages"} className={cn("fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 grid size-14 cursor-pointer place-items-center rounded-full bg-brand text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_14px_30px_-10px_rgb(180_83_9/0.6)] transition-colors hover:bg-brand-hover lg:right-6 lg:bottom-6", docked && "max-lg:hidden", focusRing)}>
             <MessageCircle className="size-6" aria-hidden/>
             {unread > 0 ? (<span aria-hidden className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-surface px-1 text-[11px] font-semibold text-brand ring-2 ring-brand tabular">
                 {unread > 99 ? "99+" : unread}
@@ -185,7 +213,7 @@ export function Messenger({ viewer }: {
       </AnimatePresence>
 
       <AnimatePresence>
-        {open ? (<motion.section key="panel" ref={panelRef} role="dialog" aria-label="Messages" aria-modal={phone || undefined} initial={{ opacity: 0, scale: 0.92, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 16 }} transition={SPRING} className="fixed inset-0 z-40 flex origin-bottom-right flex-col overflow-hidden bg-surface sm:inset-auto sm:right-6 sm:bottom-6 sm:h-[min(640px,calc(100svh-6rem))] sm:w-[380px] sm:rounded-[24px] sm:border sm:border-line sm:shadow-[0_28px_70px_-24px_rgb(14_18_34/0.4)]">
+        {open && !asScreen ? (<motion.section key="panel" ref={panelRef} role="dialog" aria-label="Messages" aria-modal={phone || undefined} initial={{ opacity: 0, scale: 0.92, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 16 }} transition={SPRING} className="fixed inset-0 z-40 flex origin-bottom-right flex-col overflow-hidden bg-surface sm:inset-auto sm:right-6 sm:bottom-6 sm:h-[min(640px,calc(100svh-6rem))] sm:w-[380px] sm:rounded-[24px] sm:border sm:border-line sm:shadow-[0_28px_70px_-24px_rgb(14_18_34/0.4)]">
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <AnimatePresence initial={false} custom={dir}>
                 <motion.div key={active?.id ?? "list"} custom={dir} variants={slide} initial="enter" animate="center" exit="exit" transition={SPRING} className="absolute inset-0 flex flex-col bg-surface">

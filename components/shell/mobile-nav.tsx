@@ -1,12 +1,16 @@
 "use client";
+import type * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { CircleUserRound, MessageCircle, Search } from "lucide-react";
+import { focusRing } from "@/components/dashboard/overview-kit";
+import { useMessenger } from "@/components/messenger/messenger-store";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { NotificationsMenu, type NotificationsState } from "@/components/shell/notifications-menu";
-import { isNavItemActive, type NavItem } from "@/lib/navigation";
+import { ROUTES } from "@/lib/constants";
+import { accountPathFor, isNavItemActive, type NavItem } from "@/lib/navigation";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/database";
@@ -64,6 +68,67 @@ export function MobileTabBar({ navItems, badges }: MobileTabBarProps) {
               </Link>
             </li>);
         })}
+      </ul>
+    </nav>);
+}
+
+/**
+ * Room the dock takes over the page foot: exactly its height (0.75rem off the
+ * edge, a 60px pill). Sticky footers stop at the scroll area's padding, so
+ * they land right on top of the dock with no strip of page showing between.
+ */
+export const DOCK_CLEARANCE = "max-lg:pb-[calc(env(safe-area-inset-bottom)+4.5rem)]";
+
+const dockIcon = cn("press relative grid size-12 cursor-pointer place-items-center rounded-full text-ink-secondary transition-colors duration-300 hover:text-ink", focusRing);
+
+/** One stop on the dock: an icon, or, where the viewer is, an ink pill that names it. */
+function DockLink({ href, label, spoken = label, active, children }: {
+    href: string;
+    label: string;
+    /** What a screen reader hears when the stop is an icon, if more than the label (an unread count). */
+    spoken?: string;
+    active: boolean;
+    children: React.ReactNode;
+}) {
+    return (<motion.li layout transition={SPRING}>
+      <Link href={href} aria-current={active ? "page" : undefined} aria-label={active ? undefined : spoken} className={active ? cn("relative isolate flex h-12 items-center gap-2 rounded-full pr-5 pl-3.5 text-[15px] font-semibold text-white", focusRing) : dockIcon}>
+        {active ? <motion.span layoutId="dock-active" transition={SPRING} className="absolute inset-0 -z-10 rounded-full bg-ink" aria-hidden/> : null}
+        {children}
+        {active ? label : null}
+      </Link>
+    </motion.li>);
+}
+
+/**
+ * Clients and crew get a floating dock in place of the top and tab bars:
+ * their places, Messages (its own screen here, in place of the messenger's
+ * bubble and panel) and Profile. Four stops, so it never scrolls. Hidden
+ * once the sidebar appears.
+ */
+export function MobileDock({ navItems, profile }: {
+    navItems: NavItem[];
+    profile: Profile;
+}) {
+    const pathname = usePathname();
+    const unread = useMessenger((s) => Object.values(s.unread ?? {}).reduce((sum, n) => sum + n, 0));
+    const profileHref = accountPathFor(profile.role) ?? ROUTES.ACCOUNT;
+    return (<nav aria-label="Primary" className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex justify-center px-4 lg:hidden">
+      <ul className="pointer-events-auto flex items-center gap-1 rounded-full bg-surface/90 p-1.5 shadow-[0_1px_2px_rgb(14_18_34/0.08),0_20px_40px_-16px_rgb(14_18_34/0.4)] ring-1 ring-line/70 backdrop-blur-xl backdrop-saturate-150">
+        {navItems.map((item) => {
+            const Icon = item.icon;
+            return (<DockLink key={item.href} href={item.href} label={item.label} active={isNavItemActive(item, pathname)}>
+              <Icon className="size-5.5 shrink-0" strokeWidth={1.9} aria-hidden/>
+            </DockLink>);
+        })}
+        <DockLink href={ROUTES.MESSAGES} label="Messages" spoken={unread > 0 ? `Messages, ${unread} unread` : "Messages"} active={pathname === ROUTES.MESSAGES}>
+          <span className="relative grid shrink-0 place-items-center">
+            <MessageCircle className="size-5.5" strokeWidth={1.9} aria-hidden/>
+            {unread > 0 ? <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-copper ring-2 ring-surface"/> : null}
+          </span>
+        </DockLink>
+        <DockLink href={profileHref} label="Profile" active={pathname === profileHref}>
+          <CircleUserRound className="size-5.5 shrink-0" strokeWidth={1.9} aria-hidden/>
+        </DockLink>
       </ul>
     </nav>);
 }

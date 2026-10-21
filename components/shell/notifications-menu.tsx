@@ -27,25 +27,30 @@ export type NotificationsState = {
 };
 
 type NotificationsMenuProps = NotificationsState & {
-    appearance: "row" | "icon";
+    /** "float": the round button clients and crew see at the top right of their phone screens. */
+    appearance: "row" | "icon" | "float";
     side?: "right" | "bottom";
+};
+
+const TRIGGER = {
+    row: "flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised data-popup-open:text-rail-ink",
+    icon: "inline-flex size-9 items-center justify-center rounded-md text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised",
+    float: "inline-flex size-11 items-center justify-center rounded-full bg-surface/90 text-ink shadow-[0_1px_2px_rgb(14_18_34/0.08),0_10px_24px_-12px_rgb(14_18_34/0.4)] ring-1 ring-line/70 backdrop-blur-xl hover:bg-surface data-popup-open:bg-surface",
 };
 
 export function NotificationsMenu({ items, unreadCount, emptyMessage, onOpen, onMarkAllRead, appearance, side = "bottom" }: NotificationsMenuProps) {
     const label = unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications";
     const count = unreadCount > 99 ? "99+" : String(unreadCount);
     return (<DropdownMenu>
-      <DropdownMenuTrigger type="button" aria-label={label} className={cn("relative cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40", appearance === "row"
-            ? "flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised data-popup-open:text-rail-ink"
-            : "inline-flex size-9 items-center justify-center rounded-md text-rail-ink-secondary hover:bg-rail-raised hover:text-rail-ink data-popup-open:bg-rail-raised")}>
-        <Bell className="size-4 shrink-0" aria-hidden/>
+      <DropdownMenuTrigger type="button" aria-label={label} className={cn("relative cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40", TRIGGER[appearance])}>
+        <Bell className={cn("shrink-0", appearance === "float" ? "size-5" : "size-4")} aria-hidden/>
         {appearance === "row" ? (<>
             <span className={cn("min-w-0 flex-1 truncate text-left", RAIL_TEXT)}>Notifications</span>
             {unreadCount > 0 ? (<>
                 <span className={cn("rounded-sm bg-brand px-1.5 font-mono text-[11px] leading-5 font-medium text-white", RAIL_TEXT)}>{count}</span>
                 <span className={RAIL_DOT} aria-hidden/>
               </>) : null}
-          </>) : unreadCount > 0 ? (<span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand-bright ring-2 ring-rail" aria-hidden/>) : null}
+          </>) : unreadCount > 0 ? (<span className={cn("absolute size-2 rounded-full ring-2", appearance === "float" ? "top-2.5 right-3 bg-copper ring-surface" : "top-1.5 right-1.5 bg-brand-bright ring-rail")} aria-hidden/>) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent side={side} align="end" sideOffset={8} className="w-[min(calc(100vw-2rem),24rem)] p-0">
         <div className="flex items-center justify-between gap-3 border-b border-line px-3.5 py-2.5">

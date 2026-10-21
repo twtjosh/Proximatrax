@@ -29,9 +29,15 @@ export type ChatWindowProps = {
     onAttachmentsChange?: (attachments: ChatMessageAttachment[]) => void;
     draft: string;
     onDraftChange: (text: string) => void;
+    /**
+     * The phone Messages screen: the composer floats as a white pill above the
+     * dock, at 16px so iPhones don't zoom into it, and the keyboard waits for
+     * a tap instead of jumping up on arrival.
+     */
+    floating?: boolean;
 };
 
-export function ChatWindow({ projectId, initialMessages, initialAttachments, viewerProfile, senderProfiles, participants, initialReadCursors, onAttachmentsChange, draft, onDraftChange }: ChatWindowProps) {
+export function ChatWindow({ projectId, initialMessages, initialAttachments, viewerProfile, senderProfiles, participants, initialReadCursors, onAttachmentsChange, draft, onDraftChange, floating = false }: ChatWindowProps) {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const bottomRef = React.useRef<HTMLDivElement>(null);
     const typingIdleRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -150,14 +156,14 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
         <div ref={bottomRef}/>
       </div>
 
-      <form onSubmit={(e) => void handleSend(e)} className="shrink-0 border-t border-line p-3">
-        <div className="flex items-center gap-1.5 rounded-full bg-surface-sunken p-1 pl-1.5">
+      <form onSubmit={(e) => void handleSend(e)} className={floating ? "shrink-0 px-3 pt-1 pb-3" : "shrink-0 border-t border-line p-3"}>
+        <div className={cn("flex items-center gap-1.5 rounded-full p-1 pl-1.5", floating ? "bg-surface/95 p-1.5 shadow-[0_1px_2px_rgb(14_18_34/0.08),0_16px_32px_-18px_rgb(14_18_34/0.45)] ring-1 ring-line/70 backdrop-blur-xl" : "bg-surface-sunken")}>
           <input ref={fileInputRef} type="file" className="sr-only" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={(e) => void handleFilePick(e)}/>
-          <button type="button" disabled={uploading || sending} onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" className={cn("grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-ink-tertiary transition-colors hover:bg-surface hover:text-brand disabled:opacity-50", focusRing)}>
+          <button type="button" disabled={uploading || sending} onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" className={cn("grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors disabled:opacity-50", floating ? "size-10 bg-surface-sunken text-ink hover:text-brand" : "size-8 text-ink-tertiary hover:bg-surface hover:text-brand", focusRing)}>
             {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Paperclip className="size-4" aria-hidden/>}
           </button>
-          <input autoFocus value={draft} onChange={(e) => handleDraftChange(e.target.value)} placeholder="Message the project team" aria-label="Message" maxLength={4000} className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-tertiary"/>
-          <button type="submit" disabled={sending || uploading || !draft.trim()} aria-label="Send" className={cn("grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-brand text-white transition-[background-color,opacity] hover:bg-brand-hover disabled:cursor-default disabled:opacity-35", focusRing)}>
+          <input autoFocus={!floating} value={draft} onChange={(e) => handleDraftChange(e.target.value)} placeholder="Message the project team" aria-label="Message" maxLength={4000} className={cn("min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-tertiary", floating ? "px-1.5 text-base" : "text-sm")}/>
+          <button type="submit" disabled={sending || uploading || !draft.trim()} aria-label="Send" className={cn("grid shrink-0 cursor-pointer place-items-center rounded-full bg-brand text-white transition-[background-color,opacity] hover:bg-brand-hover disabled:cursor-default disabled:opacity-35", floating ? "size-10" : "size-8", focusRing)}>
             {sending ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Send className="size-3.5" aria-hidden/>}
           </button>
         </div>
