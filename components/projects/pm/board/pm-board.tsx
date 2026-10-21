@@ -3,29 +3,23 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandleProps, type DropResult } from "@hello-pangea/dnd";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarDays, Columns3, CornerDownLeft, Flag, List, Lock, MessageSquare, Paperclip, Plus, RotateCcw, Search, SquareCheck, X } from "lucide-react";
-import { toast } from "sonner";
+import { CalendarDays, Columns3, Flag, List, Lock, MessageSquare, Paperclip, RotateCcw, Search, SquareCheck, X } from "lucide-react";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
-import { QUICK_ADD_EVENT } from "@/components/projects/pm/project-shortcuts";
 import { checklistProgress, normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
 import { daysBetween, duePhrase } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
-import { parseQuickAdd } from "@/lib/quick-add";
-import { milestoneTaskDates } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
-import { logActivity } from "@/services/activity-service";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
-import { createTask, type TaskWithRelations } from "@/services/task-service";
-import { notifyWorkReadyAfterProjectTaskChange, snapshotProjectTasksForNotify } from "@/services/work-notification-service";
+import type { TaskWithRelations } from "@/services/task-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { COLUMNS, fixReason, isLate } from "./board-meta";
 import { TaskList } from "./task-list";
+import { TaskComposer } from "./task-composer";
 import { TaskSheet } from "./task-sheet";
 import { setQuery as setParams, useTaskActions } from "./use-task-actions";
 
 /** Accepted work piles up; the newest few are enough on the board. */
 const ACCEPTED_SHOWN = 3;
-const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 /** High first, then what is late, then by due date. Accepted: newest first. */
 function order(stage: BoardColumnStage, tasks: TaskWithRelations[], today: string) {
@@ -38,7 +32,7 @@ function order(stage: BoardColumnStage, tasks: TaskWithRelations[], today: strin
 }
 
 /**
- * The PM's board: one line adds a task, filters live in the URL, cards drag
+ * The PM's board: New task opens a composer, filters live in the URL, cards drag
  * one stage at a time. In review is decided in Review mode, so a card dragged
  * out of it opens there; Accepted is the client's record and stays put.
  */
@@ -94,11 +88,6 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     const fileCounts = new Map([...byTask].map(([id, list]) => [id, list.length]));
 
     return (<div className="grid gap-4 pt-2">
-      <QuickAdd projectId={projectId} people={people} milestones={milestones} projectStart={projectStart} today={today} closed={closed} onAdded={(task) => {
-            setItems((list) => [...list, task]);
-            router.refresh();
-        }}/>
-
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative flex h-9 min-w-0 basis-full items-center sm:max-w-60 sm:basis-60">
           <Search className="pointer-events-none absolute left-3 size-4 text-ink-tertiary" aria-hidden/>
@@ -138,11 +127,17 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                 }} className={cn("press inline-flex h-7 cursor-pointer items-center gap-1 rounded-full bg-surface-sunken px-2.5 font-medium text-ink-secondary hover:text-ink", focusRing)}><X className="size-3" aria-hidden/>Clear</button>
             </motion.p>) : null}
         </AnimatePresence>
-        <div role="radiogroup" aria-label="View" className="ml-auto flex rounded-full bg-surface-sunken p-1">
+        <div className="ml-auto flex items-center gap-2">
+        <div role="radiogroup" aria-label="View" className="flex rounded-full bg-surface-sunken p-1">
           {([["board", "Board", Columns3], ["list", "List", List]] as const).map(([key, label, Icon]) => (<button key={key} type="button" role="radio" aria-checked={view === key} onClick={() => setParams({ view: key === "list" ? "list" : null })} className={cn("relative isolate inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors duration-300", view === key ? "text-ink" : "text-ink-secondary hover:text-ink", focusRing)}>
               {view === key ? <motion.span layoutId="tasks-view" transition={SPRING} className="absolute inset-0 -z-10 rounded-full bg-surface shadow-card"/> : null}
               <Icon className="size-3.5" aria-hidden/>{label}
             </button>))}
+        </div>
+        {!closed ? <TaskComposer projectId={projectId} people={people} milestones={milestones} projectStart={projectStart} today={today} onAdded={(task) => {
+                setItems((list) => [...list, task]);
+                router.refresh();
+            }}/> : null}
         </div>
       </div>
 
@@ -234,114 +229,4 @@ function Card({ handle, task, comments, today, files, blocked, dragging, fresh, 
         </span>
       </span>
     </button>);
-}
-
-/**
- * One line becomes a task: "Tile the kitchen @ana #finishing fri". Typing @
- * or # offers matches; Tab takes the first. Pressing N anywhere focuses it.
- */
-function QuickAdd({ projectId, people, milestones, projectStart, today, closed, onAdded }: {
-    projectId: string;
-    people: Profile[];
-    milestones: Milestone[];
-    projectStart: string;
-    today: string;
-    closed: boolean;
-    onAdded: (task: TaskWithRelations) => void;
-}) {
-    const params = useSearchParams();
-    const reduce = useReducedMotion();
-    const ref = React.useRef<HTMLInputElement>(null);
-    const [text, setText] = React.useState("");
-    const [busy, setBusy] = React.useState(false);
-    const lookup = { people: people.map((p) => ({ id: p.id, name: p.full_name })), milestones: milestones.map((m) => ({ id: m.id, title: m.title })), today };
-    const parsed = parseQuickAdd(text, lookup);
-    const word = /(?:^|\s)([@#])(\S*)$/.exec(text);
-    const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const suggestions = !word ? [] : word[1] === "@"
-        ? people.filter((p) => p.full_name.toLowerCase().split(/\s+/).some((n) => n.startsWith(word[2].toLowerCase()))).slice(0, 5).map((p) => ({ id: p.id, label: p.full_name, insert: `@${p.full_name.split(/\s+/)[0]}` }))
-        : milestones.filter((m) => squash(m.title).startsWith(squash(word[2]))).slice(0, 5).map((m) => ({ id: m.id, label: m.title, insert: `#${squash(m.title)}` }));
-
-    React.useEffect(() => {
-        const focus = () => ref.current?.focus();
-        window.addEventListener(QUICK_ADD_EVENT, focus);
-        return () => window.removeEventListener(QUICK_ADD_EVENT, focus);
-    }, []);
-    // Arriving from "N" on another tab: ?add=1 focuses, then goes.
-    React.useEffect(() => {
-        if (params.get("add") !== "1")
-            return;
-        ref.current?.focus();
-        const next = new URLSearchParams(window.location.search);
-        next.delete("add");
-        const qs = next.toString();
-        window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-    }, [params]);
-
-    function complete(insert: string) {
-        setText((t) => `${t.replace(/[@#]\S*$/, "")}${insert} `);
-        ref.current?.focus();
-    }
-
-    async function add() {
-        if (!parsed.title || busy || closed)
-            return;
-        setBusy(true);
-        try {
-            const before = parsed.assigneeId ? await snapshotProjectTasksForNotify(projectId) : null;
-            const created = await createTask({ project_id: projectId, title: parsed.title, assigned_to: parsed.assigneeId, milestone_id: parsed.milestoneId, due_date: parsed.dueDate, ...milestoneTaskDates(parsed.milestoneId, milestones, projectStart, today, parsed.dueDate), stage: "to_do" });
-            void logActivity({ project_id: projectId, action_type: "task_created", details: { task_id: created.id, title: created.title } });
-            if (before)
-                void notifyWorkReadyAfterProjectTaskChange(projectId, before);
-            const person = people.find((p) => p.id === created.assigned_to);
-            const ms = milestones.find((m) => m.id === created.milestone_id);
-            onAdded({ ...created, assignee: person ? { id: person.id, full_name: person.full_name, avatar_url: person.avatar_url } : null, milestone: ms ? { id: ms.id, title: ms.title } : null });
-            setText("");
-        }
-        catch (e) {
-            toast.error(errorText(e, "That task couldn't be added."));
-        }
-        finally {
-            setBusy(false);
-            ref.current?.focus();
-        }
-    }
-
-    if (closed)
-        return null;
-    return (<div className="relative">
-      <form onSubmit={(e) => {
-            e.preventDefault();
-            void add();
-        }} className="flex items-center gap-2 rounded-[20px] material p-1.5 pl-4 transition-shadow duration-300 focus-within:shadow-[0_0_0_4px_rgb(217_119_6/0.14)]">
-        <Plus className="size-4 shrink-0 text-ink-tertiary" aria-hidden/>
-        <label className="min-w-0 flex-1">
-          <span className="sr-only">Add a task</span>
-          <input ref={ref} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => {
-                if (e.key === "Tab" && suggestions[0] && !e.shiftKey) {
-                    e.preventDefault();
-                    complete(suggestions[0].insert);
-                }
-                else if (e.key === "Escape") {
-                    setText("");
-                    ref.current?.blur();
-                }
-            }} placeholder="Add a task… try “Tile the kitchen @name #milestone fri”" autoComplete="off" className="h-10 w-full bg-transparent text-[15px] placeholder:text-ink-tertiary focus:outline-none"/>
-        </label>
-        <button type="submit" disabled={!parsed.title || busy} className={cn("press inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-2xl bg-ink px-4 text-sm font-medium text-white transition-opacity duration-300 disabled:cursor-default disabled:opacity-35", focusRing)}>
-          Add<CornerDownLeft className="size-3.5 opacity-70" aria-hidden/>
-        </button>
-      </form>
-      <AnimatePresence initial={false}>
-        {suggestions.length > 0 || parsed.tokens.length > 0 ? (<motion.div initial={reduce ? false : { opacity: 0, y: -4, height: 0 }} animate={{ opacity: 1, y: 0, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={SPRING} className="overflow-hidden">
-            <div className="flex flex-wrap items-center gap-1.5 px-2 pt-2">
-              {suggestions.length > 0 ? suggestions.map((s, i) => (<button key={s.id} type="button" onClick={() => complete(s.insert)} className={cn("press inline-flex h-7 cursor-pointer items-center gap-1 rounded-full px-3 text-xs font-medium", i === 0 ? "bg-ink text-white" : "bg-surface-sunken text-ink-secondary hover:text-ink", focusRing)}>
-                    {s.label}{i === 0 ? <kbd className="ml-1 rounded bg-white/20 px-1 font-sans text-[10px]">Tab</kbd> : null}
-                  </button>)) : parsed.tokens.map((t) => (<motion.span key={t.kind} layout initial={reduce ? false : { opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={SPRING} className={cn("inline-flex h-7 items-center gap-1 rounded-full px-3 text-xs font-medium", t.kind === "person" ? "bg-brand-soft text-brand-hover" : t.kind === "milestone" ? "bg-surface-sunken text-ink" : "bg-info-soft text-info")}>
-                    {t.kind === "person" ? "For" : t.kind === "milestone" ? "In" : "Due"} {t.label}
-                  </motion.span>))}
-            </div>
-          </motion.div>) : null}
-      </AnimatePresence>
-    </div>);
 }
