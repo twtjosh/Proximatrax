@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { ArrowDown, ArrowRight, ArrowUpRight, Check, LoaderCircle } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, LoaderCircle, Share, SquarePlus, X } from "lucide-react";
 import { stagger } from "@/components/dashboard/overview-kit";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { Footer } from "@/components/landing/footer";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MILESTONES, WINDOWS } from "@/components/landing/journey-windows";
 import { ROUTES } from "@/lib/constants";
+import { promptInstall, useInstallMode } from "@/lib/install-app";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { COMPANY_NAME, TASK_STAGE_TERMS } from "@/lib/vocabulary";
@@ -482,6 +483,56 @@ function Inquiry({ draft, nameRef }: {
     </section>);
 }
 
+const INSTALL_DISMISSED = "proximatrax:install-dismissed";
+
+/**
+ * On phones, an offer to keep ProximaTrax on the home screen, floating at the
+ * foot of the page. Android installs from our own button; on iPhone, where no
+ * page can start an install, it shows the two taps instead. Gone once
+ * installed, and once dismissed it stays gone in this browser.
+ */
+function InstallCard() {
+    const mode = useInstallMode();
+    const reduce = useReducedMotion();
+    const [dismissed, setDismissed] = useState(() => {
+        try {
+            return window.localStorage.getItem(INSTALL_DISMISSED) === "1";
+        }
+        catch {
+            return false;
+        }
+    });
+    function dismiss() {
+        setDismissed(true);
+        try {
+            window.localStorage.setItem(INSTALL_DISMISSED, "1");
+        }
+        catch {
+            // Storage blocked: the card simply offers itself again next visit.
+        }
+    }
+    const step = "mx-0.5 inline size-4 -translate-y-px text-land-ink";
+    return (<AnimatePresence>
+      {mode !== null && !dismissed ? (<motion.aside key="install" aria-label="Install ProximaTrax" initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0, transition: { ...SPRING, delay: 1.2 } }} exit={reduce ? { opacity: 0 } : { opacity: 0, y: 16, transition: { duration: 0.18 } }} className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex items-start gap-3 rounded-[22px] border border-land-line bg-land-raised/95 p-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_24px_56px_-24px_rgb(14_18_34/0.45)] backdrop-blur-2xl backdrop-saturate-[1.8] md:hidden dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_24px_56px_-20px_rgb(0_0_0/0.7)]">
+          <BrandMark className="size-11"/>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <p className="text-[15px] leading-snug font-semibold tracking-[-0.01em] text-land-ink">Keep your project on your home screen</p>
+            {mode === "prompt" ? (<>
+                <p className="mt-0.5 text-sm text-land-ink-2">Opens like an app. No app store needed.</p>
+                <button type="button" onClick={() => void promptInstall()} className={cn(copperButton, "mt-3 h-10 px-4 text-sm")}>
+                  Install app
+                </button>
+              </>) : (<p className="mt-1 text-sm leading-relaxed text-land-ink-2">
+                Tap<Share className={step} aria-hidden/><b className="font-medium text-land-ink">Share</b>, then<SquarePlus className={step} aria-hidden/><b className="font-medium text-land-ink">Add to Home Screen</b>.
+              </p>)}
+          </div>
+          <button type="button" onClick={dismiss} aria-label="Not now" className={cn("press -mt-1 -mr-1 grid size-10 shrink-0 place-items-center rounded-full text-land-ink-3 hover:bg-land-ink/6 hover:text-land-ink", ring)}>
+            <X className="size-4" aria-hidden/>
+          </button>
+        </motion.aside>) : null}
+    </AnimatePresence>);
+}
+
 export function LandingPage() {
     const [draft, setDraft] = useState("");
     const nameRef = useRef<HTMLInputElement>(null);
@@ -500,5 +551,6 @@ export function LandingPage() {
         <Inquiry draft={draft} nameRef={nameRef}/>
       </main>
       <Footer />
+      <InstallCard />
     </div>);
 }
