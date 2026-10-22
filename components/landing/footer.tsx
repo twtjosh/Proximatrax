@@ -27,10 +27,10 @@ export function Footer() {
             <p className="mt-4 text-sm leading-relaxed text-land-ink-2">
               Interior design and fit-out, from site survey to handover. Clients follow approved progress on ProximaTrax.
             </p>
-            <a href="/#inquire" className={cn("group/cta mt-6 inline-flex items-center gap-1.5 rounded text-sm font-medium text-land-accent", ring)}>
+            <Link href="/#inquire" className={cn("group/cta mt-6 inline-flex items-center gap-1.5 rounded text-sm font-medium text-land-accent", ring)}>
               Start an inquiry
               <ArrowRight className="size-4 transition-transform duration-300 ease-spring group-hover/cta:translate-x-0.5" aria-hidden/>
-            </a>
+            </Link>
           </div>
           {COLUMNS.map((col) => (<nav key={col.title} aria-label={col.title}>
               <h2 className="text-sm font-medium text-land-ink">{col.title}</h2>

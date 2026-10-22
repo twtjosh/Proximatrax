@@ -1,4 +1,4 @@
-import { ROLE_TERMS, TASK_STAGE_TERMS } from "@/lib/vocabulary";
+import { ROLE_TERMS, TASK_STAGE_TERMS } from "./vocabulary.ts";
 export const ROUTES = {
     HOME: "/",
     LOGIN: "/login",
@@ -74,7 +74,8 @@ export function sanitizeNextPath(value: string | null | undefined): string | nul
         return null;
     if (!value.startsWith("/"))
         return null;
-    if (value.startsWith("//"))
+    // Browsers read a backslash (92) as a slash, so a path starting with one is another site; control characters (< 32) are dropped too.
+    if (value.startsWith("//") || [...value].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 92))
         return null;
     if (AUTH_PATHS.some((p) => value === p || value.startsWith(`${p}/`))) {
         return null;

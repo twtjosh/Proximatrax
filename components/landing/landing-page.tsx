@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { MILESTONES, WINDOWS } from "@/components/landing/journey-windows";
 import { ROUTES } from "@/lib/constants";
 import { promptInstall, useInstallMode } from "@/lib/install-app";
+import { INQUIRY_LIMITS } from "@/lib/inquiry-input";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { COMPANY_NAME, TASK_STAGE_TERMS } from "@/lib/vocabulary";
@@ -461,16 +462,16 @@ function Inquiry({ draft, nameRef }: {
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label htmlFor="inquiry-name" className="block text-sm font-medium text-ink-secondary">Full name</label>
-                    <input ref={nameRef} id="inquiry-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required className={cn(field, "h-12")}/>
+                    <input ref={nameRef} id="inquiry-name" autoComplete="name" maxLength={INQUIRY_LIMITS.name} value={name} onChange={(e) => setName(e.target.value)} required className={cn(field, "h-12")}/>
                   </div>
                   <div className="space-y-2">
                     <label htmlFor="inquiry-email" className="block text-sm font-medium text-ink-secondary">Email</label>
-                    <input id="inquiry-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className={cn(field, "h-12")}/>
+                    <input id="inquiry-email" type="email" autoComplete="email" maxLength={INQUIRY_LIMITS.email} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className={cn(field, "h-12")}/>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="inquiry-message" className="block text-sm font-medium text-ink-secondary">Your project</label>
-                  <textarea id="inquiry-message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="The space, what you want done, and roughly when." rows={5} required className={cn(field, "resize-y py-3 leading-relaxed")}/>
+                  <textarea id="inquiry-message" maxLength={INQUIRY_LIMITS.message} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="The space, what you want done, and roughly when." rows={5} required className={cn(field, "resize-y py-3 leading-relaxed")}/>
                 </div>
                 {status.kind === "error" ? <p role="alert" className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{status.message}</p> : null}
                 <button type="submit" disabled={status.kind === "sending"} className={cn(copperButton, "h-12 w-full text-[15px]")}>

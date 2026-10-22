@@ -2,7 +2,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { removeRealtimeChannelByName } from "@/lib/supabase/realtime-channel";
 import { formatActivitySentence } from "@/lib/activity-presentation";
 import { projectPath } from "@/lib/constants";
 import { listRecentActivityForViewer, type ActivityWithActor } from "@/services/activity-service";

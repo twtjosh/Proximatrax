@@ -74,6 +74,8 @@ export async function POST(request: Request) {
             full_name: fullName,
             role,
         },
+        // Only the service role can set app_metadata; the signup trigger takes the role from here.
+        app_metadata: { role },
     });
     if (createError || !created.user) {
         return NextResponse.json({ error: createError?.message ?? "Unable to create user" }, { status: 400 });

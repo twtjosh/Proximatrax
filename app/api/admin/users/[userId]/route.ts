@@ -4,6 +4,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { CLASSIFICATION_TERMS } from "@/lib/vocabulary";
 import type { UserRole } from "@/types/enums";
 const DELETABLE_ROLES: UserRole[] = ["project_manager", "middleman", "client"];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function getAdminClient() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,6 +39,10 @@ export async function DELETE(request: Request, context: {
     if (!userId || userId === user.id) {
         return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
     }
+    // The id goes into a PostgREST filter below; anything but a uuid could add conditions to it.
+    if (!UUID.test(userId)) {
+        return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
     const adminClient = getAdminClient();
     if (!adminClient) {
         return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
@@ -71,6 +76,7 @@ export async function DELETE(request: Request, context: {
         return NextResponse.json({ error: projectsError.message }, { status: 500 });
     }
     const linked = (linkedProjects ?? []) as {
+        id: string;
         title: string;
         pm_id: string;
         client_id: string;
@@ -91,7 +97,7 @@ export async function DELETE(request: Request, context: {
                 reassignable: true,
             }, { status: 409 });
         }
-        if (reassignTo === userId) {
+        if (!UUID.test(reassignTo) || reassignTo === userId) {
             return NextResponse.json({ error: "Pick a different project manager." }, { status: 400 });
         }
         const { data: newPm } = await adminClient
@@ -114,6 +120,9 @@ export async function DELETE(request: Request, context: {
     }
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteError) {
+        // Hand the projects back, so a failed delete leaves things as they were.
+        if (managedProjects.length > 0)
+            await adminClient.from("projects").update({ pm_id: userId }).in("id", managedProjects.map((p) => p.id));
         return NextResponse.json({ error: deleteError.message ?? "Unable to delete user." }, { status: 400 });
     }
     return NextResponse.json({ success: true });
