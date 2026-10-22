@@ -81,7 +81,7 @@ export function AddPersonDialog({ onCreated }: { onCreated: (id: string | undefi
     }
 
     return (<>
-      <button type="button" onClick={() => setOpen(true)} className={primaryAction}>
+      <button type="button" onClick={() => { setError(null); setOpen(true); }} className={primaryAction}>
         <Plus aria-hidden/>
         Add person
       </button>

@@ -117,7 +117,7 @@ export function DatesToKnow({ projectTitle, stations, end, today, selected, onSe
                     return (<li key={item.key} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                     <button type="button" disabled={!item.milestoneId} onClick={() => item.milestoneId && onSelect(item.milestoneId)} className={cn("flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left disabled:cursor-default", item.milestoneId && "cursor-pointer", focusRing)}>
                       <span className="grid w-11 shrink-0 rounded-xl bg-surface-sunken py-1 text-center leading-tight" aria-hidden>
-                        <span className="text-[10px] font-semibold text-brand uppercase">{formatDate(item.date, { month: "short" })}</span>
+                        <span className="text-[10px] font-semibold text-brand-hover uppercase">{formatDate(item.date, { month: "short" })}</span>
                         <span className="text-[15px] font-semibold text-ink tabular">{Number(item.date.slice(8))}</span>
                       </span>
                       <span className="min-w-0">

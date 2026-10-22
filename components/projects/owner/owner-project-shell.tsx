@@ -77,7 +77,7 @@ export function OwnerProjectShell({ data, children }: {
                       <span title={data.update.note} className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-px align-[1px] text-xs font-semibold", HEALTH_STYLE[data.update.health].chip)}>
                         <span className={cn("size-1.5 rounded-full", HEALTH_STYLE[data.update.health].dot)} aria-hidden/>
                         {HEALTH[data.update.health].label}
-                        <span className="font-normal opacity-75">{agoPhrase(isoDateIn(data.update.at), today)}</span>
+                        <span className="font-normal">{agoPhrase(isoDateIn(data.update.at), today)}</span>
                       </span>
                     </>) : null}
                 </p>
