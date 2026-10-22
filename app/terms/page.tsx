@@ -97,7 +97,7 @@ export default function TermsPage() {
           <div className="max-w-2xl">
             {SECTIONS.map((s, i) => (<section key={s.id} id={s.id} aria-labelledby={`${s.id}-title`} className="scroll-mt-8 border-t border-land-line py-10 first:border-t-0 first:pt-0">
                 <h2 id={`${s.id}-title`} className="flex items-baseline gap-3 text-xl font-semibold tracking-[-0.02em]">
-                  <span className="text-sm font-medium text-copper tabular">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="text-sm font-medium text-brand tabular">{String(i + 1).padStart(2, "0")}</span>
                   {s.title}
                 </h2>
                 {s.body.map((p) => (<p key={p} className="mt-4 text-[15px] leading-relaxed text-land-ink-2">{p}</p>))}

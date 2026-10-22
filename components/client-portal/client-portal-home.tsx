@@ -122,7 +122,7 @@ function PhotoHero({ project: p, photo, today }: {
       <motion.img src={photo.url} alt={`Site photo: ${photo.taskTitle}`} initial={{ scale: 1.08 }} animate={{ scale: 1 }} transition={{ duration: 2.4, ease: [0.22, 1, 0.36, 1] }} className="absolute inset-0 -z-20 size-full object-cover"/>
       <div aria-hidden className="absolute inset-0 -z-10 bg-linear-to-t from-black/75 via-black/20 to-black/5"/>
       <div className="flex h-full flex-col justify-between p-5 sm:px-7 sm:py-6">
-        <span className={cn("inline-flex h-8 items-center gap-1.5 self-end rounded-full px-3.5 text-xs font-medium ring-1 backdrop-blur-md", due.late ? "bg-black/35 text-amber-200 ring-amber-200/40" : "bg-white/15 text-white ring-white/25")}>
+        <span className={cn("inline-flex h-8 items-center gap-1.5 self-end rounded-full px-3.5 text-xs font-medium ring-1 backdrop-blur-md", due.late ? "bg-black/35 text-amber-200 ring-amber-200/40" : "bg-black/35 text-white ring-white/25")}>
           <CalendarRange className="size-3.5" aria-hidden/>
           {due.text}
         </span>

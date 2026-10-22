@@ -39,7 +39,7 @@ export function ProjectStatusCard({ project, className, progressPct = 0, variant
           <div className="space-y-2">
             {variant === "default" ? (<span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset", STATUS_CHIP[status])}>
                 {STATUS_LABELS[status]}
-              </span>) : (<p className="text-[11px] font-medium uppercase tracking-[0.16em] text-amber-700/90">
+              </span>) : (<p className="text-[11px] font-medium uppercase tracking-[0.16em] text-brand">
                 Engagement
               </p>)}
             <h3 className="font-heading text-lg font-semibold leading-tight tracking-tight text-ink transition-colors group-hover:text-copper">
@@ -53,7 +53,7 @@ export function ProjectStatusCard({ project, className, progressPct = 0, variant
           </p>) : null}
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <div className="flex items-center justify-between text-[11px] font-medium text-ink-tertiary">
             <span>Progress</span>
             <span className="tabular-nums text-slate-900">{progressPct}%</span>
           </div>
@@ -63,7 +63,7 @@ export function ProjectStatusCard({ project, className, progressPct = 0, variant
         </div>
       </div>
 
-      <div className="mt-6 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
+      <div className="mt-6 space-y-2 border-t border-slate-100 pt-4 text-xs text-ink-tertiary">
         <div className="flex items-center gap-2">
           <HardHat className="h-3.5 w-3.5 text-slate-400"/>
           <span className="text-slate-700">

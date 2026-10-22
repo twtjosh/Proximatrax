@@ -203,7 +203,7 @@ function HeroRoute() {
               </motion.span>
               <span className={cn("mt-3 block truncate px-1 text-sm font-medium text-land-ink max-sm:text-xs", i === 2 ? phoneLabel : "max-sm:sr-only")}>{m.title}</span>
               <span className={cn("block text-xs text-land-ink-3 tabular", i === 2 ? phoneLabel : "max-sm:sr-only")}>{done ? `Delivered ${m.due}` : `Due ${m.due}`}</span>
-              <span id={`station-hint-${i}`} role="tooltip" className="pointer-events-none absolute top-[calc(100%+10px)] left-1/2 z-30 w-max max-w-52 -translate-x-1/2 -translate-y-1 rounded-xl bg-land-ink px-3 py-2 text-left text-xs text-land opacity-0 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.45)] transition-[opacity,translate] duration-300 ease-spring group-hover/station:translate-y-0 group-hover/station:opacity-100 group-focus-visible/station:translate-y-0 group-focus-visible/station:opacity-100 max-sm:hidden">
+              <span id={`station-hint-${i}`} role="tooltip" className={cn("pointer-events-none absolute top-[calc(100%+10px)] z-30 w-max max-w-52 -translate-y-1", i === 0 ? "left-0" : i === MILESTONES.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2", "rounded-xl bg-land-ink px-3 py-2 text-left text-xs text-land opacity-0 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.45)] transition-[opacity,translate] duration-300 ease-spring group-hover/station:translate-y-0 group-hover/station:opacity-100 group-focus-visible/station:translate-y-0 group-focus-visible/station:opacity-100 max-sm:hidden")}>
                 <span className="block font-semibold">{STATION_HINT[i]}</span>
                 <span className="mt-0.5 flex items-center gap-1 opacity-70">See it below<ArrowDown className="size-3" aria-hidden/></span>
               </span>

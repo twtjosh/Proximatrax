@@ -45,7 +45,7 @@ export function OwnerOverview({ greeting, today, analytics: a, inquiries, unopen
       <OverviewHeader title={greeting} sub={formatDate(today, { weekday: "long", month: "long", day: "numeric" })} actions={<Link href={ROUTES.INQUIRIES} className={primaryAction}>
             <Inbox aria-hidden/>
             Open inquiries
-            {unopenedInquiries > 0 ? <span className="rounded-full bg-white/20 px-2 text-xs leading-5 tabular">{unopenedInquiries}</span> : null}
+            {unopenedInquiries > 0 ? <span className="rounded-full bg-brand-hover px-2 text-xs leading-5 tabular">{unopenedInquiries}</span> : null}
           </Link>}/>
 
       <p className="materialize mt-7 max-w-[30em] text-[20px] leading-[1.35] font-[450] tracking-[-0.022em] text-pretty text-ink-secondary sm:text-[26px] [&_b]:font-semibold [&_b]:text-ink" style={stagger(1)}>
@@ -79,7 +79,7 @@ export function OwnerOverview({ greeting, today, analytics: a, inquiries, unopen
             </ul>)}
         </OverviewCard>
 
-        <OverviewCard id="inquiries-heading" title="Inquiries this year" aside={<Link href={ROUTES.INQUIRIES} className={cn("inline-flex items-center gap-0.5 text-[13px] font-medium text-brand hover:text-brand-hover", focusRing)}>Inbox<ChevronRight className="size-3.5" aria-hidden/></Link>} className="materialize" style={stagger(4)}>
+        <OverviewCard id="inquiries-heading" title="Inquiries this year" aside={<Link href={ROUTES.INQUIRIES} className={cn("-my-1 inline-flex items-center gap-0.5 py-1 text-[13px] font-medium text-brand hover:text-brand-hover", focusRing)}>Inbox<ChevronRight className="size-3.5" aria-hidden/></Link>} className="materialize" style={stagger(4)}>
           <div className="px-5 pb-5 sm:px-6">
             <p className="text-[34px] leading-none font-semibold tracking-[-0.03em] text-ink tabular">
               {inquiries.received}

@@ -114,7 +114,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
             <Meta icon={CalendarRange} label="Start" value={long(project.start)}/>
             <Meta icon={CalendarCheck2} label="Due" value={long(project.end)}/>
             <Meta icon={Hourglass} label="Duration" value={`${plural(planned, "day")} · ${plural(Math.ceil(planned / 7), "week")}`}/>
-            <span className={cn("rounded-full px-2 text-xs leading-[22px] font-semibold", CHIP[status.tone])}>{status.text}</span>
+            <div><dt className="sr-only">Status</dt><dd className={cn("rounded-full px-2 text-xs leading-[22px] font-semibold", CHIP[status.tone])}>{status.text}</dd></div>
           </dl>
         </div>
         <Segmented label="View by" value={unit} onChange={(v) => switchUnit(v as Unit)} options={[{ value: "day", label: "Daily" }, { value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]}/>
@@ -294,11 +294,11 @@ function Marker({ icon: Icon, text, right }: { icon: typeof Flag; text: string; 
 }
 
 function Meta({ icon: Icon, label, value }: { icon: typeof Hourglass; label: string; value: string }) {
-    return (<span className="inline-flex items-center gap-1.5">
+    return (<div className="inline-flex items-center gap-1.5">
       <Icon className="size-3.5 text-ink-tertiary" aria-hidden/>
       <dt className="text-ink-tertiary">{label}</dt>
       <dd className="font-medium text-ink tabular">{value}</dd>
-    </span>);
+    </div>);
 }
 
 /** A switch between a few options; the thumb slides to the chosen one. */

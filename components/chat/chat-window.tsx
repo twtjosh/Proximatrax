@@ -158,7 +158,7 @@ export function ChatWindow({ projectId, initialMessages, initialAttachments, vie
 
       <form onSubmit={(e) => void handleSend(e)} className={floating ? "shrink-0 px-3 pt-1 pb-3" : "shrink-0 border-t border-line p-3"}>
         <div className={cn("flex items-center gap-1.5 rounded-full p-1 pl-1.5", floating ? "bg-surface/95 p-1.5 shadow-[0_1px_2px_rgb(14_18_34/0.08),0_16px_32px_-18px_rgb(14_18_34/0.45)] ring-1 ring-line/70 backdrop-blur-xl" : "bg-surface-sunken")}>
-          <input ref={fileInputRef} type="file" className="sr-only" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={(e) => void handleFilePick(e)}/>
+          <input ref={fileInputRef} type="file" className="sr-only" tabIndex={-1} aria-hidden="true" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={(e) => void handleFilePick(e)}/>
           <button type="button" disabled={uploading || sending} onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" className={cn("grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors disabled:opacity-50", floating ? "size-10 bg-surface-sunken text-ink hover:text-brand" : "size-8 text-ink-tertiary hover:bg-surface hover:text-brand", focusRing)}>
             {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Paperclip className="size-4" aria-hidden/>}
           </button>

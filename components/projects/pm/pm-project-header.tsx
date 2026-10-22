@@ -62,7 +62,7 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
         <span className={cn("block text-[13px] font-semibold text-ink tabular transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "scale-[1.15]")}>{Math.round(share * 100)}</span>
       </ProgressRing>
       <div className="min-w-0 flex-1">
-        <button type="button" onClick={back} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("mb-0.5 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
+        <button type="button" onClick={back} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("-my-1 mb-[-0.125rem] inline-flex items-center gap-1 rounded-sm py-1 text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
           <ArrowLeft className="size-3.5" aria-hidden/>
           Back
         </button>
@@ -79,7 +79,7 @@ export function PmProjectHeader({ projectId, title, client, accepted, total, tas
               <button type="button" onClick={postUpdate} tabIndex={compact ? -1 : undefined} title={update.note} className={cn("inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-px align-[1px] text-xs font-semibold", HEALTH_STYLE[update.health].chip, focusRing)}>
                 <span className={cn("size-1.5 rounded-full", HEALTH_STYLE[update.health].dot)} aria-hidden/>
                 {HEALTH[update.health].label}
-                <span className="font-normal opacity-75">{agoPhrase(isoDateIn(update.at), isoDateIn(new Date()))}</span>
+                <span className="font-normal">{agoPhrase(isoDateIn(update.at), isoDateIn(new Date()))}</span>
               </button>
             </>) : null}
         </p>

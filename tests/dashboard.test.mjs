@@ -118,6 +118,9 @@ test("overview wording helpers", async () => {
     const { plural, relativeDay, duePhrase, relativePast, spanShare, greeting } = await import("../lib/dashboard.ts");
     assert.equal(plural(1, "task"), "1 task");
     assert.equal(plural(3, "task"), "3 tasks");
+    assert.equal(plural(9, "inquiry"), "9 inquiries");
+    assert.equal(plural(2, "day"), "2 days");
+    assert.equal(plural(1, "inquiry"), "1 inquiry");
     assert.equal(relativeDay(TODAY, TODAY), "Today");
     assert.equal(relativeDay("2026-10-05", TODAY), "Tomorrow");
     assert.equal(relativeDay("2026-10-07", TODAY), "Wed, Oct 7");

@@ -69,8 +69,8 @@ export default async function ProjectsPage(props: {
                 : "flex flex-col gap-5 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between"}>
         <div className={cn("space-y-2", isPm && "space-y-1.5", (isClient || isMiddleman) && "max-lg:pr-14")}>
           {!isPm ? (<p className={isClient
-                ? "text-[11px] font-medium uppercase tracking-[0.16em] text-stone-500"
-                : "font-mono text-[10px] uppercase tracking-[0.24em] text-[#d97706]"}>
+                ? "text-[11px] font-medium uppercase tracking-[0.16em] text-ink-tertiary"
+                : "font-mono text-[10px] uppercase tracking-[0.24em] text-brand"}>
               {isMiddleman ? "Field workspace · My projects" : isClient ? "Portfolio" : "Workspace · Projects"}
             </p>) : null}
           <h1 className={isClient
@@ -88,7 +88,7 @@ export default async function ProjectsPage(props: {
                         ? "Completed projects"
                         : "Projects"}
           </h1>
-          <p className={cn(isClient ? "max-w-2xl text-sm leading-relaxed text-stone-600" : "max-w-2xl text-sm leading-relaxed text-slate-500", isPm && "text-[13px] text-muted-ink")}>
+          <p className={cn(isClient ? "max-w-2xl text-sm leading-relaxed text-stone-600" : "max-w-2xl text-sm leading-relaxed text-ink-tertiary", isPm && "text-[13px] text-ink-tertiary")}>
             {isArchiveView ? (isClient ? (<>
                   Formally closed engagements with AEG Fashion — milestones,
                   deliverables, and messages remain available for reference.
@@ -136,7 +136,7 @@ function MaintenanceOnlyNotice() {
         <h2 className="font-heading text-lg tracking-tight text-slate-950">
           Projects are outside SuperAdmin scope
         </h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+        <p className="mt-2 max-w-md text-sm leading-6 text-ink-tertiary">
           SuperAdmin access is reserved for maintenance and account
           provisioning. Use an Admin account to manage projects.
         </p>
@@ -152,14 +152,14 @@ function EmptyState({ canCreate, isPm, view, }: {
     return (<div className={cn("flex flex-col items-center justify-center gap-4 border border-dashed bg-white p-12 text-center", isPm
             ? "rounded-2xl border-slate-200 shadow-sm"
             : "border-slate-300")}>
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-[#d97706] ring-1 ring-amber-200/60">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-brand ring-1 ring-amber-200/60">
         <Building2 className="h-5 w-5"/>
       </div>
       <div className="space-y-1">
         <h2 className="font-heading text-lg font-semibold tracking-tight text-slate-950">
           {isArchive ? "No completed projects" : "No active projects"}
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-tertiary">
           {isArchive
             ? "Finished engagements appear here after your project manager formally closes them."
             : canCreate

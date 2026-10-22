@@ -44,7 +44,10 @@ export function MessagesScreen({ viewer, projectId }: {
             <p className="mt-1.5 text-sm leading-relaxed text-ink-tertiary">Each project you join has its own conversation with its project manager and team.</p>
           </div>
         </div>) : (<>
-          <Conversation key={current.id} project={current} viewer={viewer} screen={{ onSwitch: () => setSwitching(true), elsewhere }}/>
+          {/* A reading column on wide screens; on a phone it is the whole screen anyway. */}
+          <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+            <Conversation key={current.id} project={current} viewer={viewer} screen={{ onSwitch: () => setSwitching(true), elsewhere }}/>
+          </div>
           <RoomSheet open={switching} onOpenChange={setSwitching} inbox={inbox} currentId={current.id} onPick={(id) => {
                 setSwitching(false);
                 router.replace(`${ROUTES.MESSAGES}?project=${id}`);

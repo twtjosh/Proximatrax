@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
         </form>
 
         <div className="mt-8 flex justify-center">
-          <Link href="/login" prefetch={false} className="inline-flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d97706] transition-colors hover:text-[#b46305] dark:text-[#f3b35d] dark:hover:text-white">
+          <Link href="/login" prefetch={false} className="-my-1.5 inline-flex items-center gap-2 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d97706] transition-colors hover:text-[#b46305] dark:text-[#f3b35d] dark:hover:text-white">
             <ArrowLeft className="h-3.5 w-3.5"/>
             Back to login
           </Link>

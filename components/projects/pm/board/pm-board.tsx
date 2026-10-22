@@ -144,7 +144,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
       {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
 
       {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
-        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+        <div role="region" aria-label="Board columns" tabIndex={0} className={cn("-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0", focusRing)}>
           {COLUMNS.map((col, ci) => {
                 const all = order(col.stage, visible.filter((t) => normalizeBoardStage(t.stage) === col.stage), today);
                 const shown = col.stage === "done" && !allAccepted ? all.slice(0, ACCEPTED_SHOWN) : all;

@@ -2,7 +2,7 @@ import type { ProjectStatus } from "@/types/enums";
 export const PM_PROJECT_STATUS_CHIP: Record<ProjectStatus, string> = {
     pending_invites: "bg-amber-100 text-amber-900 ring-amber-200/80",
     planning: "bg-slate-100 text-slate-700 ring-slate-200/90",
-    in_progress: "bg-copper-soft text-copper ring-copper/30",
+    in_progress: "bg-brand-soft text-brand ring-brand/30",
     on_hold: "bg-slate-100 text-slate-600 ring-slate-200/90",
     completed: "bg-success-soft text-emerald-800 ring-emerald-200/70",
 };

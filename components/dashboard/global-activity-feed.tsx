@@ -32,7 +32,7 @@ export function GlobalActivityFeed({ initialItems, projectTitles, rowAsProjectLi
     }, []);
     const visible = maxRows != null ? items.slice(0, maxRows) : items;
     if (items.length === 0) {
-        return (<p className="border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center text-sm text-slate-500">
+        return (<p className="border border-dashed border-slate-200 bg-slate-50/60 p-8 text-center text-sm text-ink-tertiary">
         Operational activity will appear here as your team moves work across projects.
       </p>);
     }

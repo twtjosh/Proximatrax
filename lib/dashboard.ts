@@ -127,8 +127,10 @@ export function portfolioStages(loads: Iterable<ProjectLoad>): StageCounts & { t
 
 /* Wording shared by every role's Overview. Dates are ISO calendar dates. */
 
+/** "1 task", "3 tasks", "2 inquiries": a consonant before a final y takes -ies. */
 export function plural(n: number, noun: string): string {
-    return `${n} ${noun}${n === 1 ? "" : "s"}`;
+    if (n === 1) return `${n} ${noun}`;
+    return `${n} ${/[^aeiou]y$/i.test(noun) ? `${noun.slice(0, -1)}ies` : `${noun}s`}`;
 }
 
 export function formatDate(iso: string, options: Intl.DateTimeFormatOptions): string {

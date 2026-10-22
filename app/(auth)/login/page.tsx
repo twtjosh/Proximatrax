@@ -73,7 +73,7 @@ export default function LoginPage() {
               <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Password
               </Label>
-              <Link href={ROUTES.FORGOT_PASSWORD} prefetch={false} className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d97706] hover:text-[#b46305] dark:text-[#d97706] dark:hover:text-[#f3b35d]">
+              <Link href={ROUTES.FORGOT_PASSWORD} prefetch={false} className="-my-1.5 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#d97706] hover:text-[#b46305] dark:text-[#d97706] dark:hover:text-[#f3b35d]">
                 Forgot?
               </Link>
             </div>

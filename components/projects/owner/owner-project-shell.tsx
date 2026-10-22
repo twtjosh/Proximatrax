@@ -60,7 +60,7 @@ export function OwnerProjectShell({ data, children }: {
                 <span className={cn("block text-[13px] font-semibold text-ink tabular transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "scale-[1.15]")}>{Math.round(share * 100)}</span>
               </ProgressRing>
               <div className="min-w-0 flex-1">
-                <button type="button" onClick={() => router.push(analyticsManagerPath(project.pm_id))} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("mb-0.5 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
+                <button type="button" onClick={() => router.push(analyticsManagerPath(project.pm_id))} tabIndex={compact ? -1 : undefined} aria-hidden={compact || undefined} className={cn("-my-1 mb-[-0.125rem] inline-flex items-center gap-1 rounded-sm py-1 text-xs font-medium text-ink-tertiary transition-opacity duration-300 hover:text-ink motion-reduce:transition-none", compact && "pointer-events-none opacity-0", focusRing)}>
                   <ArrowLeft className="size-3.5" aria-hidden/>
                   {pm}’s projects
                 </button>

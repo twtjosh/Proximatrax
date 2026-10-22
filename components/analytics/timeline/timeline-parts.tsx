@@ -81,7 +81,7 @@ export function KindLegend() {
 /** Now, Due, Upcoming, Past due: what a period is, in small labels. */
 export function PeriodFlags({ period, due, className }: { period: Period; due?: boolean; className?: string }) {
     return (<span className={cn("flex flex-wrap gap-1", className)}>
-      {period.current ? <span className="rounded-full bg-copper px-1.5 text-[10.5px] leading-[18px] font-semibold text-white">Now</span> : null}
+      {period.current ? <span className="rounded-full bg-brand px-1.5 text-[10.5px] leading-[18px] font-semibold text-white">Now</span> : null}
       {due ? <span className="rounded-full bg-ink px-1.5 text-[10.5px] leading-[18px] font-semibold text-surface">Due</span> : null}
       {period.beyond ? <span className="rounded-full bg-danger-soft px-1.5 text-[10.5px] leading-[18px] font-semibold text-danger">Past due</span> : null}
       {period.upcoming && !period.current ? <span className="rounded-full bg-surface-sunken px-1.5 text-[10.5px] leading-[18px] font-semibold text-ink-tertiary">Upcoming</span> : null}

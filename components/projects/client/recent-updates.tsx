@@ -17,7 +17,7 @@ export function RecentUpdates({ projectId, updates, milestones, fresh }: {
     /** Updates new since the last visit. */
     fresh: Set<string>;
 }) {
-    return (<OverviewCard id="recent-updates" title="Recent updates" aside={updates.length > 0 ? (<Link href={projectBoardPath(projectId)} className={cn("inline-flex items-center gap-0.5 rounded-sm font-medium text-ink-secondary hover:text-ink", focusRing)}>
+    return (<OverviewCard id="recent-updates" title="Recent updates" aside={updates.length > 0 ? (<Link href={projectBoardPath(projectId)} className={cn("-my-1 inline-flex items-center gap-0.5 rounded-sm py-1 font-medium text-ink-secondary hover:text-ink", focusRing)}>
           All {updates.length}<ArrowUpRight className="size-3.5" aria-hidden/>
         </Link>) : undefined} className="materialize">
       {updates.length === 0 ? (<p className="px-5 pb-5 text-sm leading-relaxed text-ink-secondary sm:px-6">Nothing accepted yet. Finished work shows up here once your project manager accepts it.</p>) : (<ol className="px-5 pb-4 sm:px-6">

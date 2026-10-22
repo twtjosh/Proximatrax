@@ -250,8 +250,8 @@ function Options({ label, children }: { label: string; children: React.ReactNode
 }
 
 function Option({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-    return (<li role="option" aria-selected={on}>
-      <button type="button" onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-ink transition-colors", on ? "bg-brand-soft" : "hover:bg-surface", focusRing)}>
+    return (<li role="none">
+      <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-ink transition-colors", on ? "bg-brand-soft" : "hover:bg-surface", focusRing)}>
         {children}
         {on ? <Check className="size-4 shrink-0 text-brand" aria-hidden/> : null}
       </button>

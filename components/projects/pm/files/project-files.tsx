@@ -163,7 +163,7 @@ export function ProjectFiles({ projectId, files, missing, photos, people, closed
                 </button>))}
             </div>) : null}
           {canUpload ? (<button type="button" onClick={() => input.current?.click()} className={cn(primaryAction, "ml-auto h-9 px-4")}><Upload aria-hidden/>Upload</button>) : null}
-          <input ref={input} type="file" multiple className="sr-only" tabIndex={-1} onChange={(e) => {
+          <input ref={input} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => {
                 void upload(e.target.files);
                 e.target.value = "";
             }}/>
