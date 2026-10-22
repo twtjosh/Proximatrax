@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysPerTask, flowSummary, journeyStat, median, openNow, readiness, reworkDays, scopeFlow, stepOf, stepStats, visits, weekStarts } from "../lib/flow.ts";
+import { daysPerTask, flowSummary, journeyStat, median, openNow, readiness, reworkDays, scopeFlow, spans, stepOf, stepStats, throughput, visits, weekStarts } from "../lib/flow.ts";
 
 const TODAY = "2026-10-15"; // a Thursday
 /** 02:00Z is 10:00 in Manila: the same calendar date. */
@@ -165,4 +165,13 @@ test("readiness: the latest of created, planned start and the earlier phases' la
     // Later tasks aren't waiting: their To do stay is left out of the step's numbers.
     const all = stepStats(visits(tasks, [], r), "2026-10-01", TODAY)[0];
     assert.equal(all.tasks, 3);
+});
+
+test("spans cover 14 days, 12 weeks or 12 months, the last ending today, and throughput counts each", () => {
+    const days = spans(TODAY, "day"), weeks = spans(TODAY, "week"), months = spans(TODAY, "month");
+    assert.deepEqual([days.length, days[0], days[13]], [14, { start: "2026-10-02", end: "2026-10-02" }, { start: TODAY, end: TODAY }]);
+    assert.deepEqual([weeks.length, weeks[11]], [12, { start: "2026-10-09", end: TODAY }]);
+    assert.deepEqual([months.length, months[0], months[10], months[11]], [12, { start: "2025-11-01", end: "2025-11-30" }, { start: "2026-09-01", end: "2026-09-30" }, { start: "2026-10-01", end: TODAY }]);
+    assert.deepEqual(throughput([t1, t2], months.slice(10)), { added: [0, 2], accepted: [0, 2] });
+    assert.deepEqual(throughput([t1, t2], days.slice(-5)), { added: [0, 0, 0, 0, 0], accepted: [1, 0, 0, 1, 0] });
 });

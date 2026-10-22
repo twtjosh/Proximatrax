@@ -1,6 +1,6 @@
 import * as React from "react";
 import { addDays, formatDate } from "@/lib/dashboard";
-import { cn } from "@/lib/utils";
+import type { Grain, Span } from "@/lib/flow";
 
 /**
  * The Analytics charts. Lines and fills are SVG stretched to the box; labels,
@@ -21,25 +21,25 @@ function smooth(p: number[][]): string {
 
 const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
 
-/** First, middle and last week under a weekly chart, each by its last day, so the right edge is today. */
-export function WeekAxis({ weeks, className }: { weeks: string[]; className?: string }) {
-    const picks = [...new Set([0, Math.floor((weeks.length - 1) / 2), weeks.length - 1])];
-    return (<div className={cn("mt-1.5 flex justify-between text-[11.5px] text-ink-tertiary", className)} aria-hidden>
-      {picks.map((i) => <span key={i}>{short(addDays(weeks[i], 6))}</span>)}
+/** First, middle and last span under a chart, each by its last day (month by name), so the right edge is today. */
+function Axis({ spans, grain }: { spans: Span[]; grain: Grain }) {
+    const picks = [...new Set([0, Math.floor((spans.length - 1) / 2), spans.length - 1])];
+    return (<div className="mt-1.5 flex justify-between text-[11.5px] text-ink-tertiary" aria-hidden>
+      {picks.map((i) => <span key={i}>{grain === "month" ? formatDate(spans[i].start, { month: "short" }) : short(spans[i].end)}</span>)}
     </div>);
 }
 
 const niceTop = (max: number, step: number) => Math.max(step, Math.ceil(max / step) * step);
 
-/** Tasks accepted each week as a filled line, tasks added as a plain one: the gap between them is open work growing or shrinking. */
-export function AreaChart({ accepted, added, weeks }: { accepted: number[]; added: number[]; weeks: string[] }) {
+/** Tasks accepted each span as a filled line, tasks added as a plain one: the gap between them is open work growing or shrinking. */
+export function AreaChart({ accepted, added, spans, grain }: { accepted: number[]; added: number[]; spans: Span[]; grain: Grain }) {
     const id = React.useId();
     const n = accepted.length, top = niceTop(Math.max(...accepted, ...added), 4);
     const x = (i: number) => (n === 1 ? 50 : (i / (n - 1)) * 100), y = (v: number) => 100 - (v / top) * 100;
     const pts = accepted.map((v, i) => [x(i), y(v)]), inPts = added.map((v, i) => [x(i), y(v)]);
     const step = n === 1 ? 100 : 100 / (n - 1);
     return (<div className="pl-8">
-      <div className="relative h-56" role="img" aria-label={`Tasks accepted each week: ${accepted.join(", ")}. Tasks added: ${added.join(", ")}.`}>
+      <div className="relative h-56" role="img" aria-label={`Tasks accepted each ${grain}: ${accepted.join(", ")}. Tasks added: ${added.join(", ")}.`}>
         {[0, top / 2, top].map((t) => (<div key={t} className="absolute inset-x-0 border-t border-line" style={{ top: `${y(t)}%` }}>
             <span className="absolute -left-8 w-6 -translate-y-1/2 text-right text-[11.5px] text-ink-tertiary tabular">{t}</span>
           </div>))}
@@ -58,7 +58,7 @@ export function AreaChart({ accepted, added, weeks }: { accepted: number[]; adde
         <span className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-copper ring-[3px] ring-surface" style={{ left: `${x(n - 1)}%`, top: `${y(accepted[n - 1])}%` }} aria-hidden/>
         {accepted.map((v, i) => {
             const left = Math.max(0, x(i) - step / 2), at = `${((x(i) - left) / step) * 100}%`;
-            return (<div key={i} className="group/pt absolute inset-y-0" style={{ left: `${left}%`, width: `${step}%` }} data-tip={`${weekRange(weeks[i])}
+            return (<div key={i} className="group/pt absolute inset-y-0" style={{ left: `${left}%`, width: `${step}%` }} data-tip={`${spanLabel(spans[i], grain)}
 ${v} accepted · ${added[i]} added`}>
               <span className="absolute inset-y-0 w-px bg-line-strong opacity-0 transition-opacity group-hover/pt:opacity-100" style={{ left: at }}/>
               <span className="absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--series-2)] opacity-0 ring-2 ring-surface transition-opacity group-hover/pt:opacity-100" style={{ left: at, top: `${y(added[i])}%` }}/>
@@ -66,7 +66,7 @@ ${v} accepted · ${added[i]} added`}>
             </div>);
         })}
       </div>
-      <WeekAxis weeks={weeks}/>
+      <Axis spans={spans} grain={grain}/>
     </div>);
 }
 
@@ -74,4 +74,9 @@ ${v} accepted · ${added[i]} added`}>
 export function weekRange(start: string): string {
     const end = addDays(start, 6);
     return `${short(start)} to ${end.slice(5, 7) === start.slice(5, 7) ? Number(end.slice(8)) : short(end)}`;
+}
+
+/** A span in full: "Thu, Oct 22", a week range, or "October 2026". */
+export function spanLabel(s: Span, grain: Grain): string {
+    return grain === "day" ? formatDate(s.start, { weekday: "short", month: "short", day: "numeric" }) : grain === "week" ? weekRange(s.start) : formatDate(s.start, { month: "long", year: "numeric" });
 }
