@@ -1,13 +1,13 @@
 "use client";
 import * as React from "react";
 import { ChartLine, Table2 } from "lucide-react";
-import { AreaChart, spanLabel } from "@/components/analytics/flow-charts";
+import { AreaChart, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
-import { ProjectTimeline, Segmented } from "@/components/analytics/timeline/project-timeline";
+import { ProjectTimeline } from "@/components/analytics/timeline/project-timeline";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
 import { openLoad, type Person, type TaskMove } from "@/lib/analytics";
-import { daysBetween, isoDateIn } from "@/lib/dashboard";
-import { daysPerTask, openNow, scopeFlow, spans, throughput, type FlowPhase, type FlowTask, type Grain } from "@/lib/flow";
+import { addDays, isoDateIn } from "@/lib/dashboard";
+import { daysPerTask, flowSummary, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask } from "@/lib/flow";
 import type { TimelineData } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 
@@ -20,18 +20,14 @@ export type FlowData = {
     timeline: TimelineData;
 };
 type Viewer = "pm" | "owner";
-/** Throughput and Workload look back over the chosen grain's spans, so the chart adds up to its summary. */
-const GRAINS: { value: Grain; label: string; range: string }[] = [
-    { value: "day", label: "Daily", range: "Last 14 days, day by day" },
-    { value: "week", label: "Weekly", range: "Last 12 weeks, week by week" },
-    { value: "month", label: "Monthly", range: "Last 12 months, month by month" },
-];
+/** Throughput and Workload look back this many whole weeks, so the weekly chart adds up to its summary. */
+const WEEKS = 12;
 
 /**
  * The Analytics page's Flow: how work moves through a manager's projects.
  * The project timeline (one project, week by week, with its own project
  * picker), then throughput (added against accepted) and workload across all
- * of them, daily, weekly or monthly, side by side at one height. Every count is
+ * of them over the last 12 weeks, side by side at one height. Every count is
  * worked out in the browser from the raw rows.
  */
 export function FlowView({ data, viewer, today, title, sub, before }: {
@@ -46,28 +42,28 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
     before?: React.ReactNode;
 }) {
     const [table, setTable] = React.useState(false);
-    const [grain, setGrain] = React.useState<Grain>("week");
     const root = React.useRef<HTMLDivElement>(null);
 
-    const ss = React.useMemo(() => spans(today, grain), [today, grain]);
-    const tp = React.useMemo(() => throughput(data.tasks, ss), [data.tasks, ss]);
-    const from = ss[0].start, windowDays = daysBetween(from, today) + 1;
+    // From every task: a phase opens only when all of its tasks are accepted, whoever they belong to.
+    const ready = React.useMemo(() => readiness(data.tasks, data.phases, today), [data.tasks, data.phases, today]);
+    const s = React.useMemo(() => flowSummary(data.tasks, data.moves, today, WEEKS, ready), [data.tasks, data.moves, today, ready]);
 
     // Workload: everyone's open work.
     const workload = React.useMemo(() => {
-        const team = daysPerTask(data.tasks, data.moves, today, windowDays);
+        const from = addDays(today, 1 - WEEKS * 7);
+        const team = daysPerTask(data.tasks, data.moves, today, WEEKS * 7);
         const rows = data.crew.map((p) => {
             const mine = scopeFlow(data.tasks, data.moves, (t) => t.assigned_to === p.id);
             const open = openNow(mine.tasks, mine.moves, today).map((l) => l.length);
             const inPeriod = mine.moves.filter((m) => isoDateIn(m.at) >= from);
             const submitted = inPeriod.filter((m) => m.to === "review").length, back = inPeriod.filter((m) => m.from === "review" && m.to === "in_progress").length;
-            return { person: p, open, late: openLoad(mine.tasks, today).late, pace: daysPerTask(mine.tasks, mine.moves, today, windowDays), submitted, back };
+            return { person: p, open, late: openLoad(mine.tasks, today).late, pace: daysPerTask(mine.tasks, mine.moves, today, WEEKS * 7), submitted, back };
         }).filter((r) => r.open.some(Boolean) || r.submitted > 0);
         const maxOpen = Math.max(1, ...rows.map((r) => r.open[0] + r.open[1] + r.open[2]));
         const worst = rows.filter((r) => r.submitted >= 3 && r.back / r.submitted > 0.12).sort((a, b) => b.back / b.submitted - a.back / a.submitted)[0]?.person.id;
         const total = rows.reduce((t, r) => ({ open: t.open + r.open[0] + r.open[1] + r.open[2], late: t.late + r.late, review: t.review + r.open[2] }), { open: 0, late: 0, review: 0 });
         return { team, rows, maxOpen, worst, total };
-    }, [data.tasks, data.moves, data.crew, today, from, windowDays]);
+    }, [data.tasks, data.moves, data.crew, today]);
 
     const timeline = <ProjectTimeline data={data.timeline} tasks={data.tasks} moves={data.moves} viewer={viewer} today={today}/>;
     if (data.tasks.length === 0) {
@@ -78,9 +74,7 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
         </div>);
     }
 
-    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-    const added = sum(tp.added), accepted = sum(tp.accepted), net = added - accepted;
-    const g = GRAINS.find((x) => x.value === grain)!;
+    const net = s.now.added - s.now.accepted;
     const whose = viewer === "pm" ? "your" : "their";
 
     return (<div ref={root} className="relative scroll-mt-6">
@@ -89,29 +83,24 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
 
       {timeline}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13.5px] font-medium text-ink-secondary">{g.range}</p>
-        <Segmented label="Monitor" value={grain} onChange={(v) => setGrain(v as Grain)} options={GRAINS}/>
-      </div>
-
-      <div className="mt-3 grid items-stretch gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-2">
         {/* Throughput */}
-        <OverviewCard id="throughput-heading" title="Throughput" sub={`Tasks added and accepted each ${grain}`} className="materialize flex flex-col [&>div:first-child]:min-h-[74px]" style={stagger(2)} aside={<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-ink-secondary">
+        <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks added and accepted each week · last 12 weeks" className="materialize flex flex-col [&>div:first-child]:min-h-[74px]" style={stagger(2)} aside={<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-ink-secondary">
             <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-copper" aria-hidden/>Accepted</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-[color:var(--series-2)]" aria-hidden/>Added</span>
             <button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 font-medium hover:text-ink", focusRing)}>{table ? <><ChartLine className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>
           </div>}>
           <p className="px-5 pt-1 text-[13.5px] text-ink-secondary sm:px-6">
-            <b className="font-semibold text-ink tabular">{added}</b> added · <b className="font-semibold text-ink tabular">{accepted}</b> accepted · {net === 0 ? "open work unchanged" : <>open work {net > 0 ? "up" : "down"} <b className="font-semibold text-ink tabular">{Math.abs(net)}</b></>}
+            <b className="font-semibold text-ink tabular">{s.now.added}</b> added · {net === 0 ? "open work unchanged" : <>open work {net > 0 ? "up" : "down"} <b className="font-semibold text-ink tabular">{Math.abs(net)}</b></>}
           </p>
           {/* The table scrolls inside the chart's space, so switching views never changes the card's height. */}
           <div className="relative flex min-h-56 flex-1 flex-col justify-center px-4 pt-4 pb-5 sm:px-5">
-            {table ? (<div tabIndex={0} aria-label={`${g.label} throughput table`} className={cn("absolute inset-x-4 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-5", focusRing)}>
+            {table ? (<div tabIndex={0} aria-label="Weekly throughput table" className={cn("absolute inset-x-4 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-5", focusRing)}>
                 <table className="w-full text-[13px] tabular">
-                  <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium capitalize">{grain}</th><th className="px-3 py-2 text-right font-medium">Added</th><th className="px-3 py-2 text-right font-medium">Accepted</th></tr></thead>
-                  <tbody>{ss.map((sp, i) => <tr key={sp.start} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{spanLabel(sp, grain)}</td><td className="px-3 py-1.5 text-right">{tp.added[i]}</td><td className="px-3 py-1.5 text-right">{tp.accepted[i]}</td></tr>)}</tbody>
+                  <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium">Week</th><th className="px-3 py-2 text-right font-medium">Added</th><th className="px-3 py-2 text-right font-medium">Accepted</th></tr></thead>
+                  <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{weekRange(w)}</td><td className="px-3 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-3 py-1.5 text-right">{s.weekly.accepted[i]}</td></tr>)}</tbody>
                 </table>
-              </div>) : <AreaChart accepted={tp.accepted} added={tp.added} spans={ss} grain={grain}/>}
+              </div>) : <AreaChart accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks}/>}
           </div>
         </OverviewCard>
 

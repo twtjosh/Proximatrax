@@ -225,32 +225,6 @@ export function weekStarts(today: string, count: number): string[] {
     return Array.from({ length: count }, (_, i) => addDays(today, 1 - 7 * (count - i)));
 }
 
-/** How a throughput chart splits time: by day, seven-day week, or calendar month. */
-export type Grain = "day" | "week" | "month";
-export type Span = { start: string; end: string };
-
-/** The spans a chart of `grain` covers, oldest first, the last ending today: 14 days, 12 weeks, or 12 months (this one so far). */
-export function spans(today: string, grain: Grain): Span[] {
-    if (grain === "day")
-        return Array.from({ length: 14 }, (_, i) => addDays(today, i - 13)).map((d) => ({ start: d, end: d }));
-    if (grain === "week")
-        return weekStarts(today, 12).map((start) => ({ start, end: addDays(start, 6) }));
-    const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7)) - 1;
-    return Array.from({ length: 12 }, (_, i) => {
-        const start = new Date(Date.UTC(y, m - 11 + i, 1)).toISOString().slice(0, 10);
-        const last = new Date(Date.UTC(y, m - 10 + i, 0)).toISOString().slice(0, 10);
-        return { start, end: last < today ? last : today };
-    });
-}
-
-/** Tasks added and accepted in each span. */
-export function throughput(tasks: FlowTask[], ss: Span[]): { added: number[]; accepted: number[] } {
-    return {
-        added: ss.map((s) => tasks.filter((t) => inRange(t.created_at, s.start, s.end)).length),
-        accepted: ss.map((s) => acceptedIn(tasks, s.start, s.end).length),
-    };
-}
-
 /** Typical (median) days from each send-back in range to that task's next submission; null when none came back yet. */
 export function reworkDays(moves: TaskMove[], from: string, to: string): number | null {
     const by = movesByTask(moves);

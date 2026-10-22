@@ -26,8 +26,8 @@ const HEALTH_PILL = { on_track: "bg-success-soft text-success", at_risk: "bg-war
 const DIAMOND = { delivered: "border-stage-done bg-stage-done", due: "border-ink-secondary", missed: "border-danger" } as const;
 
 /**
- * The Analytics page's Project timeline: one project's life in weeks or
- * months, with the phases due, delivered or missed and the PM's status
+ * The Analytics page's Project timeline: one project's life in days, weeks
+ * or months, with the phases due, delivered or missed and the PM's status
  * update marked on each, and the full activity of the period chosen.
  */
 export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
@@ -105,7 +105,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
     const planned = Math.max(1, daysBetween(project.start, project.end) + 1);
     const status = standing(project, today);
 
-    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="Every week or month of one project and what happened in it · click a period to open its activity" className="materialize mt-6" style={stagger(1)} aside={<KindLegend/>}>
+    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="Every day, week or month of one project and what happened in it · click a period to open its activity" className="materialize mt-6" style={stagger(1)} aside={<KindLegend/>}>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-5 pt-2 pb-5 sm:px-6">
         <div className="grid min-w-0 gap-2.5">
           <ProjectPicker projects={options} value={project.id} onChange={switchProject}/>
@@ -116,7 +116,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
             <span className={cn("rounded-full px-2 text-xs leading-[22px] font-semibold", CHIP[status.tone])}>{status.text}</span>
           </dl>
         </div>
-        <Segmented label="View by" value={unit} onChange={(v) => switchUnit(v as Unit)} options={[{ value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]}/>
+        <Segmented label="View by" value={unit} onChange={(v) => switchUnit(v as Unit)} options={[{ value: "day", label: "Daily" }, { value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]}/>
       </div>
       <Strip model={model} marks={base.marks}/>
       <div className="grid items-stretch gap-4 px-5 pt-3 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
@@ -164,7 +164,7 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
     };
     const mask = edge.l && edge.r ? "linear-gradient(to right, transparent, #000 72px, #000 calc(100% - 72px), transparent)"
         : edge.r ? "linear-gradient(to right, #000 calc(100% - 72px), transparent)" : edge.l ? "linear-gradient(to right, transparent, #000 72px)" : undefined;
-    const { periods, stats } = model, units = model.unit === "week" ? "weeks" : "months";
+    const { periods, stats } = model, units = `${model.unit}s`;
     const max = Math.max(1, ...stats.map((s) => s.activities));
     const startIndex = Math.max(0, periodOf(periods, model.project.start));
     const arrow = cn("grid size-8 cursor-pointer place-items-center rounded-full bg-surface text-ink shadow-[0_0_0_1px_var(--line)] transition-[background-color,box-shadow,opacity,scale] duration-150 hover:not-disabled:bg-surface-subtle hover:not-disabled:shadow-[0_0_0_1px_var(--line-strong),0_6px_14px_-8px_rgb(14_18_34/0.35)] active:not-disabled:scale-95 disabled:cursor-default disabled:opacity-35", focusRing);
@@ -242,12 +242,12 @@ function Meta({ icon: Icon, label, value }: { icon: typeof Hourglass; label: str
 }
 
 /** A switch between a few options; the thumb slides to the chosen one. */
-export function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
     return (<div role="radiogroup" aria-label={label} className="inline-flex rounded-xl bg-surface-sunken p-[3px]">
       {options.map((o) => {
             const on = o.value === value;
             return (<button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)} className={cn("relative h-8 rounded-[9px] px-3.5 text-[13px] font-semibold transition-colors", on ? "text-ink" : "text-ink-tertiary hover:text-ink", focusRing)}>
-              {on ? <motion.span layoutId={`segmented-${label}`} className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
+              {on ? <motion.span layoutId="timeline-unit" className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
               <span className="relative">{o.label}</span>
             </button>);
         })}

@@ -20,6 +20,12 @@ test("weeks run from the start and stretch past the due date to today", () => {
     assert.equal(rangeLabel("2026-07-10", "2026-07-16"), "Jul 10 – 16");
 });
 
+test("days run one by one from the start, labelled by weekday", () => {
+    const days = buildPeriods({ from: "2026-08-10", to: TODAY }, project.end, "day", TODAY);
+    assert.deepEqual(days.map((d) => [d.label, d.from, d.to, d.range]), [["Day 1", "2026-08-10", "2026-08-10", "Mon, Aug 10"], ["Day 2", "2026-08-11", "2026-08-11", "Tue, Aug 11"], ["Day 3", TODAY, TODAY, "Wed, Aug 12"]]);
+    assert.equal(days[2].current, true);
+});
+
 test("months are calendar months clipped to the span", () => {
     const months = buildPeriods({ from: "2026-07-10", to: "2026-09-03" }, "2026-08-31", "month", TODAY);
     assert.deepEqual(months.map((m) => [m.label, m.from, m.to]), [["Jul 2026", "2026-07-10", "2026-07-31"], ["Aug 2026", "2026-08-01", "2026-08-31"], ["Sep 2026", "2026-09-01", "2026-09-03"]]);

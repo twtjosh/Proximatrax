@@ -127,7 +127,7 @@ export function ActivityHistory({ model, className }: { model: TimelineModel; cl
             {rows.length === 0 ? <EmptyHistory model={model} filtered={filtered}/> : model.unit === "month" ? days.map((d) => (<div key={d}>
                   <p className="sticky top-0 z-10 border-b border-line bg-surface-subtle/95 px-4 py-1.5 text-xs font-semibold text-ink-secondary backdrop-blur sm:px-5">{weekday(d)}</p>
                   <ul>{rows.filter((e) => isoDateIn(e.created_at) === d).map((e, i) => <ActivityRow key={`${e.created_at}-${i}`} e={e} model={model} withDay={false}/>)}</ul>
-                </div>)) : <ul>{rows.map((e, i) => <ActivityRow key={`${e.created_at}-${i}`} e={e} model={model} withDay/>)}</ul>}
+                </div>)) : <ul>{rows.map((e, i) => <ActivityRow key={`${e.created_at}-${i}`} e={e} model={model} withDay={model.unit === "week"}/>)}</ul>}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -173,7 +173,7 @@ function ActivityRow({ e, model, withDay }: { e: TimelineEntry; model: TimelineM
 export function QuickStats({ model }: { model: TimelineModel }) {
     const s = model.stats[model.selected], p = model.periods[model.selected];
     const rows: { icon: LucideIcon; label: string; value: number; tone: string }[] = [
-        { icon: CircleCheck, label: `Accepted this ${model.unit}`, value: s.accepted, tone: "text-success" },
+        { icon: CircleCheck, label: model.unit === "day" ? "Accepted that day" : `Accepted this ${model.unit}`, value: s.accepted, tone: "text-success" },
         { icon: Clock3, label: "In progress", value: s.open.in_progress, tone: "text-info" },
         { icon: BadgeCheck, label: "In review", value: s.open.review, tone: "text-warning" },
         { icon: CircleDashed, label: "To do", value: s.open.to_do, tone: "text-ink-secondary" },

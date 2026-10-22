@@ -2,13 +2,14 @@ import { addDays, formatDate, isoDateIn } from "./dashboard.ts";
 import { HEALTH, isHealth, logKind, type Health, type LogKind, type LogRow } from "./project-log.ts";
 
 /**
- * A project's timeline: its life cut into weeks or months, and what happened
- * in each. Weeks count from the project's start; months are calendar months.
+ * A project's timeline: its life cut into days, weeks or months, and what
+ * happened in each. Days and weeks count from the project's start; months are
+ * calendar months.
  * The range runs past the due date when work did, so an overrun shows as
  * periods beyond the plan. Pure, so `node --test` runs it.
  */
 
-export type Unit = "week" | "month";
+export type Unit = "day" | "week" | "month";
 export type TimelineProject = { id: string; title: string; client: string; start: string; end: string; completedAt: string | null; active: boolean };
 export type TimelineMilestone = { project_id: string; title: string; due_date: string; completed_at: string | null };
 export type TimelineTask = { id: string; project_id: string; title: string; stage: string; assigned_to: string | null; due_date: string | null; created_at: string };
@@ -28,9 +29,9 @@ export type Period = {
     /** Inclusive ISO dates. */
     from: string;
     to: string;
-    /** "Week 3" or "Aug 2026". */
+    /** "Day 4", "Week 3" or "Aug 2026". */
     label: string;
-    /** "Jul 10 – 16". */
+    /** "Jul 10 – 16", or "Mon, Jul 13" for a day. */
     range: string;
     /** Starts after the planned due date. */
     beyond: boolean;
@@ -81,14 +82,16 @@ export function buildPeriods(span: { from: string; to: string }, due: string, un
     let from = span.from;
     while (from <= span.to) {
         let to: string;
-        if (unit === "week") to = addDays(from, 6);
+        if (unit === "day") to = from;
+        else if (unit === "week") to = addDays(from, 6);
         else {
             const [y, m] = from.split("-").map(Number);
             to = addDays(`${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`, -1);
         }
         if (to > span.to) to = span.to;
-        const label = unit === "week" ? `Week ${out.length + 1}` : formatDate(from, { month: "short", year: "numeric" });
-        out.push({ index: out.length, from, to, label, range: rangeLabel(from, to), beyond: from > due, upcoming: from > today, current: from <= today && today <= to });
+        const label = unit === "day" ? `Day ${out.length + 1}` : unit === "week" ? `Week ${out.length + 1}` : formatDate(from, { month: "short", year: "numeric" });
+        const range = unit === "day" ? formatDate(from, { weekday: "short", month: "short", day: "numeric" }) : rangeLabel(from, to);
+        out.push({ index: out.length, from, to, label, range, beyond: from > due, upcoming: from > today, current: from <= today && today <= to });
         from = addDays(to, 1);
     }
     return out;
