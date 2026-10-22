@@ -30,7 +30,7 @@ const WEEKS = 12;
  * of them over the last 12 weeks, side by side at one height. Every count is
  * worked out in the browser from the raw rows.
  */
-export function FlowView({ data, viewer, today, title, sub, before }: {
+export function FlowView({ data, viewer, today, title, sub, before, lead }: {
     data: FlowData;
     viewer: Viewer;
     firstName: string;
@@ -40,6 +40,8 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
     sub: React.ReactNode;
     /** Rendered above the header (the owner's back link). */
     before?: React.ReactNode;
+    /** Rendered under the header, above the timeline (the PM's at-a-glance row). */
+    lead?: React.ReactNode;
 }) {
     const [table, setTable] = React.useState(false);
     const root = React.useRef<HTMLDivElement>(null);
@@ -70,6 +72,7 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
         return (<div ref={root}>
           {before}
           <OverviewHeader title={title} sub={sub}/>
+          {lead}
           {timeline}
         </div>);
     }
@@ -80,6 +83,7 @@ export function FlowView({ data, viewer, today, title, sub, before }: {
     return (<div ref={root} className="relative scroll-mt-6">
       {before}
       <OverviewHeader title={title} sub={sub}/>
+      {lead}
 
       {timeline}
 

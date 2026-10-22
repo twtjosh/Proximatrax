@@ -146,6 +146,8 @@ export type PmAnalytics = {
     delivered: number;
     rows: { active: ProjectRow[]; delivered: ProjectRow[] };
     clientNames: Record<string, string>;
+    /** People on the active projects: crew added to them and their clients; `busy` crew hold open tasks. */
+    team: { crew: number; clients: number; busy: number };
     /** Raw rows for the Flow charts, which the page filters and counts in the browser. */
     flow: {
         tasks: FlowTask[];
@@ -168,22 +170,25 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
     throwIfSupabaseError(projectsRes.error);
     const projects = (projectsRes.data ?? []) as AProject[];
     const ids = projects.map((p) => p.id);
-    const [tasksRes, milestonesRes, logRes] = ids.length > 0
+    const activeIds = projects.filter((p) => p.status !== "completed").map((p) => p.id);
+    const [tasksRes, milestonesRes, logRes, membersRes] = ids.length > 0
         ? await Promise.all([
             readAll((from, to) => supabase.from("tasks").select(TASK_COLS).in("project_id", ids).order("id").range(from, to)),
             readAll((from, to) => supabase.from("milestones").select(MILESTONE_COLS).in("project_id", ids).order("id").range(from, to)),
             // The whole log: the timeline shows it all, and its task_moved rows are the moves.
             readAll((from, to) => supabase.from("activity_feed").select("project_id, user_id, action_type, details, created_at").in("project_id", ids).order("created_at").order("id").range(from, to)),
+            activeIds.length > 0 ? supabase.from("project_members").select("user_id").in("project_id", activeIds) : none,
         ])
-        : [none, none, none];
-    for (const r of [tasksRes, milestonesRes, logRes])
+        : [none, none, none, none];
+    for (const r of [tasksRes, milestonesRes, logRes, membersRes])
         throwIfSupabaseError(r.error);
     const tasks = (tasksRes.data ?? []) as FlowTask[];
     const milestones = (milestonesRes.data ?? []) as AMilestone[];
     const log = (logRes.data ?? []) as TimelineEntry[];
     const moves = toMoves(log.filter((r) => r.action_type === "task_moved"));
+    const memberIds = [...new Set(((membersRes.data ?? []) as { user_id: string }[]).map((m) => m.user_id))];
 
-    const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id), ...log.flatMap((r) => (r.user_id ? [r.user_id] : []))])];
+    const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id), ...log.flatMap((r) => (r.user_id ? [r.user_id] : [])), ...memberIds])];
     const peopleRes = peopleIds.length > 0 ? await supabase.from("profiles").select("id, full_name, role, avatar_url, classification").in("id", peopleIds) : none;
     throwIfSupabaseError(peopleRes.error);
     const people = (peopleRes.data ?? []) as ProfileRow[];
@@ -197,6 +202,12 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
         delivered: ds.length,
         rows,
         clientNames: Object.fromEntries(projects.map((p) => [p.id, nameOf.get(p.client_id) ?? "Client"])),
+        team: (() => {
+            const active = new Set(activeIds), roleOf = new Map(people.map((p) => [p.id, p.role]));
+            const crew = memberIds.filter((id) => roleOf.get(id) === "middleman");
+            const busy = new Set(tasks.filter((t) => active.has(t.project_id) && t.stage !== "done" && t.assigned_to).map((t) => t.assigned_to));
+            return { crew: crew.length, clients: new Set(projects.filter((p) => active.has(p.id)).map((p) => p.client_id)).size, busy: crew.filter((id) => busy.has(id)).length };
+        })(),
         flow: {
             tasks,
             moves,

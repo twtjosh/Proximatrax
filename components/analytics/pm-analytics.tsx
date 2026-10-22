@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FolderKanban, ListChecks, Users } from "lucide-react";
+import { ActivitySummary } from "@/components/analytics/activity-summary";
 import { FlowView } from "@/components/analytics/flow-view";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
-import { dateOf, forecastPhrase, resultPhrase, resultTone, type Forecast, type ProjectRow } from "@/lib/analytics";
+import { dateOf, forecastPhrase, resultPhrase, resultTone, taskBreakdown, type Forecast, type ProjectRow, type TaskBreakdown } from "@/lib/analytics";
 import { projectPath, ROUTES } from "@/lib/constants";
 import { daysBetween, formatDate, plural } from "@/lib/dashboard";
+import { phaseSummary } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 import type { PmAnalytics } from "@/services/analytics-service";
 
@@ -19,14 +21,17 @@ type Viewer = "pm" | "owner";
 /**
  * One project manager's Analytics: how work moves through their projects
  * (Flow), then every project they have handled, planned against actual. The
- * PM sees it as "you"; the owner sees it in third person and cannot open
- * projects or tasks from it.
+ * PM sees it as "you", with an at-a-glance row (projects, tasks, phases,
+ * people), an activity summary and each project's tasks as they stand; the
+ * owner sees it in third person and cannot open projects or tasks from it.
  */
 export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics; viewer: Viewer; today: string }) {
     const year = today.slice(0, 4);
     const day = (iso: string) => formatDate(iso, { month: "short", day: "numeric", ...(iso.slice(0, 4) === year ? {} : { year: "numeric" }) });
     const total = d.rows.active.length + d.rows.delivered.length;
     const since = d.firstDelivery ? ` since ${formatDate(d.firstDelivery, { month: "long", year: "numeric" })}` : "";
+    const pm = viewer === "pm";
+    const tasksOf = (id: string) => taskBreakdown(d.flow.tasks.filter((t) => t.project_id === id), today);
     const counts = <><b>{d.rows.active.length} active</b> · <b>{d.delivered} delivered</b>{since}</>;
 
     return (<div className="mx-auto w-full max-w-360 pb-12">
@@ -35,7 +40,10 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
         sub={viewer === "owner" ? <>Project manager · {counts}</> : <>How work moves through your projects · {counts}</>}
         before={viewer === "owner" ? (<Link href={ROUTES.DASHBOARD} className={cn("mb-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-tertiary hover:text-ink", focusRing)}>
             <ArrowLeft className="size-4" aria-hidden/>Overview
-          </Link>) : null}/>
+          </Link>) : null}
+        lead={pm ? <Glance d={d} today={today}/> : null}/>
+
+      {pm ? <ActivitySummary log={d.flow.timeline.log} people={d.flow.timeline.people} projects={d.flow.projects} today={today}/> : null}
 
       <OverviewCard id="projects-heading" title="Projects" sub="Every project handled, planned against actual · status follows each project’s last 4 weeks" aside={<span className="hidden items-center gap-3.5 md:flex">
             <Key swatch="bg-copper" label="Elapsed"/><Key swatch="bg-stage-done" label="Delivered"/><Key swatch="bg-stage-late" label="Beyond plan"/>
@@ -47,7 +55,7 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
                 <th className="py-2.5 pr-3 pl-5 font-medium sm:pl-6">Project</th>
                 <th className="px-3 font-medium">Planned against actual</th>
                 <th className="px-3 font-medium">Result</th>
-                <th className="px-3 font-medium">Status</th>
+                <th className="px-3 font-medium">{pm ? "Tasks now" : "Status"}</th>
                 <th className="px-3 text-right font-medium">Milestones on time</th>
                 <th className="pr-5 pl-3 text-right font-medium sm:pr-6">Tasks accepted</th>
               </tr>
@@ -61,7 +69,7 @@ export function PmAnalyticsView({ data: d, viewer, today }: { data: PmAnalytics;
                       </td>
                       <td className="w-[28%] px-3 max-md:col-span-2 max-md:w-auto max-md:p-0"><ScheduleBar row={r} today={today}/></td>
                       <td data-label="Result" className={cn("px-3", LABEL, RESULT_TONE[resultTone(r.result)])}>{resultPhrase(r.result)}</td>
-                      {r.forecast ? <td data-label="Status" className={cn("px-3", LABEL)}><ForecastCell f={r.forecast} day={day}/></td> : <td className="max-md:hidden"/>}
+                      {pm ? <td data-label="Tasks now" className={cn("px-3", LABEL)}><TasksNow b={tasksOf(r.project.id)}/></td> : r.forecast ? <td data-label="Status" className={cn("px-3", LABEL)}><ForecastCell f={r.forecast} day={day}/></td> : <td className="max-md:hidden"/>}
                       <td data-label="Milestones on time" className={cn("px-3 text-right tabular", LABEL)}>
                         {r.milestones.done > 0 ? <>{r.milestones.onTime} <span className="text-ink-tertiary">of {r.milestones.done}</span></> : <span className="text-ink-tertiary">None yet</span>}
                         {r.milestones.overdue > 0 ? <span className="ml-1.5 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">{r.milestones.overdue} overdue</span> : null}
@@ -83,6 +91,60 @@ function ForecastCell({ f, day }: { f: Forecast; day: (iso: string) => string })
       {forecastPhrase(f)}
       {"finish" in f ? <span className="block text-[12.5px] text-ink-tertiary">Done around {day(f.finish)}</span> : null}
     </span>);
+}
+
+/** One project's tasks as they stand: a bar of completed, ongoing and upcoming, and the counts under it. */
+function TasksNow({ b }: { b: TaskBreakdown }) {
+    if (b.total === 0) return <span className="text-ink-tertiary">No tasks yet</span>;
+    return (<span className="block min-w-36">
+      <StackBar b={b}/>
+      <span className="mt-1 block text-[12.5px] text-ink-tertiary tabular">
+        {b.ongoing} ongoing · {b.upcoming} upcoming{b.overdue ? <> · <span className="font-medium text-danger">{b.overdue} overdue</span></> : null}
+      </span>
+    </span>);
+}
+
+function StackBar({ b }: { b: TaskBreakdown }) {
+    return (<span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
+      {b.completed ? <span className="bg-stage-done" style={{ flex: b.completed }}/> : null}
+      {b.ongoing ? <span className="bg-stage-progress" style={{ flex: b.ongoing }}/> : null}
+      {b.upcoming ? <span className="bg-stage-todo" style={{ flex: b.upcoming }}/> : null}
+    </span>);
+}
+
+/** Where the PM's work stands right now: projects, tasks, phases of the active projects, and the people on them. */
+function Glance({ d, today }: { d: PmAnalytics; today: string }) {
+    const notStarted = d.rows.active.filter((r) => r.project.start_date > today).length;
+    const t = taskBreakdown(d.flow.tasks, today);
+    const active = new Set(d.rows.active.map((r) => r.project.id));
+    const ph = phaseSummary(d.flow.timeline.milestones.filter((m) => active.has(m.project_id)), today);
+    const tile = "flex flex-col gap-1 rounded-2xl bg-surface px-4 py-3.5 shadow-[0_0_0_1px_var(--line)]";
+    const head = "flex items-center gap-2 text-[13px] font-medium text-ink-secondary [&_svg]:size-4 [&_svg]:text-ink-tertiary";
+    const big = "text-2xl font-semibold text-ink tabular";
+    const small = "text-xs text-ink-tertiary tabular";
+    return (<section aria-label="At a glance" className="materialize mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" style={stagger(1)}>
+      <div className={tile}>
+        <span className={head}><FolderKanban aria-hidden/>Projects</span>
+        <span className={big}>{d.rows.active.length} <span className="text-sm font-medium text-ink-tertiary">active</span></span>
+        <span className={small}>{notStarted ? `${notStarted} not started yet · ` : ""}{d.rows.delivered.length} completed</span>
+      </div>
+      <div className={tile}>
+        <span className={head}><ListChecks aria-hidden/>Tasks</span>
+        <span className={big}>{t.ongoing} <span className="text-sm font-medium text-ink-tertiary">ongoing</span></span>
+        {t.total ? <StackBar b={t}/> : null}
+        <span className={small}>{t.completed} completed · {t.upcoming} upcoming{t.overdue ? <> · <span className="font-medium text-danger">{t.overdue} overdue</span></> : null}</span>
+      </div>
+      <div className={tile}>
+        <span className={head}><CheckCircle2 aria-hidden/>Phases</span>
+        <span className={big}>{ph.delivered} <span className="text-sm font-medium text-ink-tertiary">of {ph.rows.length} delivered</span></span>
+        <span className={small}>{ph.due} due · {ph.missed ? <span className="font-medium text-danger">{ph.missed} missed</span> : "none missed"}{ph.next ? ` · next ${formatDate(ph.next.due, { month: "short", day: "numeric" })}` : ""}</span>
+      </div>
+      <div className={tile}>
+        <span className={head}><Users aria-hidden/>People</span>
+        <span className={big}>{d.team.crew + d.team.clients} <span className="text-sm font-medium text-ink-tertiary">on active projects</span></span>
+        <span className={small}>{plural(d.team.crew, "crew member")} ({d.team.busy} with open tasks) · {plural(d.team.clients, "client")}</span>
+      </div>
+    </section>);
 }
 
 function Key({ swatch, label }: { swatch: string; label: string }) {

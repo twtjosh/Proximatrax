@@ -302,12 +302,12 @@ function Meta({ icon: Icon, label, value }: { icon: typeof Hourglass; label: str
 }
 
 /** A switch between a few options; the thumb slides to the chosen one. */
-function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+export function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
     return (<div role="radiogroup" aria-label={label} className="inline-flex rounded-xl bg-surface-sunken p-[3px]">
       {options.map((o) => {
             const on = o.value === value;
             return (<button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)} className={cn("relative h-8 rounded-[9px] px-3.5 text-[13px] font-semibold transition-colors", on ? "text-ink" : "text-ink-tertiary hover:text-ink", focusRing)}>
-              {on ? <motion.span layoutId="timeline-unit" className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
+              {on ? <motion.span layoutId={`segmented-${label}`} className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
               <span className="relative">{o.label}</span>
             </button>);
         })}

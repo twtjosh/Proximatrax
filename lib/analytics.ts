@@ -172,6 +172,14 @@ export function openLoad(tasks: ATask[], today: string): OpenLoad {
     return { open: open.length, late: open.filter((t) => isLate(t, today)).length, review: open.filter((t) => t.stage === "review").length };
 }
 
+export type TaskBreakdown = { completed: number; ongoing: number; upcoming: number; overdue: number; total: number };
+
+/** Tasks by where they stand now: completed (accepted), ongoing (in progress or in review), upcoming (not started); overdue counts late open work. */
+export function taskBreakdown(tasks: ATask[], today: string): TaskBreakdown {
+    const n = (...stages: string[]) => tasks.filter((t) => stages.includes(t.stage)).length;
+    return { completed: n("done"), ongoing: n("in_progress", "review"), upcoming: n("backlog", "to_do"), overdue: tasks.filter((t) => isLate(t, today)).length, total: tasks.length };
+}
+
 export type Waiting = { task: ATask; since: string; days: number };
 
 /** Tasks in review, oldest submission first. A submission dates from the task's latest move into review, else its last update. */

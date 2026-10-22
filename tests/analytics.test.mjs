@@ -22,6 +22,7 @@ import {
     resultPhrase,
     resultTone,
     waitingForReview,
+    taskBreakdown,
 } from "../lib/analytics.ts";
 
 const TODAY = "2026-10-15";
@@ -214,4 +215,9 @@ test("peopleCount: the people line counts managers, crew and clients, not the su
 test("managingCount: managers with at least one active project", () => {
     const ps = [project({ id: "a", pm_id: "marco" }), project({ id: "b", pm_id: "marco" }), project({ id: "c", pm_id: "bea" }), done("d", "D", "2026-03-01", "2026-03-01")];
     assert.equal(managingCount(ps.map((p, i) => (i === 3 ? { ...p, pm_id: "andrea" } : p))), 2);
+});
+
+test("taskBreakdown: completed, ongoing (in progress or review), upcoming, and late open work", () => {
+    const ts = [task({ id: "a", stage: "done" }), task({ id: "b", stage: "in_progress", due_date: "2026-10-10" }), task({ id: "c", stage: "review", due_date: "2026-10-10" }), task({ id: "d", stage: "backlog" }), task({ id: "e", due_date: "2026-10-20" })];
+    assert.deepEqual(taskBreakdown(ts, TODAY), { completed: 1, ongoing: 2, upcoming: 2, overdue: 1, total: 5 });
 });
