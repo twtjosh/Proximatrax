@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { CalendarCheck2, CalendarRange, ChevronLeft, ChevronRight, Flag, Hourglass, Play } from "lucide-react";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
 import { daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
-import { buildPeriods, groupMoves, periodMarks, periodOf, periodStats, timelineSpan, type PeriodMarks, type TimelineData, type TimelineMove, type TimelineProject, type TimelineTask, type Unit } from "@/lib/project-timeline";
+import { buildPeriods, groupMoves, periodMarks, periodOf, periodStats, phaseSummary, timelineSpan, type PeriodMarks, type PhaseState, type PhaseSummary, type TimelineData, type TimelineMove, type TimelineProject, type TimelineTask, type Unit } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 import { ProjectPicker, type ProjectOption } from "./project-picker";
 import { ActivityFilters, ActivityHistory, KindDots, KindLegend, matches, NO_FILTERS, PeriodFlags, QuickStats, type Filters, type TimelineModel } from "./timeline-parts";
@@ -67,6 +67,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
             span, periods, byPeriod,
             stats: periods.map((p) => periodStats(p, own, byTask, log, today)),
             marks: periods.map((p, i) => periodMarks(p, phases, byPeriod[i], today)),
+            phases: phaseSummary(phases, today),
         };
     }, [data.log, data.milestones, project, tasks, moves, today, unit]);
 
@@ -118,6 +119,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
         </div>
         <Segmented label="View by" value={unit} onChange={(v) => switchUnit(v as Unit)} options={[{ value: "day", label: "Daily" }, { value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]}/>
       </div>
+      <Phases summary={base.phases} onOpen={(date) => select(periodOf(periods, date))} openable={(date) => periodOf(periods, date) >= 0}/>
       <Strip model={model} marks={base.marks}/>
       <div className="grid items-stretch gap-4 px-5 pt-3 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="relative min-w-0 lg:min-h-[26rem]"><ActivityHistory model={model} className="lg:absolute lg:inset-0"/></div>
@@ -221,6 +223,64 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
         })}
       </motion.div>
     </>);
+}
+
+const PHASE_DIAMOND: Record<PhaseState, keyof typeof DIAMOND> = { on_time: "delivered", late: "delivered", missed: "missed", due: "due" };
+const PHASE_BAR: Record<PhaseState, string> = { on_time: "bg-stage-done", late: "bg-warning", missed: "bg-danger", due: "bg-surface-sunken" };
+const PHASE_NOTE: Record<PhaseState, string> = { on_time: "On time", late: "Delivered late", missed: "Missed", due: "Due" };
+
+/**
+ * The project's phases as of today: delivered (and how many on time), still
+ * due (and the next one), and missed (delivered late or past due and open),
+ * then each phase in due order. A phase opens its period in the strip: the
+ * one it was delivered in, else the one it is due in.
+ */
+function Phases({ summary: s, onOpen, openable }: { summary: PhaseSummary; onOpen: (date: string) => void; openable: (date: string) => boolean }) {
+    const total = s.rows.length;
+    if (total === 0)
+        return <p className="mx-5 mb-5 rounded-2xl bg-surface-subtle px-4 py-3 text-[13px] text-ink-tertiary sm:mx-6">No phases set for this project yet.</p>;
+    const tile = "rounded-2xl bg-surface px-4 py-3 shadow-[0_0_0_1px_var(--line)]";
+    return (<section aria-label="Phases" className="mx-5 mb-5 grid gap-3 sm:mx-6">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h3 className="text-sm font-semibold text-ink">Phases</h3>
+        <p className="text-[13px] text-ink-tertiary"><b className="font-semibold text-ink tabular">{s.delivered} of {total}</b> delivered</p>
+        <span className="flex h-2 min-w-32 flex-1 gap-0.5 overflow-hidden rounded-full" role="img" aria-label={`${s.onTime} on time, ${s.delivered - s.onTime} late, ${s.missedOpen} missed, ${s.due} due`}>
+          {s.rows.map((r, i) => <span key={i} className={cn("flex-1", PHASE_BAR[r.state])}/>)}
+        </span>
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <div className={tile}>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="delivered"/>Phases delivered</dt>
+          <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.delivered}</dd>
+          <dd className="text-xs text-ink-tertiary">{s.delivered ? `${s.onTime} on time · ${s.delivered - s.onTime} late` : "None yet"}</dd>
+        </div>
+        <div className={tile}>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="due"/>Phases due</dt>
+          <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.due}</dd>
+          <dd className="truncate text-xs text-ink-tertiary">{s.next ? `Next: ${s.next.title} · ${short(s.next.due)}` : "Nothing left to deliver"}</dd>
+        </div>
+        <div className={tile}>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="missed"/>Phases missed</dt>
+          <dd className={cn("mt-1 text-xl font-semibold tabular", s.missed ? "text-danger" : "text-ink")}>{s.missed}</dd>
+          <dd className="text-xs text-ink-tertiary">{s.missed ? `${s.missedOpen} still open · ${s.missed - s.missedOpen} delivered late` : "All on schedule"}</dd>
+        </div>
+      </dl>
+      <ol className="flex flex-wrap gap-2">
+        {s.rows.map((r, i) => {
+            const at = r.done ?? r.due, can = openable(at);
+            return (<li key={i}>
+              <button type="button" disabled={!can} onClick={() => onOpen(at)} className={cn("inline-flex h-8 items-center gap-2 rounded-full bg-surface px-3 text-[12.5px] shadow-[0_0_0_1px_var(--line)] transition-shadow enabled:cursor-pointer enabled:hover:shadow-[0_0_0_1px_var(--line-strong)]", focusRing)}
+                title={can ? "Open this period below" : undefined}>
+                <Diamond state={PHASE_DIAMOND[r.state]}/>
+                <span className="font-semibold text-ink">{r.title}</span>
+                <span className={cn("tabular", r.state === "missed" ? "text-danger" : r.state === "late" ? "text-warning" : "text-ink-tertiary")}>
+                  {PHASE_NOTE[r.state]} · {r.done ? short(r.done) : short(r.due)}
+                </span>
+              </button>
+            </li>);
+        })}
+      </ol>
+    </section>);
 }
 
 function Diamond({ state }: { state: keyof typeof DIAMOND }) {

@@ -144,7 +144,42 @@ export function groupMoves(moves: TimelineMove[]): Map<string, TimelineMove[]> {
     return map;
 }
 
-export type PhaseMark = { title: string; state: "delivered" | "due" | "missed"; text: string };
+/** A phase as of today: delivered on time or late, missed (past due, not delivered), or still due. */
+export type PhaseState = "on_time" | "late" | "missed" | "due";
+export type PhaseRow = { title: string; due: string; done: string | null; state: PhaseState };
+export type PhaseSummary = {
+    rows: PhaseRow[];
+    delivered: number;
+    onTime: number;
+    /** Phases that missed their due date: delivered late, or past due and still open. */
+    missed: number;
+    /** Of `missed`, still not delivered. */
+    missedOpen: number;
+    /** Not delivered and not yet past due. */
+    due: number;
+    next: PhaseRow | null;
+};
+
+/** One project's phases in due order, and how they stand today. */
+export function phaseSummary(milestones: TimelineMilestone[], today: string): PhaseSummary {
+    const rows = [...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date)).map((m): PhaseRow => {
+        const done = m.completed_at ? isoDateIn(m.completed_at) : null;
+        const state = done ? (done <= m.due_date ? "on_time" : "late") : m.due_date < today ? "missed" : "due";
+        return { title: m.title, due: m.due_date, done, state };
+    });
+    const count = (...s: PhaseState[]) => rows.filter((r) => s.includes(r.state)).length;
+    return {
+        rows,
+        delivered: count("on_time", "late"),
+        onTime: count("on_time"),
+        missed: count("late", "missed"),
+        missedOpen: count("missed"),
+        due: count("due"),
+        next: rows.find((r) => r.state === "due") ?? null,
+    };
+}
+
+export type PhaseMark ={ title: string; state: "delivered" | "due" | "missed"; text: string };
 export type PeriodMarks = { phases: PhaseMark[]; health: { health: Health; label: string; note: string } | null };
 
 /**

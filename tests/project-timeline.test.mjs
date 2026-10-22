@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPeriods, groupMoves, periodOf, periodStats, rangeLabel, stageOn, timelineSpan } from "../lib/project-timeline.ts";
+import { buildPeriods, groupMoves, periodOf, periodStats, phaseSummary, rangeLabel, stageOn, timelineSpan } from "../lib/project-timeline.ts";
 
 const TODAY = "2026-08-12";
 const project = { id: "p1", title: "Kitchen", start: "2026-07-10", end: "2026-08-06", completedAt: null, active: true };
@@ -75,4 +75,11 @@ test("a period marks the phases delivered, due or missed in it and the last stat
     assert.equal(periodMarks(weeks[2], phases, [], TODAY).phases[0].text, "Carpentry delivered Jul 25 · 5 days late");
     // Week 5 holds today: Finishes is due, not missed yet.
     assert.deepEqual(periodMarks(weeks[4], phases, [], TODAY).phases.map((p) => p.state), ["due"]);
+});
+
+test("phases split into delivered on time or late, missed, and still due", () => {
+    const m = (title, due_date, completed_at = null) => ({ project_id: "p1", title, due_date, completed_at });
+    const s = phaseSummary([m("Finish", "2026-08-30"), m("Demo", "2026-07-15", "2026-07-14T02:00:00Z"), m("Rough-in", "2026-07-25", "2026-07-28T02:00:00Z"), m("Tiles", "2026-08-05")], TODAY);
+    assert.deepEqual(s.rows.map((r) => [r.title, r.state]), [["Demo", "on_time"], ["Rough-in", "late"], ["Tiles", "missed"], ["Finish", "due"]]);
+    assert.deepEqual([s.delivered, s.onTime, s.missed, s.missedOpen, s.due, s.next.title], [2, 1, 2, 1, 1, "Finish"]);
 });
