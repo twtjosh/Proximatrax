@@ -7,14 +7,14 @@ import { COMPANY_NAME } from "@/lib/vocabulary";
 
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-land-accent focus-visible:ring-offset-2 focus-visible:ring-offset-land";
 
-/** Section links point at the home page so they also work from the terms page. */
+/** Section links point at the home page so they also work from the legal pages. */
 const COLUMNS = [
     { title: "Explore", links: [{ label: "Overview", href: "/#overview" }, { label: "How it runs", href: "/#journey" }, { label: "Start a project", href: "/#inquire" }] },
     { title: "Clients", links: [{ label: "Log in", href: ROUTES.LOGIN }, { label: "Reset your password", href: ROUTES.FORGOT_PASSWORD }] },
-    { title: "Legal", links: [{ label: "Terms and conditions", href: ROUTES.TERMS }] },
+    { title: "Legal", links: [{ label: "Terms and conditions", href: ROUTES.TERMS }, { label: "Data retention policy", href: ROUTES.DATA_RETENTION }] },
 ];
 
-/** Shared by the landing page and the terms page. Sits inside a `.landing` wrapper for its colours. */
+/** Shared by the landing page and the legal pages. Sits inside a `.landing` wrapper for its colours. */
 export function Footer() {
     return (<footer className="border-t border-land-line">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6">

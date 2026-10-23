@@ -5,6 +5,7 @@ export const ROUTES = {
     FORGOT_PASSWORD: "/forgot-password",
     UPDATE_PASSWORD: "/update-password",
     TERMS: "/terms",
+    DATA_RETENTION: "/data-retention",
     DASHBOARD: "/dashboard",
     PROJECTS: "/projects",
     ACTIVITY: "/activity",
