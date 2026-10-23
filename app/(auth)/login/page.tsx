@@ -11,8 +11,6 @@ import { createClient } from "@/lib/supabase/client";
 import { login } from "@/services/auth-service";
 export default function LoginPage() {
     const router = useRouter();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [passwordVisible, setPasswordVisible] = useState(false);
@@ -29,7 +27,9 @@ export default function LoginPage() {
         setError(null);
         setIsSubmitting(true);
         try {
-            const result = await login({ email, password });
+            // Read the fields at submit: anything typed or autofilled before the page finished loading is kept.
+            const form = new FormData(event.currentTarget);
+            const result = await login({ email: String(form.get("email") ?? ""), password: String(form.get("password") ?? "") });
             const params = new URLSearchParams(window.location.search);
             const nextParam = sanitizeNextPath(params.get("next"));
             router.replace(nextParam ?? result.redirectTo);
@@ -65,7 +65,7 @@ export default function LoginPage() {
             <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Email address
             </Label>
-            <Input id="email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="pm@aegfashion.com" required aria-invalid={error ? true : undefined} aria-describedby={error ? "login-error" : undefined} className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
+            <Input id="email" name="email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="pm@aegfashion.com" required aria-invalid={error ? true : undefined} aria-describedby={error ? "login-error" : undefined} className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
           </div>
 
           <div className="space-y-2">
@@ -78,7 +78,7 @@ export default function LoginPage() {
               </Link>
             </div>
             <div className="relative">
-              <Input id="password" name="password" type={passwordVisible ? "text" : "password"} autoComplete="current-password" spellCheck={false} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" required aria-invalid={error ? true : undefined} aria-describedby={error ? "login-error" : undefined} className="h-12 w-full rounded-md border border-slate-200 bg-white py-2 pr-12 pl-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
+              <Input id="password" name="password" type={passwordVisible ? "text" : "password"} autoComplete="current-password" spellCheck={false} placeholder="Enter your password" required aria-invalid={error ? true : undefined} aria-describedby={error ? "login-error" : undefined} className="h-12 w-full rounded-md border border-slate-200 bg-white py-2 pr-12 pl-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
               <Button type="button" variant="ghost" size="icon" className="absolute top-1/2 right-1.5 size-10 -translate-y-1/2 rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-[#d97706]/40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white dark:focus-visible:ring-[#d97706]/50" onClick={() => setPasswordVisible((visible) => !visible)} aria-pressed={passwordVisible} aria-label={passwordVisible ? "Hide password" : "Show password"} aria-controls="password">
                 {passwordVisible ? (<EyeOff className="size-4.5" strokeWidth={2} aria-hidden/>) : (<Eye className="size-4.5" strokeWidth={2} aria-hidden/>)}
               </Button>

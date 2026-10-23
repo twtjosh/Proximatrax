@@ -8,9 +8,25 @@ function getSupabaseBrowserEnv() {
     }
     return { supabaseUrl, supabaseAnonKey };
 }
+/**
+ * A dropped connection reads as plain words wherever it surfaces. The database
+ * client words a failed request as `${name}: ${message}` (raw, "TypeError:
+ * Failed to fetch"), so the name carries the headline. Its retries stay: on a
+ * patchy site connection they are what let an action go through.
+ */
+const fetchWithPlainErrors: typeof fetch = async (input, init) => {
+    try {
+        return await fetch(input, init);
+    }
+    catch (e) {
+        if (!(e instanceof TypeError))
+            throw e;
+        throw Object.assign(new Error("Check your connection and try again."), { name: navigator.onLine ? "Connection problem" : "You're offline" });
+    }
+};
 export function createClient() {
     const { supabaseUrl, supabaseAnonKey } = getSupabaseBrowserEnv();
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+    return createBrowserClient(supabaseUrl, supabaseAnonKey, { global: { fetch: fetchWithPlainErrors } });
 }
 /**
  * The signed-in user from the session JWT, verified locally against the
