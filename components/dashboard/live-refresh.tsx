@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { isOwnChange, type LiveTaskRow } from "@/lib/live-changes";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 
 /** Everything a task surface draws from: the work, its proof, its talk, its phase, its people and who is invited. */
 const TABLES = ["tasks", "task_attachments", "task_comments", "milestones", "projects", "project_members", "project_invitations"] as const;
@@ -56,7 +56,7 @@ export function LiveRefresh({ channel, projectId }: {
                 ch.on("postgres_changes", { event: "*", schema: "public", table, filter }, refresh);
             // Rejoining after a dropped connection: catch up on whatever happened meanwhile.
             let joined = false;
-            ch.subscribe((status) => {
+            subscribeAsViewer(sb, ch, (status) => {
                 if (status !== "SUBSCRIBED")
                     return;
                 if (joined && table === "tasks")

@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { revalidateInquiryShellAction } from "@/app/(dashboard)/inquiries/shell-actions";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { removeRealtimeChannelByName } from "@/lib/supabase/realtime-channel";
 const DEBOUNCE_MS = 400;
 const POLL_MS = 10000;
@@ -46,8 +46,8 @@ export function InquiryShellRealtimeSubscriber({ profileId, }: InquiryShellRealt
             schema: "public",
             table: "inquiry_views",
             filter: `profile_id=eq.${profileId}`,
-        }, scheduleFlush)
-            .subscribe();
+        }, scheduleFlush);
+        subscribeAsViewer(sb, channel);
         const poll = window.setInterval(() => {
             if (document.visibilityState === "visible") {
                 void flushShell();

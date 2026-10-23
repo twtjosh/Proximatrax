@@ -8,7 +8,7 @@ import { ROUTES } from "@/lib/constants";
 import { plural } from "@/lib/dashboard";
 import { buildInbox, resolveActive, totalUnread, unreadByProject, type InboxProject, type InboxRow } from "@/lib/messenger";
 import { SPRING } from "@/lib/motion";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ROLE_TERMS } from "@/lib/vocabulary";
 import { listChatInbox } from "@/services/chat-presence-service";
@@ -120,15 +120,15 @@ export function Messenger({ viewer, docked = false }: {
         // A fresh name per mount: supabase-js hands back a same-named channel that is still leaving, which never rejoins.
         const channel = sb.channel(`messenger:${viewer.id}:${Math.random().toString(36).slice(2, 8)}`)
             .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh)
-            .on("postgres_changes", { event: "*", schema: "public", table: "project_chat_read_cursors", filter: `user_id=eq.${viewer.id}` }, refresh)
-            // Rejoining after a dropped connection (a phone waking up): catch up on messages sent meanwhile.
-            .subscribe((status) => {
-                if (status !== "SUBSCRIBED")
-                    return;
-                if (joined)
-                    refresh();
-                joined = true;
-            });
+            .on("postgres_changes", { event: "*", schema: "public", table: "project_chat_read_cursors", filter: `user_id=eq.${viewer.id}` }, refresh);
+        // Rejoining after a dropped connection (a phone waking up): catch up on messages sent meanwhile.
+        subscribeAsViewer(sb, channel, (status) => {
+            if (status !== "SUBSCRIBED")
+                return;
+            if (joined)
+                refresh();
+            joined = true;
+        });
         const catchUp = () => {
             if (document.visibilityState === "visible")
                 refresh();

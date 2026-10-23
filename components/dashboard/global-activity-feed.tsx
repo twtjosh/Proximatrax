@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { formatActivitySentence } from "@/lib/activity-presentation";
 import { projectPath } from "@/lib/constants";
 import { listRecentActivityForViewer, type ActivityWithActor } from "@/services/activity-service";
@@ -24,8 +24,8 @@ export function GlobalActivityFeed({ initialItems, projectTitles, rowAsProjectLi
             void listRecentActivityForViewer(40)
                 .then(setItems)
                 .catch(() => { });
-        })
-            .subscribe();
+        });
+        subscribeAsViewer(sb, channel);
         return () => {
             void sb.removeChannel(channel);
         };

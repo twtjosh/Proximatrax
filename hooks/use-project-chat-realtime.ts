@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { removeRealtimeChannelByName } from "@/lib/supabase/realtime-channel";
 import { listChatMessages } from "@/services/chat-service";
 import { markProjectChatRead, type ChatParticipant, } from "@/services/chat-presence-service";
@@ -194,8 +194,8 @@ export function useProjectChatRealtime({ projectId, viewerId, initialMessages, i
             else {
                 clearTypingUser(data.user_id);
             }
-        })
-            .subscribe();
+        });
+        subscribeAsViewer(sb, channel);
         void markProjectChatRead(projectId).catch(() => { });
         const poll = window.setInterval(() => {
             if (document.visibilityState === "visible") {

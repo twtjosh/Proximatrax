@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { listWorkNotifications, markAllWorkNotificationsRead, markWorkNotificationRead, } from "@/services/work-notification-service";
 import type { UserNotification } from "@/types/database";
 /** The toast's button, by what the notification is about. */
@@ -72,15 +72,15 @@ export function useWorkNotifications(userId: string | undefined) {
         }, (payload) => {
             const row = payload.new as UserNotification;
             setItems((prev) => prev.map((n) => (n.id === row.id ? row : n)));
-        })
-            // Rejoining after a dropped connection (a phone waking up): catch up on what arrived meanwhile.
-            .subscribe((status) => {
-                if (status !== "SUBSCRIBED")
-                    return;
-                if (joined)
-                    void refresh();
-                joined = true;
-            });
+        });
+        // Rejoining after a dropped connection (a phone waking up): catch up on what arrived meanwhile.
+        subscribeAsViewer(sb, channel, (status) => {
+            if (status !== "SUBSCRIBED")
+                return;
+            if (joined)
+                void refresh();
+            joined = true;
+        });
         const catchUp = () => {
             if (document.visibilityState === "visible")
                 void refresh();

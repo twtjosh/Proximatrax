@@ -5,7 +5,7 @@ import { ArrowUp, Loader2, MessagesSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { SPRING } from "@/lib/motion";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, subscribeAsViewer } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { personTitle } from "@/lib/vocabulary";
 import { addTaskComment, deleteTaskComment, listTaskComments, type TaskCommentWithAuthor } from "@/services/task-comment-service";
@@ -58,8 +58,8 @@ export function TaskDiscussion({ taskId, projectId, taskTitle, viewerId, isPm, o
                 const id = (payload.old as { id?: string }).id;
                 if (live && id)
                     setComments((list) => list?.filter((c) => c.id !== id) ?? list);
-            })
-            .subscribe();
+            });
+        subscribeAsViewer(sb, channel);
         return () => {
             live = false;
             void sb.removeChannel(channel);
