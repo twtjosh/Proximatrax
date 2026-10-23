@@ -25,6 +25,13 @@ export const LOG_KINDS: { kind: LogKind; label: string }[] = [
 ];
 
 export type LogRow = { action_type: string; details: Record<string, unknown> | null; created_at: string; user_id?: string | null };
+/** The `details` keys anything reading the log uses (here, the timeline, moves); add a key here when a reader starts using it. */
+const READ_KEYS = ["title", "to", "from", "due_date", "file_name", "name", "health", "note", "excerpt", "reason", "task_id", "message_id", "formally_closed"];
+/** A log row with only the details its readers use, so a page sending the whole log sends no more than it shows. */
+export function slimLogRow<T extends LogRow>(row: T): T {
+    const d = row.details;
+    return d ? { ...row, details: Object.fromEntries(READ_KEYS.filter((k) => k in d).map((k) => [k, d[k]])) } : row;
+}
 
 const STAGE: Record<string, string> = { backlog: "To do", to_do: "To do", in_progress: "In progress", review: "In review", done: "Accepted" };
 const q = (v: unknown) => `“${String(v ?? "").trim() || "a task"}”`;

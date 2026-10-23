@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { behindSchedule, deliveries, deliveryRecord, lastMonths, managingCount, openLoad, peopleCount, projectRows, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow, type TaskMove } from "@/lib/analytics";
+import { behindSchedule, deliveries, deliveryRecord, lastMonths, managingCount, openLoad, peopleCount, projectRows, toMoves, waitingForReview, type AMilestone, type AProject, type ATask, type DeliveryRecord, type Month, type OpenLoad, type Overrun, type Person, type ProjectRow } from "@/lib/analytics";
 import type { FlowPhase, FlowTask } from "@/lib/flow";
+import { slimLogRow } from "@/lib/project-log";
 import type { TimelineData, TimelineEntry } from "@/lib/project-timeline";
 import { personTitle } from "@/lib/vocabulary";
 import { readAll } from "@/lib/paged";
@@ -13,14 +14,6 @@ export const MILESTONE_COLS = "id, project_id, title, due_date, completed, compl
 
 type ProfileRow = { id: string; full_name: string; role: UserRole; avatar_url: string | null; classification?: CrewClassification | null };
 const person = (p: ProfileRow): Person => ({ id: p.id, name: p.full_name, avatarUrl: p.avatar_url });
-
-/** `task_moved` rows from the activity feed, as moves. Rows missing a field are skipped. */
-export function toMoves(rows: { details: unknown; created_at: string }[]): TaskMove[] {
-    return rows.flatMap((r) => {
-        const d = (r.details ?? {}) as { task_id?: string; from?: string; to?: string };
-        return d.task_id && d.from && d.to ? [{ task_id: d.task_id, from: d.from, to: d.to, at: r.created_at }] : [];
-    });
-}
 
 export type ManagerLane = Person & {
     active: number;
@@ -148,10 +141,9 @@ export type PmAnalytics = {
     clientNames: Record<string, string>;
     /** People on the active projects: crew added to them and their clients; `busy` crew hold open tasks. */
     team: { crew: number; clients: number; busy: number };
-    /** Raw rows for the Flow charts, which the page filters and counts in the browser. */
+    /** Raw rows for the Flow charts, which the page filters and counts in the browser (moves too, from the timeline's log). */
     flow: {
         tasks: FlowTask[];
-        moves: TaskMove[];
         /** Every phase, so a To do task is timed from when it could start. */
         phases: FlowPhase[];
         /** Active projects first, then delivered; colours follow this order. */
@@ -184,8 +176,7 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
         throwIfSupabaseError(r.error);
     const tasks = (tasksRes.data ?? []) as FlowTask[];
     const milestones = (milestonesRes.data ?? []) as AMilestone[];
-    const log = (logRes.data ?? []) as TimelineEntry[];
-    const moves = toMoves(log.filter((r) => r.action_type === "task_moved"));
+    const log = ((logRes.data ?? []) as TimelineEntry[]).map(slimLogRow);
     const memberIds = [...new Set(((membersRes.data ?? []) as { user_id: string }[]).map((m) => m.user_id))];
 
     const peopleIds = [...new Set([...tasks.flatMap((t) => (t.assigned_to ? [t.assigned_to] : [])), ...projects.map((p) => p.client_id), ...log.flatMap((r) => (r.user_id ? [r.user_id] : [])), ...memberIds])];
@@ -210,7 +201,6 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
         })(),
         flow: {
             tasks,
-            moves,
             phases: milestones.map(({ id, project_id, title, due_date }) => ({ id, project_id, title, due_date })),
             projects: [...rows.active, ...rows.delivered].map((r) => ({ id: r.project.id, title: r.project.title, active: r.project.status !== "completed" })),
             crew: people.filter((p) => p.role !== "client" && tasks.some((t) => t.assigned_to === p.id)).sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),

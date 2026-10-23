@@ -5,7 +5,7 @@ import { AreaChart, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { ProjectTimeline } from "@/components/analytics/timeline/project-timeline";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
-import { openLoad, type Person, type TaskMove } from "@/lib/analytics";
+import { openLoad, toMoves, type Person } from "@/lib/analytics";
 import { addDays, isoDateIn } from "@/lib/dashboard";
 import { daysPerTask, flowSummary, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask } from "@/lib/flow";
 import type { TimelineData } from "@/lib/project-timeline";
@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 
 export type FlowData = {
     tasks: FlowTask[];
-    moves: TaskMove[];
     phases: FlowPhase[];
     projects: { id: string; title: string; active: boolean }[];
     crew: Person[];
@@ -45,17 +44,18 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
 }) {
     const [table, setTable] = React.useState(false);
     const root = React.useRef<HTMLDivElement>(null);
+    const moves = React.useMemo(() => toMoves(data.timeline.log.filter((r) => r.action_type === "task_moved")), [data.timeline.log]);
 
     // From every task: a phase opens only when all of its tasks are accepted, whoever they belong to.
     const ready = React.useMemo(() => readiness(data.tasks, data.phases, today), [data.tasks, data.phases, today]);
-    const s = React.useMemo(() => flowSummary(data.tasks, data.moves, today, WEEKS, ready), [data.tasks, data.moves, today, ready]);
+    const s = React.useMemo(() => flowSummary(data.tasks, moves, today, WEEKS, ready), [data.tasks, moves, today, ready]);
 
     // Workload: everyone's open work.
     const workload = React.useMemo(() => {
         const from = addDays(today, 1 - WEEKS * 7);
-        const team = daysPerTask(data.tasks, data.moves, today, WEEKS * 7);
+        const team = daysPerTask(data.tasks, moves, today, WEEKS * 7);
         const rows = data.crew.map((p) => {
-            const mine = scopeFlow(data.tasks, data.moves, (t) => t.assigned_to === p.id);
+            const mine = scopeFlow(data.tasks, moves, (t) => t.assigned_to === p.id);
             const open = openNow(mine.tasks, mine.moves, today).map((l) => l.length);
             const inPeriod = mine.moves.filter((m) => isoDateIn(m.at) >= from);
             const submitted = inPeriod.filter((m) => m.to === "review").length, back = inPeriod.filter((m) => m.from === "review" && m.to === "in_progress").length;
@@ -65,9 +65,9 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
         const worst = rows.filter((r) => r.submitted >= 3 && r.back / r.submitted > 0.12).sort((a, b) => b.back / b.submitted - a.back / a.submitted)[0]?.person.id;
         const total = rows.reduce((t, r) => ({ open: t.open + r.open[0] + r.open[1] + r.open[2], late: t.late + r.late, review: t.review + r.open[2] }), { open: 0, late: 0, review: 0 });
         return { team, rows, maxOpen, worst, total };
-    }, [data.tasks, data.moves, data.crew, today]);
+    }, [data.tasks, moves, data.crew, today]);
 
-    const timeline = <ProjectTimeline data={data.timeline} tasks={data.tasks} moves={data.moves} viewer={viewer} today={today}/>;
+    const timeline = <ProjectTimeline data={data.timeline} tasks={data.tasks} moves={moves} viewer={viewer} today={today}/>;
     if (data.tasks.length === 0) {
         return (<div ref={root}>
           {before}

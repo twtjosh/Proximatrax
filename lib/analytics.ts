@@ -13,6 +13,13 @@ export type ATask = Pick<Task, "id" | "project_id" | "title" | "stage" | "assign
 export type AMilestone = Pick<Milestone, "id" | "project_id" | "title" | "due_date" | "completed" | "completed_at">;
 /** One logged stage change of a task (`task_moved` in the activity feed). */
 export type TaskMove = { task_id: string; from: string; to: string; at: string };
+/** `task_moved` rows from the activity feed, as moves. Rows missing a field are skipped. */
+export function toMoves(rows: { details: unknown; created_at: string }[]): TaskMove[] {
+    return rows.flatMap((r) => {
+        const d = (r.details ?? {}) as { task_id?: string; from?: string; to?: string };
+        return d.task_id && d.from && d.to ? [{ task_id: d.task_id, from: d.from, to: d.to, at: r.created_at }] : [];
+    });
+}
 
 /** The Manila calendar date of a timestamp. */
 export const dateOf = (ts: string) => isoDateIn(ts);
