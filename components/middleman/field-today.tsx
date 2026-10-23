@@ -35,8 +35,15 @@ export function FieldToday({ viewerId, today, initialTasks, initialAttachments, 
     sentBack: Record<string, string>;
 }) {
     const router = useRouter();
+    // Local copies for instant feedback; a server refresh (live, or after an action) replaces them.
     const [tasks, setTasks] = React.useState(initialTasks);
     const [attachments, setAttachments] = React.useState(initialAttachments);
+    const [source, setSource] = React.useState(initialTasks);
+    if (source !== initialTasks) {
+        setSource(initialTasks);
+        setTasks(initialTasks);
+        setAttachments(initialAttachments);
+    }
     const [chosen, setChosen] = React.useState<string | null>(null);
     const [busy, setBusy] = React.useState(false);
     const sentBackIds = React.useMemo(() => new Set(Object.keys(sentBack)), [sentBack]);

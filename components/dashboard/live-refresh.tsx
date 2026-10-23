@@ -1,34 +1,29 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import { projectPath, projectReviewPath } from "@/lib/constants";
-import { isOwnChange, taskAnnouncement, type LiveTaskRow } from "@/lib/live-changes";
+import { isOwnChange, type LiveTaskRow } from "@/lib/live-changes";
 import { createClient } from "@/lib/supabase/client";
 
-/** Everything a task surface draws from: the work, its proof, its talk, its phase and its people. */
-const TABLES = ["tasks", "task_attachments", "task_comments", "milestones", "projects", "project_members"] as const;
+/** Everything a task surface draws from: the work, its proof, its talk, its phase, its people and who is invited. */
+const TABLES = ["tasks", "task_attachments", "task_comments", "milestones", "projects", "project_members", "project_invitations"] as const;
 /** Back after this long in a hidden tab, the socket may have slept through changes. */
 const STALE_MS = 30_000;
 
 /**
  * Re-renders the surrounding server page whenever work the viewer can see
- * changes (RLS scopes the stream), so submitted work, decisions, photos and
- * comments show up without a reload. With `projectId` it listens to that
- * project only. With `announce` it also toasts the moments people wait on:
- * a PM hears about new submissions, crew hear the PM's decision on theirs.
+ * changes (RLS scopes the stream), so submitted work, decisions, photos,
+ * comments and invitations show up without a reload. With `projectId` it
+ * listens to that project only. The moments people wait on (a submission, a
+ * decision, an answered invitation) are announced by the notification bell.
  *
  * Each table gets its own channel: Realtime rejects a channel's whole
  * postgres_changes subscription when any one table isn't published, which
  * once left every task update undelivered.
  */
-export function LiveRefresh({ channel, projectId, announce, viewerId }: {
+export function LiveRefresh({ channel, projectId }: {
     channel: string;
     projectId?: string;
-    announce?: "pm" | "crew";
-    /** Whose work counts as "theirs" for crew announcements. */
-    viewerId?: string;
 }) {
     const router = useRouter();
     React.useEffect(() => {
@@ -39,24 +34,11 @@ export function LiveRefresh({ channel, projectId, announce, viewerId }: {
             clearTimeout(timer);
             timer = setTimeout(() => router.refresh(), 400);
         };
-        const audience = announce === "pm" ? { role: "pm" as const } : announce === "crew" && viewerId ? { role: "crew" as const, viewerId } : null;
         const onTask = (payload: RealtimePostgresChangesPayload<LiveTaskRow>) => {
             // The echo of this browser's own write: the writer already updated its view (and refreshes when it needs to).
             if (payload.eventType !== "DELETE" && isOwnChange(payload.new.id))
                 return;
             refresh();
-            if (!audience || payload.eventType !== "UPDATE")
-                return;
-            const said = taskAnnouncement(payload.old, payload.new, audience);
-            if (!said)
-                return;
-            const { id, project_id, title } = said.task;
-            if (said.kind === "submitted")
-                toast("Submitted for review", { description: title, duration: 10_000, action: { label: "Review", onClick: () => router.push(`${projectReviewPath(project_id)}?task=${id}`) } });
-            else if (said.kind === "accepted")
-                toast.success("Your work was accepted", { description: title, duration: 8_000, action: { label: "View", onClick: () => router.push(`${projectPath(project_id)}?task=${id}`) } });
-            else
-                toast.warning("Sent back for changes", { description: title, duration: 10_000, action: { label: "Open task", onClick: () => router.push(`${projectPath(project_id)}?task=${id}`) } });
         };
 
         // A fresh name per mount: supabase-js hands back a same-named channel that is still leaving, which never rejoins.
@@ -98,6 +80,6 @@ export function LiveRefresh({ channel, projectId, announce, viewerId }: {
             for (const ch of channels)
                 void sb.removeChannel(ch);
         };
-    }, [channel, projectId, announce, viewerId, router]);
+    }, [channel, projectId, router]);
     return null;
 }

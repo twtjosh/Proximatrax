@@ -95,7 +95,7 @@ export function PmDashboard({ greeting, projects, closedCount, tasks, milestones
     }, [few, projects, today, view]);
 
     return (<div className="mx-auto w-full max-w-360 pb-12">
-      <LiveRefresh channel="pm-dashboard" announce="pm"/>
+      <LiveRefresh channel="pm-dashboard"/>
 
       <OverviewHeader title={greeting} sub={<>
           {formatDate(today, { weekday: "long", month: "long", day: "numeric" })}{projects.length > 0 ? <> · <b>{plural(projects.length, "active project")}</b></> : null}

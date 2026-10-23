@@ -3,9 +3,16 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { removeRealtimeChannelByName } from "@/lib/supabase/realtime-channel";
 import { listWorkNotifications, markAllWorkNotificationsRead, markWorkNotificationRead, } from "@/services/work-notification-service";
 import type { UserNotification } from "@/types/database";
+/** The toast's button, by what the notification is about. */
+const ACTION_LABEL: Record<string, string> = {
+    milestone_delivered: "View project",
+    project_completed: "View project",
+    invitation: "View invitation",
+    invitation_answered: "View team",
+    task_submitted: "Review",
+};
 export function useWorkNotifications(userId: string | undefined) {
     const router = useRouter();
     const [items, setItems] = React.useState<UserNotification[]>([]);
@@ -32,9 +39,10 @@ export function useWorkNotifications(userId: string | undefined) {
         if (!userId)
             return;
         const sb = createClient();
-        const channelName = `work-notifications:${userId}`;
+        let joined = false;
+        // A fresh name per mount: supabase-js hands back a same-named channel that is still leaving, which never rejoins.
         const channel = sb
-            .channel(channelName)
+            .channel(`work-notifications:${userId}:${Math.random().toString(36).slice(2, 8)}`)
             .on("postgres_changes", {
             event: "INSERT",
             schema: "public",
@@ -53,13 +61,7 @@ export function useWorkNotifications(userId: string | undefined) {
             toast(row.title, {
                 description: row.body,
                 duration: 8000,
-                action: {
-                    label: row.kind === "milestone_delivered" ||
-                        row.kind === "project_completed"
-                        ? "View project"
-                        : "Open task",
-                    onClick: () => router.push(row.href),
-                },
+                action: { label: ACTION_LABEL[row.kind] ?? "Open task", onClick: () => router.push(row.href) },
             });
         })
             .on("postgres_changes", {
@@ -71,12 +73,26 @@ export function useWorkNotifications(userId: string | undefined) {
             const row = payload.new as UserNotification;
             setItems((prev) => prev.map((n) => (n.id === row.id ? row : n)));
         })
-            .subscribe();
+            // Rejoining after a dropped connection (a phone waking up): catch up on what arrived meanwhile.
+            .subscribe((status) => {
+                if (status !== "SUBSCRIBED")
+                    return;
+                if (joined)
+                    void refresh();
+                joined = true;
+            });
+        const catchUp = () => {
+            if (document.visibilityState === "visible")
+                void refresh();
+        };
+        document.addEventListener("visibilitychange", catchUp);
+        window.addEventListener("online", catchUp);
         return () => {
-            removeRealtimeChannelByName(sb, channelName);
+            document.removeEventListener("visibilitychange", catchUp);
+            window.removeEventListener("online", catchUp);
             void sb.removeChannel(channel);
         };
-    }, [router, userId]);
+    }, [router, userId, refresh]);
     const unreadCount = React.useMemo(() => items.filter((n) => !n.read_at).length, [items]);
     const markRead = React.useCallback(async (id: string) => {
         await markWorkNotificationRead(id);

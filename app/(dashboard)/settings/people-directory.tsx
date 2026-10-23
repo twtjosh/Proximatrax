@@ -24,6 +24,10 @@ export type Person = Profile & {
     managed: number;
     /** Projects of any status where they are the client; these block removal. */
     clientOf: number;
+    /** Titles of the active projects they are crew on; removing them needs a confirmation. */
+    crewOn: string[];
+    /** Unfinished tasks assigned to them on active projects. */
+    openTasks: number;
 };
 type Group = UserRole | "all";
 const GROUPS: Array<{ value: Group; label: string }> = [
@@ -33,6 +37,8 @@ const GROUPS: Array<{ value: Group; label: string }> = [
     { value: "client", label: "Clients" },
 ];
 const REMOVABLE: UserRole[] = ["project_manager", "middleman", "client"];
+/** "A, B and C" for a short list; the first three and a count for a long one. */
+const listTitles = (titles: string[]) => titles.length > 3 ? `${titles.slice(0, 3).join(", ")} and ${titles.length - 3} more` : titles.length > 1 ? `${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}` : titles[0] ?? "";
 const joined = (iso: string) => formatDate(iso.slice(0, 10), { month: "short", day: "numeric", year: "numeric" });
 
 export function PeopleDirectory({ people, currentUserId }: {
@@ -199,21 +205,25 @@ function PersonMenu({ person, removable, onRemove }: { person: Person; removable
     </DropdownMenu>);
 }
 
-/** Says up front what removing someone will touch: a client on a project can't go, a PM's projects need a successor. */
+/** Says up front what removing someone will touch: a client on a project can't go, a PM's projects need a successor, crew on active projects need a confirmation. */
 function RemoveDialog({ person, open, people, onClose }: { person: Person | null; open: boolean; people: Person[]; onClose: () => void }) {
     const router = useRouter();
     const [reassignTo, setReassignTo] = React.useState("");
+    const [understood, setUnderstood] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
     const [busy, setBusy] = React.useState(false);
     const successors = people.filter((p) => p.role === "project_manager" && p.id !== person?.id);
     const blocked = (person?.clientOf ?? 0) > 0;
     const needsSuccessor = (person?.managed ?? 0) > 0;
+    const crewOn = person?.role === "middleman" ? person.crewOn : [];
+    const needsAcknowledgement = crewOn.length > 0;
     const name = person?.full_name || "this person";
 
     function close() {
         if (busy)
             return;
         setReassignTo("");
+        setUnderstood(false);
         setError(null);
         onClose();
     }
@@ -224,10 +234,11 @@ function RemoveDialog({ person, open, people, onClose }: { person: Person | null
         setError(null);
         setBusy(true);
         try {
-            await deleteUser(person.id, needsSuccessor ? reassignTo : undefined);
+            await deleteUser(person.id, needsSuccessor ? reassignTo : undefined, understood);
             toast.success(`${name} was removed`);
             setBusy(false);
             setReassignTo("");
+            setUnderstood(false);
             onClose();
             router.refresh();
         }
@@ -247,7 +258,18 @@ function RemoveDialog({ person, open, people, onClose }: { person: Person | null
           </DialogDescription>
         </DialogHeader>
 
-        {blocked || needsSuccessor || error ? (<div className="space-y-4 px-6 pb-6">
+        {blocked || needsSuccessor || needsAcknowledgement || error ? (<div className="space-y-4 px-6 pb-6">
+            {needsAcknowledgement ? (<div className="space-y-3 rounded-[12px] bg-warning-soft px-3.5 py-3 text-[13px] leading-relaxed text-warning">
+                <p>
+                  {name.split(" ")[0]} is still on {plural(crewOn.length, "active project")}: {listTitles(crewOn)}.
+                  {" "}{person!.openTasks > 0 ? `Their ${plural(person!.openTasks, "unfinished task")} will be left with no one assigned. ` : ""}
+                  The photos, files and messages they posted are deleted with the account.
+                </p>
+                <label className="flex cursor-pointer items-start gap-2.5 font-medium">
+                  <input type="checkbox" checked={understood} disabled={busy} onChange={(e) => setUnderstood(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-danger"/>
+                  I understand, remove {name.split(" ")[0]} anyway
+                </label>
+              </div>) : null}
             {blocked ? (<p className="rounded-[12px] bg-warning-soft px-3.5 py-3 text-[13px] leading-relaxed text-warning">
                 {name.split(" ")[0]} is the client on {plural(person!.clientOf, "project")}. Remove {person!.clientOf === 1 ? "that project" : "those projects"} first, then come back.
               </p>) : needsSuccessor ? (successors.length > 0 ? (<div className="space-y-1.5">
@@ -266,7 +288,7 @@ function RemoveDialog({ person, open, people, onClose }: { person: Person | null
 
         <DialogFooter className="mx-0 mb-0 rounded-b-[20px] px-6 py-4">
           <Button type="button" variant="ghost" disabled={busy} onClick={close} className="rounded-full">Cancel</Button>
-          <Button type="button" variant="destructive" disabled={busy || blocked || (needsSuccessor && !reassignTo)} onClick={() => void confirm()} className="rounded-full px-5">
+          <Button type="button" variant="destructive" disabled={busy || blocked || (needsSuccessor && !reassignTo) || (needsAcknowledgement && !understood)} onClick={() => void confirm()} className="rounded-full px-5">
             {busy ? <><Loader2 className="animate-spin" aria-hidden/>Removing…</> : needsSuccessor ? "Hand over and remove" : "Remove account"}
           </Button>
         </DialogFooter>

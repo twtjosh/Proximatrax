@@ -23,7 +23,7 @@ const TRAVEL = 28;
  * content right under it.
  */
 export function ProjectFrame({ live, tabs, header, renderTabs, banner, children }: {
-    /** What this role's live view listens to and announces. */
+    /** What this role's live view listens to. */
     live: React.ComponentProps<typeof LiveRefresh>;
     tabs: ProjectWorkspaceTab[];
     header: (compact: boolean) => React.ReactNode;

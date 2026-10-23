@@ -2,8 +2,8 @@ import { checklistProgress } from "./board-workflow.ts";
 import type { TaskStage } from "../types/enums";
 
 /**
- * Pure rules behind live task updates: which remote changes deserve a toast,
- * and which tasks to flash on the board after the server's copy arrives.
+ * Pure rules behind live task updates: which tasks to flash on the board
+ * after the server's copy arrives, and which echoes are this browser's own.
  */
 export type LiveTaskRow = {
     id: string;
@@ -12,30 +12,6 @@ export type LiveTaskRow = {
     stage: TaskStage;
     assigned_to: string | null;
 };
-
-export type LiveAudience = { role: "pm" } | { role: "crew"; viewerId: string };
-
-export type TaskAnnouncement = { kind: "submitted" | "accepted" | "sent_back"; task: LiveTaskRow };
-
-/**
- * A stage change worth interrupting someone for. `old` is the row before the
- * update; without REPLICA IDENTITY FULL it carries only the id, and then
- * nothing is announced rather than guessing.
- */
-export function taskAnnouncement(old: Partial<LiveTaskRow> | null | undefined, next: LiveTaskRow, audience: LiveAudience): TaskAnnouncement | null {
-    const from = old?.stage;
-    if (!from || from === next.stage)
-        return null;
-    if (audience.role === "pm")
-        return next.stage === "review" ? { kind: "submitted", task: next } : null;
-    if (next.assigned_to !== audience.viewerId || from !== "review")
-        return null;
-    if (next.stage === "done")
-        return { kind: "accepted", task: next };
-    if (next.stage === "in_progress")
-        return { kind: "sent_back", task: next };
-    return null;
-}
 
 type Comparable = {
     id: string;
@@ -60,8 +36,8 @@ export function changedTaskIds(local: Comparable[], server: Comparable[]): strin
 }
 
 /**
- * Task writes this browser made itself. Their echo from the server is neither
- * announced back nor refreshed for: the writer already updated its own view.
+ * Task writes this browser made itself. Their echo from the server is not
+ * refreshed for: the writer already updated its own view.
  */
 const ownChanges = new Map<string, number>();
 // An echo lands within a second or so; short enough that a teammate's next change to the same task still comes through.

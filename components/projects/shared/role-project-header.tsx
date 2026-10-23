@@ -37,7 +37,8 @@ export function RoleProjectHeader({ projectId, title, share, done, status, unrea
             router.push(home);
     }
 
-    // On phones the floating notifications button holds the top-right corner, so Message sits just left of it.
+    // On phones the floating notifications button holds the top-right corner, so Message sits just left of it,
+    // and the title and status wrap to two lines rather than cutting off what the crew came to see.
     return (<div className="flex items-center gap-4 max-lg:pr-14">
       <ProgressRing value={share} done={done} size={54} stroke={5.5} className={cn("origin-left transition-[scale,translate] duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.67]")}>
         {/* The ring shrinks to two thirds when condensed; the number grows a little against it so it stays readable. */}
@@ -48,8 +49,8 @@ export function RoleProjectHeader({ projectId, title, share, done, status, unrea
           <ArrowLeft className="size-3.5" aria-hidden/>
           Back
         </button>
-        <h1 className={cn("origin-left truncate text-[1.75rem] leading-[1.05] font-semibold tracking-[-0.034em] text-ink transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.68]")}>{title}</h1>
-        <p className={cn("truncate text-[13px] text-ink-tertiary transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>{status}</p>
+        <h1 className={cn("origin-left line-clamp-2 text-[1.5rem] leading-[1.05] sm:truncate sm:text-[1.75rem] font-semibold tracking-[-0.034em] text-ink transition-transform duration-500 ease-spring motion-reduce:transition-none", compact && "translate-y-2 scale-[0.68]")}>{title}</h1>
+        <p className={cn("mt-0.5 line-clamp-3 text-[13px] text-ink-tertiary sm:mt-0 sm:truncate transition-opacity duration-300 motion-reduce:transition-none", compact && "opacity-0")}>{status}</p>
       </div>
       <OpenChatButton projectId={projectId} aria-label={liveUnread > 0 ? `${messageLabel}, ${liveUnread} unread` : messageLabel} className={cn(softAction, "relative h-9 px-3.5", liveUnread > 0 && "bg-brand-soft text-brand ring-1 ring-brand/20 hover:bg-brand-soft")}>
         <MessageSquare aria-hidden/>

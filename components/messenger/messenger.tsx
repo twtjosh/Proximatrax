@@ -9,7 +9,6 @@ import { plural } from "@/lib/dashboard";
 import { buildInbox, resolveActive, totalUnread, unreadByProject, type InboxProject, type InboxRow } from "@/lib/messenger";
 import { SPRING } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
-import { removeRealtimeChannelByName } from "@/lib/supabase/realtime-channel";
 import { cn } from "@/lib/utils";
 import { ROLE_TERMS } from "@/lib/vocabulary";
 import { listChatInbox } from "@/services/chat-presence-service";
@@ -112,19 +111,34 @@ export function Messenger({ viewer, docked = false }: {
     // One channel for every room: RLS limits inserts to the viewer's projects.
     React.useEffect(() => {
         const sb = createClient();
-        const name = `messenger:${viewer.id}`;
-        removeRealtimeChannelByName(sb, name);
         let timer: ReturnType<typeof setTimeout> | undefined;
         const refresh = () => {
             clearTimeout(timer);
             timer = setTimeout(() => void load(), REFRESH_MS);
         };
-        const channel = sb.channel(name)
+        let joined = false;
+        // A fresh name per mount: supabase-js hands back a same-named channel that is still leaving, which never rejoins.
+        const channel = sb.channel(`messenger:${viewer.id}:${Math.random().toString(36).slice(2, 8)}`)
             .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, refresh)
             .on("postgres_changes", { event: "*", schema: "public", table: "project_chat_read_cursors", filter: `user_id=eq.${viewer.id}` }, refresh)
-            .subscribe();
+            // Rejoining after a dropped connection (a phone waking up): catch up on messages sent meanwhile.
+            .subscribe((status) => {
+                if (status !== "SUBSCRIBED")
+                    return;
+                if (joined)
+                    refresh();
+                joined = true;
+            });
+        const catchUp = () => {
+            if (document.visibilityState === "visible")
+                refresh();
+        };
+        document.addEventListener("visibilitychange", catchUp);
+        window.addEventListener("online", catchUp);
         return () => {
             clearTimeout(timer);
+            document.removeEventListener("visibilitychange", catchUp);
+            window.removeEventListener("online", catchUp);
             void sb.removeChannel(channel);
         };
     }, [viewer.id, load]);

@@ -91,11 +91,12 @@ export async function setClassification(userId: string, classification: CrewClas
         throw new Error(data.error ?? "Unable to change the classification.");
     }
 }
-export async function deleteUser(userId: string, reassignTo?: string): Promise<void> {
+/** `crewAcknowledged`: the super admin has seen that a middleman on active projects leaves open tasks behind. */
+export async function deleteUser(userId: string, reassignTo?: string, crewAcknowledged = false): Promise<void> {
     const response = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reassignTo }),
+        body: JSON.stringify({ reassignTo, crewAcknowledged }),
     });
     if (!response.ok) {
         let message = "Unable to delete account.";

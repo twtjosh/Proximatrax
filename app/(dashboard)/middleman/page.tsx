@@ -33,7 +33,7 @@ export default async function MiddlemanHomePage() {
     const today = isoDateIn(now);
 
     return (<div className="mx-auto w-full max-w-6xl pb-12">
-      <LiveRefresh channel="middleman-home" announce="crew" viewerId={user.id}/>
+      <LiveRefresh channel="middleman-home"/>
       <DayHeader today={today} title="Today" sub={<>
           {greeting(now)}, {me.full_name?.split(" ")[0] ?? "there"} · {assignedTasks.length > 0 ? <><b>{plural(assignedTasks.length, "task")}</b> on your list</> : "Your list is clear"}
         </>}/>

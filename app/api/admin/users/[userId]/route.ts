@@ -64,10 +64,29 @@ export async function DELETE(request: Request, context: {
     if (!DELETABLE_ROLES.includes(targetRole)) {
         return NextResponse.json({ error: "SuperAdmin accounts cannot be deleted from this panel." }, { status: 400 });
     }
-    // Optional body: { reassignTo } hands the user's managed projects to another PM before deleting.
-    const { reassignTo } = (await request.json().catch(() => ({}))) as {
+    // Optional body: { reassignTo } hands the user's managed projects to another PM before deleting;
+    // { crewAcknowledged } confirms removing a middleman who is still on active projects.
+    const { reassignTo, crewAcknowledged } = (await request.json().catch(() => ({}))) as {
         reassignTo?: string;
+        crewAcknowledged?: boolean;
     };
+    if (targetRole === "middleman" && crewAcknowledged !== true) {
+        const { data: memberships, error: membersError } = await adminClient
+            .from("project_members")
+            .select("projects!inner(title, status)")
+            .eq("user_id", userId)
+            .neq("projects.status", "completed");
+        if (membersError) {
+            return NextResponse.json({ error: membersError.message }, { status: 500 });
+        }
+        const titles = ((memberships ?? []) as unknown as { projects: { title: string } }[]).map((m) => m.projects.title);
+        if (titles.length > 0) {
+            return NextResponse.json({
+                error: `This middleman is on ${titles.length} active project(s): ${titles.slice(0, 3).join(", ")}${titles.length > 3 ? ` and ${titles.length - 3} more` : ""}. Confirm to remove them anyway.`,
+                needsCrewAcknowledgement: true,
+            }, { status: 409 });
+        }
+    }
     const { data: linkedProjects, error: projectsError } = await adminClient
         .from("projects")
         .select("id, title, pm_id, client_id")
