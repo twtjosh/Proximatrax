@@ -12,12 +12,13 @@ const fieldClass = "h-12 w-full rounded-md border border-slate-200 bg-white px-4
 /** Reached from the reset email via /api/auth/callback, which leaves a recovery session. */
 export default function UpdatePasswordPage() {
     const router = useRouter();
-    const [password, setPassword] = useState("");
-    const [confirm, setConfirm] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        // Read the fields at submit: anything typed before the page finished loading is kept.
+        const form = new FormData(event.currentTarget);
+        const password = String(form.get("password") ?? ""), confirm = String(form.get("confirm") ?? "");
         setError(null);
         if (password !== confirm) {
             setError("The two passwords don't match.");
@@ -57,13 +58,13 @@ export default function UpdatePasswordPage() {
           <Label htmlFor="new-password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
             New password
           </Label>
-          <Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minimum 8 characters" minLength={8} required className={fieldClass}/>
+          <Input id="new-password" name="password" type="password" autoComplete="new-password" placeholder="Minimum 8 characters" minLength={8} required className={fieldClass}/>
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm-password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Confirm new password
           </Label>
-          <Input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} minLength={8} required aria-invalid={error ? true : undefined} aria-describedby={error ? "update-password-error" : undefined} className={fieldClass}/>
+          <Input id="confirm-password" name="confirm" type="password" autoComplete="new-password" minLength={8} required aria-invalid={error ? true : undefined} aria-describedby={error ? "update-password-error" : undefined} className={fieldClass}/>
         </div>
 
         {error ? (<div id="update-password-error" role="alert" className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm dark:border-red-500/20 dark:bg-[#08111f] dark:text-red-400">

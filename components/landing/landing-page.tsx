@@ -385,16 +385,20 @@ function Inquiry({ draft, nameRef }: {
     draft: string;
     nameRef: React.RefObject<HTMLInputElement | null>;
 }) {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [message, setMessage] = useState(draft);
-    const [status, setStatus] = useState<Status>({ kind: "idle" });
-    useEffect(() => {
+    // The fields keep their own values (read at submit), so anything typed before the page finished loading is kept.
+    // A new draft from the hero replaces the message; the textarea remounts with it.
+    const [prefill, setPrefill] = useState(draft);
+    const [seenDraft, setSeenDraft] = useState(draft);
+    if (seenDraft !== draft) {
+        setSeenDraft(draft);
         if (draft)
-            setMessage(draft);
-    }, [draft]);
+            setPrefill(draft);
+    }
+    const [status, setStatus] = useState<Status>({ kind: "idle" });
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const [name, email, message] = ["name", "email", "message"].map((k) => String(form.get(k) ?? ""));
         setStatus({ kind: "sending" });
         try {
             const res = await fetch("/api/inquiries", {
@@ -448,9 +452,7 @@ function Inquiry({ draft, nameRef }: {
                 </p>
                 <button type="button" onClick={() => {
                     setStatus({ kind: "idle" });
-                    setName("");
-                    setEmail("");
-                    setMessage("");
+                    setPrefill("");
                 }} className="press mt-8 inline-flex h-10 items-center rounded-full bg-surface-sunken px-5 text-sm font-medium text-ink outline-none hover:bg-line focus-visible:ring-2 focus-visible:ring-brand">
                   Send another inquiry
                 </button>
@@ -462,16 +464,16 @@ function Inquiry({ draft, nameRef }: {
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label htmlFor="inquiry-name" className="block text-sm font-medium text-ink-secondary">Full name</label>
-                    <input ref={nameRef} id="inquiry-name" autoComplete="name" maxLength={INQUIRY_LIMITS.name} value={name} onChange={(e) => setName(e.target.value)} required className={cn(field, "h-12")}/>
+                    <input ref={nameRef} id="inquiry-name" name="name" autoComplete="name" maxLength={INQUIRY_LIMITS.name} required className={cn(field, "h-12")}/>
                   </div>
                   <div className="space-y-2">
                     <label htmlFor="inquiry-email" className="block text-sm font-medium text-ink-secondary">Email</label>
-                    <input id="inquiry-email" type="email" autoComplete="email" maxLength={INQUIRY_LIMITS.email} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required className={cn(field, "h-12")}/>
+                    <input id="inquiry-email" name="email" type="email" autoComplete="email" maxLength={INQUIRY_LIMITS.email} placeholder="you@example.com" required className={cn(field, "h-12")}/>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="inquiry-message" className="block text-sm font-medium text-ink-secondary">Your project</label>
-                  <textarea id="inquiry-message" maxLength={INQUIRY_LIMITS.message} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="The space, what you want done, and roughly when." rows={5} required className={cn(field, "resize-y py-3 leading-relaxed")}/>
+                  <textarea key={prefill} id="inquiry-message" name="message" defaultValue={prefill} maxLength={INQUIRY_LIMITS.message} placeholder="The space, what you want done, and roughly when." rows={5} required className={cn(field, "resize-y py-3 leading-relaxed")}/>
                 </div>
                 {status.kind === "error" ? <p role="alert" className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{status.message}</p> : null}
                 <button type="submit" disabled={status.kind === "sending"} className={cn(copperButton, "h-12 w-full text-[15px]")}>

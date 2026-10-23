@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { sendPasswordReset } from "@/services/auth-service";
 export default function ForgotPasswordPage() {
-    const [email, setEmail] = useState("");
     const [message, setMessage] = useState<string | null>(null);
     const linkFailed = useSearchParams().get("error") === "link";
     const [error, setError] = useState<string | null>(linkFailed ? "This reset link has expired or was opened in a different browser. Request a new one below." : null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        // Read the field at submit: anything typed before the page finished loading is kept.
+        const email = String(new FormData(event.currentTarget).get("email") ?? "");
         setMessage(null);
         setError(null);
         setIsSubmitting(true);
@@ -50,7 +51,7 @@ export default function ForgotPasswordPage() {
             <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Email address
             </Label>
-            <Input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="pm@aegfashion.com" required className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
+            <Input id="email" name="email" type="email" autoComplete="email" placeholder="pm@aegfashion.com" required className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors focus:border-[#d97706] focus:outline-none focus:ring-1 focus:ring-[#d97706] dark:border-white/10 dark:bg-[#08111f] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#d97706] dark:focus:ring-[#d97706]/50"/>
           </div>
 
           {message ? (<div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 shadow-sm dark:border-emerald-500/20 dark:bg-[#08111f] dark:text-emerald-400">
