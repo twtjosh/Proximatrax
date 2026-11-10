@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
+import { fileUrl, mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
 import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { ChatMessageAttachment } from "@/types/database";
 const CHAT_BUCKET = "project-chat";
@@ -7,10 +7,7 @@ function resolveClient(client?: SupabaseClient): SupabaseClient {
     return client ?? createBrowserClient();
 }
 export function publicAttachmentUrl(storagePath: string): string {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!base)
-        return storagePath;
-    return `${base}/storage/v1/object/public/${CHAT_BUCKET}/${storagePath}`;
+    return fileUrl(CHAT_BUCKET, storagePath);
 }
 export async function listProjectChatAttachments(projectId: string, client?: SupabaseClient): Promise<ChatMessageAttachment[]> {
     const sb = resolveClient(client);

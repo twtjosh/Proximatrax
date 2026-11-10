@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
+import { fileUrl, mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
 import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
 import type { TaskAttachment } from "@/types/database";
 const TASK_BUCKET = "project-tasks";
@@ -7,10 +7,7 @@ function resolveClient(client?: SupabaseClient): SupabaseClient {
     return client ?? createBrowserClient();
 }
 export function publicTaskAttachmentUrl(storagePath: string): string {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!base)
-        return storagePath;
-    return `${base}/storage/v1/object/public/${TASK_BUCKET}/${storagePath}`;
+    return fileUrl(TASK_BUCKET, storagePath);
 }
 export async function listTaskAttachmentsForProject(projectId: string, client?: SupabaseClient): Promise<TaskAttachment[]> {
     const sb = resolveClient(client);

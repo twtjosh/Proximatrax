@@ -51,6 +51,13 @@ const noCrash = async (page, path) => {
 };
 
 test.describe.configure({ mode: "serial" });
+test.beforeAll(async () => {
+    for (const bucket of ["project-tasks", "project-chat"]) {
+        const { error } = await admin.storage.updateBucket(bucket, { public: false });
+        if (error)
+            throw error;
+    }
+});
 test.afterAll(async () => {
     if (state.project)
         await admin.from("projects").delete().eq("id", state.project);
@@ -214,6 +221,76 @@ test("ST-06.S | client | Figures and photos after acceptance | Card reads 20% (1
     await noCrash(page, "/dashboard");
     await page.context().close();
 });
+const route = (bucket, path) => `/api/files/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`;
+const statusOf = async (page, url) => (await page.request.get(url, { maxRedirects: 0 })).status();
+test("ST-10.S | system | Prepares files of every kind on the private buckets | Unapproved photo, video, internal and shared documents, chat file", async () => {
+    const [pm, crew, client] = await Promise.all([api("pm"), api("crew1"), api("client1")]);
+    const { data: task2, error: taskError } = await pm.from("tasks").insert({ project_id: state.project, title: `Second ${RUN}`, stage: "to_do", assigned_to: crew.userId }).select("id").single();
+    expect(taskError).toBeNull();
+    const put = async (who, bucket, path, type, body = png) => expect((await who.storage.from(bucket).upload(path, body, { contentType: type })).error).toBeNull();
+    state.draft = `${state.project}/${task2.id}/${randomUUID()}-draft photo (1).png`;
+    await put(crew, "project-tasks", state.draft, "image/png");
+    expect((await crew.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.draft, file_name: "draft photo (1).png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId })).error).toBeNull();
+    state.video = `${state.project}/${task2.id}/${randomUUID()}-clip.mp4`;
+    await put(crew, "project-tasks", state.video, "video/mp4", Buffer.alloc(4096, 7));
+    expect((await crew.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.video, file_name: "clip.mp4", mime_type: "video/mp4", byte_size: 4096, media_kind: "video", uploaded_by: crew.userId })).error).toBeNull();
+    state.internal = `${state.project}/files/${randomUUID()}-internal.pdf`;
+    state.shared = `${state.project}/files/${randomUUID()}-shared plan.pdf`;
+    await put(pm, "project-tasks", state.internal, "application/pdf");
+    await put(pm, "project-tasks", state.shared, "application/pdf");
+    expect((await pm.from("project_files").insert([{ project_id: state.project, folder: "drawings", storage_path: state.internal, file_name: "internal.pdf", mime_type: "application/pdf", byte_size: png.length, uploaded_by: pm.userId }, { project_id: state.project, folder: "drawings", storage_path: state.shared, file_name: "shared plan.pdf", mime_type: "application/pdf", byte_size: png.length, uploaded_by: pm.userId, shared_with_client_at: new Date().toISOString() }])).error).toBeNull();
+    const { data: message, error: messageError } = await client.from("chat_messages").insert({ project_id: state.project, sender_id: client.userId, content: "a file" }).select("id").single();
+    expect(messageError).toBeNull();
+    state.chat = `${state.project}/${message.id}/${randomUUID()}-note.png`;
+    await put(client, "project-chat", state.chat, "image/png");
+    expect((await client.from("chat_message_attachments").insert({ message_id: message.id, project_id: state.project, storage_path: state.chat, file_name: "note.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: client.userId })).error).toBeNull();
+    state.urls = { approved: route("project-tasks", state.path), draft: route("project-tasks", state.draft), video: route("project-tasks", state.video), internal: route("project-tasks", state.internal), shared: route("project-tasks", state.shared), chat: route("project-chat", state.chat) };
+});
+test("ST-10.S | anonymous | Nobody opens a private file without signing in | Old public link refused; app route 401", async ({ request }) => {
+    for (const [bucket, path] of [["project-tasks", state.path], ["project-tasks", state.shared], ["project-chat", state.chat]])
+        expect((await fetch(`${URL_}/storage/v1/object/public/${bucket}/${path}`)).status, path).not.toBe(200);
+    for (const url of Object.values(state.urls))
+        expect((await request.get(url, { maxRedirects: 0 })).status(), url).toBe(401);
+});
+for (const [who, want] of [["pm", { approved: 302, draft: 302, video: 302, internal: 302, shared: 302, chat: 302 }], ["crew1", { approved: 302, draft: 302, video: 302, internal: 302, shared: 302, chat: 302 }], ["client1", { approved: 302, draft: 404, video: 404, internal: 404, shared: 302, chat: 302 }], ["client2", { approved: 404, draft: 404, video: 404, internal: 404, shared: 404, chat: 404 }], ["crew2", { approved: 404, draft: 404, video: 404, internal: 404, shared: 404, chat: 404 }]])
+    test(`ST-10.S | ${who} | Each file opens only for people allowed to see it | ${JSON.stringify(want).replace(/"/g, "")}`, async ({ browser }) => {
+        const page = await signIn(browser, who);
+        const got = {};
+        for (const [name, url] of Object.entries(state.urls))
+            got[name] = await statusOf(page, url);
+        expect(got).toEqual(want);
+        await page.context().close();
+    });
+test("ST-10.S | client | An allowed file really downloads, with its name | Image bytes returned; download keeps the filename", async ({ browser }) => {
+    const page = await signIn(browser, "client1");
+    const image = await page.request.get(state.urls.approved);
+    expect(image.status()).toBe(200);
+    expect(image.headers()["content-type"]).toContain("image/png");
+    expect((await image.body()).equals(png)).toBe(true);
+    const file = await page.request.get(`${state.urls.shared}?download=${encodeURIComponent("shared plan.pdf")}`);
+    expect(file.status()).toBe(200);
+    expect(file.headers()["content-disposition"]).toContain("shared%20plan.pdf");
+    await page.context().close();
+});
+test("ST-10.S | crew | Video can seek after the redirect | Range request returns 206", async ({ browser }) => {
+    const page = await signIn(browser, "crew1");
+    const res = await page.request.get(state.urls.video, { headers: { range: "bytes=0-99" } });
+    expect(res.status()).toBe(206);
+    expect((await res.body()).length).toBe(100);
+    await page.context().close();
+});
+for (const [who, path] of [["client1", "photos"], ["pm", "files"], ["crew1", "photos"]])
+    test(`ST-10.S | ${who} | Photos display on the real page | /${path}: an image from /api/files has loaded`, async ({ browser }) => {
+        const page = await signIn(browser, who);
+        await noCrash(page, `/projects/${state.project}/${path}`);
+        if (path === "files")
+            await page.getByRole("button", { name: /Site photos/ }).click();
+        const images = page.locator('img[src^="/api/files/"]');
+        await expect(images.first()).toBeAttached();
+        await images.first().scrollIntoViewIfNeeded();
+        await expect.poll(() => images.first().evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+        await page.context().close();
+    });
 test("ST-06.S | another client | An unrelated client can't open the project | Not found or redirected, title absent", async ({ browser }) => {
     const page = await signIn(browser, "client2");
     await page.goto(`/projects/${state.project}`);

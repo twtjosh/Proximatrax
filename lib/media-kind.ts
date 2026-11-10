@@ -1,4 +1,6 @@
 export type MediaKind = "file" | "photo" | "video";
+/** The app route that checks the viewer, then redirects to a short-lived link. */
+export const fileUrl = (bucket: string, storagePath: string) => `/api/files/${bucket}/${storagePath.split("/").map(encodeURIComponent).join("/")}`;
 export function mediaKindFromMime(mimeType: string): MediaKind {
     if (mimeType.startsWith("image/"))
         return "photo";

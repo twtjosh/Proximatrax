@@ -51,6 +51,8 @@ async function until(check, ms = 8000) {
 }
 
 before(async () => {
+    for (const bucket of ["project-tasks", "project-chat"])
+        ok(await admin.storage.updateBucket(bucket, { public: false }));
     for (const who of ROLES) {
         s[who] = client();
         const { data, error } = await s[who].auth.signInWithPassword({ email: email(who), password: staging.TEST_PASSWORD });
@@ -149,7 +151,7 @@ kase("IT-10.S02", "Supabase Storage + PostgREST", "Metadata row matches the obje
 kase("IT-10.S03", "Supabase Storage", "An outsider can't upload into the project", "crew2 upload", "Error", async () => assert.ok((await s.crew2.storage.from("project-tasks").upload(`${PROJECT}/x/${randomUUID()}.png`, png, { contentType: "image/png" })).error));
 kase("IT-10.S04", "Supabase Storage", "A client can't upload site evidence", "client1 upload to project-tasks", "Error", async () => assert.ok((await s.client1.storage.from("project-tasks").upload(`${PROJECT}/x/${randomUUID()}.png`, png, { contentType: "image/png" })).error));
 kase("IT-10.S05", "Supabase Storage", "The API won't list project files for an outsider", "crew2 lists folder", "Empty", async () => assert.equal(ok(await s.crew2.storage.from("project-tasks").list(`${PROJECT}/${id.task}`)).length, 0));
-kase("IT-10.S06", "Supabase Storage", "Records D-20: an object opens by link with no session", "GET public URL, no auth", "200 (known open finding)", async () => assert.equal((await fetch(`${URL_}/storage/v1/object/public/project-tasks/${id.path}`)).status, 200));
+kase("IT-10.S06", "Supabase Storage", "Regression D-20: an object doesn't open by link with no session", "GET the old public URL, no auth", "Not 200", async () => assert.notEqual((await fetch(`${URL_}/storage/v1/object/public/project-tasks/${id.path}`)).status, 200));
 kase("IT-10.S07", "Supabase Storage", "Oversized files are refused by the service", "51 MB upload", "Error", async () => assert.ok((await s.crew1.storage.from("project-tasks").upload(`${PROJECT}/${id.task}/${randomUUID()}.bin`, Buffer.alloc(51 * 1024 * 1024), { contentType: "application/octet-stream" })).error));
 kase("IT-07.S02", "PostgREST with real tokens", "A client can't find the unapproved photo", "client1 selects attachments", "0 rows", async () => assert.equal(ok(await s.client1.from("task_attachments").select("id").eq("project_id", PROJECT)).length, 0));
 
