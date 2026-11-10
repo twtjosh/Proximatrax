@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectStatusCard } from "@/components/dashboard/project-status-card";
 import { ProjectsLifecycleTabs } from "@/components/projects/projects-lifecycle-tabs";
 import { ROUTES, type ProjectsListView } from "@/lib/constants";
-import { splitProjectsByLifecycle } from "@/lib/project-lifecycle";
+import { projectProgress, splitProjectsByLifecycle } from "@/lib/project-lifecycle";
 import { cn } from "@/lib/utils";
 import { getViewer } from "@/lib/supabase/server";
 import { listProjects } from "@/services/project-service";
@@ -36,27 +36,11 @@ export default async function ProjectsPage(props: {
     const { active, completed } = splitProjectsByLifecycle(allProjects);
     const projects = view === "completed" ? completed : active;
     const projectIds = projects.map((p) => p.id);
-    const progressByProject: Record<string, {
-        total: number;
-        done: number;
-    }> = {};
-    if (projectIds.length > 0) {
-        const { data: taskData } = await supabase
-            .from("tasks")
-            .select("project_id, stage")
-            .in("project_id", projectIds);
-        for (const pid of projectIds) {
-            progressByProject[pid] = { total: 0, done: 0 };
-        }
-        for (const t of taskData ?? []) {
-            const pid = t.project_id as string;
-            if (!progressByProject[pid])
-                progressByProject[pid] = { total: 0, done: 0 };
-            progressByProject[pid].total += 1;
-            if (t.stage === "done")
-                progressByProject[pid].done += 1;
-        }
-    }
+    // A client reads accepted work only, so their progress is phases delivered, not tasks.
+    const progressRows = projectIds.length === 0 ? [] : (resolvedProfile?.role === "client"
+        ? (await supabase.from("milestones").select("project_id, completed").in("project_id", projectIds)).data
+        : (await supabase.from("tasks").select("project_id, stage").in("project_id", projectIds)).data) ?? [];
+    const progressByProject = projectProgress(progressRows);
     const isMiddleman = resolvedProfile?.role === "middleman";
     const isClient = resolvedProfile?.role === "client";
     const isPm = resolvedProfile?.role === "project_manager";

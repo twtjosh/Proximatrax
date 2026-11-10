@@ -119,11 +119,12 @@ const CHECKLIST = ["Mark wall studs", "Hang upper cabinet rail", "Level and fix 
 
 function CrewWindow({ play }: { play: boolean }) {
     const reduce = useReducedMotion();
-    const [ticked, setTicked] = useState(reduce ? 2 : 0);
+    // Starts the same as the server's HTML; reduced motion jumps to the end after hydrating.
+    const [ticked, setTicked] = useState(0);
     useEffect(() => {
-        if (!play || reduce)
+        if (!play && !reduce)
             return;
-        const timers = [700, 1300].map((ms, i) => window.setTimeout(() => setTicked(i + 1), ms));
+        const timers = (reduce ? [0, 0] : [700, 1300]).map((ms, i) => window.setTimeout(() => setTicked(i + 1), ms));
         return () => timers.forEach(clearTimeout);
     }, [play, reduce]);
     return (<div className="mx-auto w-full max-w-[300px] rounded-[40px] bg-[#05070D] p-2.5 shadow-land-window">
@@ -173,11 +174,11 @@ const BOARD: Record<(typeof COLUMNS)[number]["key"], string[]> = {
 function ReviewWindow({ play }: { play: boolean }) {
     const reduce = useReducedMotion();
     const cardId = useId();
-    const [accepted, setAccepted] = useState(!!reduce);
+    const [accepted, setAccepted] = useState(false);
     useEffect(() => {
-        if (!play || reduce)
+        if (!play && !reduce)
             return;
-        const t = window.setTimeout(() => setAccepted(true), 1100);
+        const t = window.setTimeout(() => setAccepted(true), reduce ? 0 : 1100);
         return () => clearTimeout(t);
     }, [play, reduce]);
     const card = (<motion.div layoutId={cardId} transition={SPRING} className={cn("rounded-xl bg-surface p-2.5 text-[12px] font-medium shadow-card", accepted ? "ring-2 ring-stage-done/50" : "ring-2 ring-stage-review/60")}>

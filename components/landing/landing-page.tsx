@@ -285,7 +285,7 @@ function Stop({ index, reached, current, nodeRef }: {
         {index + 1}
       </span>
       {/* Beside the sticky window, the stop being shown holds focus and the rest step back. */}
-      <div className={cn("transition-[opacity,filter] duration-700 ease-spring", !current && "lg:opacity-30 lg:blur-[0.5px]")}>
+      <div className={cn("transition-[opacity,filter] duration-700 ease-spring", !current && "lg:opacity-75 lg:blur-[0.5px]")}>
         <h3 className="max-w-[22ch] text-[clamp(1.75rem,3.2vw,2.6rem)] leading-[1.06] font-semibold tracking-[-0.035em] text-balance text-land-ink">
           <span className="sr-only">{m.title}, due {m.due}: </span>{stop.title}
         </h3>

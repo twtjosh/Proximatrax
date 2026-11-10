@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     "internal/**",
     ".claude/**",
     ".cursor/**",
+    // Generated test output.
+    "testing-reports/**",
   ]),
 ]);
 

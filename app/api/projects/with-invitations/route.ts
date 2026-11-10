@@ -32,16 +32,19 @@ export async function POST(request: Request) {
     let body: Body;
     try {
         body = (await request.json()) as Body;
+        if (typeof body !== "object" || body === null)
+            throw new Error("not an object");
     }
     catch {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-    const title = body.title?.trim();
-    const clientId = body.clientId?.trim();
-    const middlemanId = body.middlemanId?.trim();
-    const startDate = body.startDate?.trim();
-    const endDate = body.endDate?.trim();
-    const description = body.description?.trim() || null;
+    const text = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+    const title = text(body.title);
+    const clientId = text(body.clientId);
+    const middlemanId = text(body.middlemanId);
+    const startDate = text(body.startDate);
+    const endDate = text(body.endDate);
+    const description = text(body.description) || null;
     const useTemplate = body.useTemplate !== false;
     if (!title || !clientId || !middlemanId || !startDate || !endDate) {
         return NextResponse.json({
@@ -50,6 +53,12 @@ export async function POST(request: Request) {
     }
     if (clientId === middlemanId) {
         return NextResponse.json({ error: "Client and middleman must be different people." }, { status: 400 });
+    }
+    // The form only offers the right people; the request can name anyone.
+    const { data: invitees } = await supabase.from("profiles").select("id, role").in("id", [clientId, middlemanId]);
+    const roleOf = (id: string) => (invitees as { id: string; role: string }[] | null)?.find((p) => p.id === id)?.role;
+    if (roleOf(clientId) !== "client" || roleOf(middlemanId) !== "middleman") {
+        return NextResponse.json({ error: "Choose a client and a middleman from your directory." }, { status: 400 });
     }
     let projectId: string | null = null;
     try {

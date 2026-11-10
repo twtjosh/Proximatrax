@@ -66,7 +66,7 @@ export async function DELETE(request: Request, context: {
     }
     // Optional body: { reassignTo } hands the user's managed projects to another PM before deleting;
     // { crewAcknowledged } confirms removing a middleman who is still on active projects.
-    const { reassignTo, crewAcknowledged } = (await request.json().catch(() => ({}))) as {
+    const { reassignTo, crewAcknowledged } = ((await request.json().catch(() => null)) ?? {}) as {
         reassignTo?: string;
         crewAcknowledged?: boolean;
     };
@@ -168,7 +168,7 @@ export async function PATCH(request: Request, context: {
     } | null)?.role !== "super_admin") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const { classification } = (await request.json().catch(() => ({}))) as {
+    const { classification } = ((await request.json().catch(() => null)) ?? {}) as {
         classification?: string;
     };
     if (!classification || !(classification in CLASSIFICATION_TERMS)) {

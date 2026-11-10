@@ -92,8 +92,8 @@ export const ROLE_HOME_PATHS: Record<string, string> = {
 export const ROLE_LABELS: Record<string, string> = ROLE_TERMS;
 export const TASK_STAGE_LABELS: Record<string, string> = Object.fromEntries(Object.entries(TASK_STAGE_TERMS).map(([stage, term]) => [stage, term.label]));
 export function getRoleHomePath(role?: string | null) {
-    if (!role) {
+    if (!role || !Object.hasOwn(ROLE_HOME_PATHS, role)) {
         return ROUTES.DASHBOARD;
     }
-    return ROLE_HOME_PATHS[role] ?? ROUTES.DASHBOARD;
+    return ROLE_HOME_PATHS[role];
 }

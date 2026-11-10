@@ -79,8 +79,11 @@ export async function uploadChatAttachment(projectId: string, file: File, option
     })
         .select("*")
         .single();
-    if (attachmentError)
+    if (attachmentError) {
+        await sb.storage.from(CHAT_BUCKET).remove([storagePath]);
+        await sb.from("chat_messages").delete().eq("id", message.id);
         throw attachmentError;
+    }
     await sb.from("activity_feed").insert({
         project_id: projectId,
         user_id: user.id,

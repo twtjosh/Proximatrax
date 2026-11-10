@@ -36,15 +36,18 @@ export async function POST(request: Request) {
     let body: Body;
     try {
         body = (await request.json()) as Body;
+        if (typeof body !== "object" || body === null)
+            throw new Error("not an object");
     }
     catch {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
-    const email = body.email?.trim().toLowerCase();
-    const password = body.password;
-    const fullName = body.fullName?.trim();
+    const text = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+    const email = text(body.email)?.toLowerCase();
+    const password = typeof body.password === "string" ? body.password : undefined;
+    const fullName = text(body.fullName);
     const role = body.role as UserRole | undefined;
-    const contactNumber = body.contactNumber?.trim() || null;
+    const contactNumber = text(body.contactNumber) || null;
     if (!email || !password || !fullName || !role) {
         return NextResponse.json({ error: "email, password, fullName, and role are required" }, { status: 400 });
     }

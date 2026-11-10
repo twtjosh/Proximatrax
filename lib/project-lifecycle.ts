@@ -53,3 +53,14 @@ export function splitProjectsByLifecycle<T extends Pick<Project, "status">>(proj
     }
     return { active, completed };
 }
+/** Finished out of total per project, from tasks (accepted) or from phases (delivered). */
+export function projectProgress(rows: { project_id: string; stage?: string; completed?: boolean }[]): Record<string, { total: number; done: number }> {
+    const out: Record<string, { total: number; done: number }> = {};
+    for (const r of rows) {
+        out[r.project_id] ??= { total: 0, done: 0 };
+        out[r.project_id].total += 1;
+        if (r.stage === "done" || r.completed === true)
+            out[r.project_id].done += 1;
+    }
+    return out;
+}

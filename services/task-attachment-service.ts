@@ -94,8 +94,10 @@ export async function uploadTaskAttachment(projectId: string, taskId: string, fi
     })
         .select("*")
         .single();
-    if (attachmentError)
+    if (attachmentError) {
+        await sb.storage.from(TASK_BUCKET).remove([storagePath]);
         throw attachmentError;
+    }
     await sb.from("activity_feed").insert({
         project_id: projectId,
         user_id: user.id,

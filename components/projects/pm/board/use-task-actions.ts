@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { normalizeBoardStage, validateStageTransition, type BoardColumnStage, type WorkflowGateContext } from "@/lib/board-workflow";
 import { projectReviewPath } from "@/lib/constants";
 import { changedTaskIds } from "@/lib/live-changes";
+import { hasSiteEvidence } from "@/lib/media-kind";
 import { toGateTasks } from "@/lib/milestone-task-gates";
 import { moveTaskToStage } from "@/lib/work-task-flow";
 import type { TaskWithRelations } from "@/services/task-service";
@@ -119,8 +120,8 @@ export function useTaskActions({ projectId, viewerId, closed, milestones, tasks,
             toast.error(check.failures[0]?.message ?? "That move isn't allowed.");
             return;
         }
-        if (to === "review" && !(byTask.get(task.id) ?? []).some((a) => a.media_kind === "photo")) {
-            toast.error("Add a site photo before submitting for review.", { action: { label: "Open task", onClick: () => openTask(task.id) } });
+        if (to === "review" && !hasSiteEvidence(byTask.get(task.id) ?? [])) {
+            toast.error("Add a site photo or video before submitting for review.", { action: { label: "Open task", onClick: () => openTask(task.id) } });
             return;
         }
         if (check.warning) {
