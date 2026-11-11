@@ -21,6 +21,7 @@ const SECTIONS: LegalSection[] = [
             "The database (Supabase, hosted in Singapore): accounts, inquiries, projects, tasks, messages, notifications and the activity log.",
             "File storage (Supabase Storage): site photos, project documents and files sent in messages.",
             "The web host (Vercel, running in Singapore): short-lived request and error logs.",
+            "Maps and place search (OpenStreetMap): shows map images, and finds the places a project manager searches for. ProximaTrax keeps none of those searches.",
         ] },
         "Contracts, quotations, invoices and payments are not handled in ProximaTrax. They are kept outside the portal under our accounting and tax obligations, so this policy does not cover them.",
     ] },
@@ -52,7 +53,7 @@ const SECTIONS: LegalSection[] = [
                 ["Then", "The super admin deletes the account. A project manager's projects must first be handed to another project manager; the system enforces this."],
             ] },
             { title: "Project records", rows: [
-                ["What", "The project, its phases, tasks and checklists, task comments, status updates, team list, invitations and the handover statement."],
+                ["What", "The project, its site location, its phases, tasks and checklists, task comments, status updates, team list, invitations and the handover statement."],
                 ["Stored in", "The projects, milestones, tasks, task comments, project members and invitations tables."],
                 ["Why", "To plan and deliver the work, and to show the client what was done."],
                 ["Starts", PROJECT_CLOSED],
@@ -60,9 +61,9 @@ const SECTIONS: LegalSection[] = [
                 ["Then", "The project's manager deletes it in Project settings › Delete project. That one step deletes every record and file in the project."],
             ] },
             { title: "Site photos and files", rows: [
-                ["What", "Photos attached to tasks, documents in Files, and photos and files sent in messages."],
-                ["Stored in", "File storage, with a record of each file in the database."],
-                ["Why", "To show progress, as evidence of finished work, and to share documents with the client."],
+                ["What", "Photos and videos attached to tasks, documents in Files, and photos and files sent in messages. Site photos and videos taken in the portal also record when they were taken, the phone's location at that moment if the middleman allowed it, how accurate it was, the distance from the project's site, and any warnings (such as no location or a phone clock that was off)."],
+                ["Stored in", "File storage, with a record of each file in the database. The time and location are stored only in that record; location is never collected at any other time."],
+                ["Why", "To show progress, as evidence of finished work, to check that site evidence was taken on site at the time shown, and to share documents with the client."],
                 ["Starts", PROJECT_CLOSED],
                 ["Kept for", "24 months, with the project. A project manager can delete a wrong or unneeded file at any time."],
                 ["Then", "Deleted together with the project, files included."],
@@ -132,7 +133,7 @@ const SECTIONS: LegalSection[] = [
             "Role-based access is enforced by the database itself, not just the screens: clients see only their own projects, middlemen only the projects they have joined, and project managers only the projects they manage.",
             "Accounts are created only by the super admin, and public sign-up is switched off. Passwords are stored hashed, and resets go through a link sent by email.",
             "All traffic is encrypted (HTTPS), and the database and server code both run in Singapore.",
-            "Files are reached through long, hard-to-guess links. Anyone who has a link can open that file, so links must not be shared outside the project.",
+            "Files are stored privately. They open only for people signed in to the portal who are allowed to see them on that project, through a link that works for 5 minutes, so a forwarded link soon stops working.",
             "Access to the database console and the service keys is limited to the people who maintain ProximaTrax.",
         ] },
     ] },
@@ -191,5 +192,5 @@ const SECTIONS: LegalSection[] = [
 ];
 
 export default function DataRetentionPage() {
-    return <LegalPage title="Data retention policy" updated="October 23, 2026" intro="What ProximaTrax keeps, why, for how long, and how it is deleted." sections={SECTIONS}/>;
+    return <LegalPage title="Data retention policy" updated="November 12, 2026" intro="What ProximaTrax keeps, why, for how long, and how it is deleted." sections={SECTIONS}/>;
 }

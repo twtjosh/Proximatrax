@@ -1,17 +1,20 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImagePlus, Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, OverviewCard } from "@/components/dashboard/overview-kit";
+import { InAppBrowserNotice } from "@/components/middleman/in-app-notice";
+import { SiteCamera } from "@/components/middleman/site-camera";
 import { useTouch } from "@/components/middleman/task-workbench";
 import { PhotoViewer, type ViewerPhoto } from "@/components/projects/shared/photo-viewer";
 import { normalizeBoardStage } from "@/lib/board-workflow";
 import { photoStatus, type PhotoStatus } from "@/lib/crew-project";
 import type { CrewProjectData } from "@/lib/data/crew-project";
+import { locate, prepareSiteMedia, type Fix } from "@/lib/photo-stamp";
 import { cn } from "@/lib/utils";
 import { TASK_STAGE_TERMS } from "@/lib/vocabulary";
-import { publicTaskAttachmentUrl, uploadTaskAttachment } from "@/services/task-attachment-service";
+import { publicTaskAttachmentUrl, uploadSitePhoto } from "@/services/task-attachment-service";
 
 const STATUS: Record<PhotoStatus, { label: string; tone: string }> = {
     shown: { label: "Shown to client", tone: "bg-success-soft text-success" },
@@ -42,23 +45,35 @@ export function CrewPhotos({ data, viewerId }: {
         caption: `${taskById.get(p.task_id)?.title ?? "Task"} · ${STATUS[photoStatus(p.approved_for_client_at, taskById.get(p.task_id)?.stage)].label}`,
     }));
     const [index, setIndex] = React.useState<number | null>(null);
-    const fileRef = React.useRef<HTMLInputElement>(null);
+    const [camera, setCamera] = React.useState(false);
     const [target, setTarget] = React.useState<string | null>(null);
     const [uploading, setUploading] = React.useState<string | null>(null);
+    // Started when the camera opens, so the fix is ready when the photo comes back.
+    const fixRef = React.useRef<Promise<Fix> | null>(null);
 
     function pick(taskId: string) {
         setTarget(taskId);
-        fileRef.current?.click();
+        fixRef.current = locate();
+        setCamera(true);
     }
 
-    async function upload(files: FileList | null) {
-        if (!files?.length || !target)
+    /** Camera photos only: each is stamped, then judged and stored by the server. */
+    async function upload(files: FileList | File[] | null) {
+        const list = Array.from(files ?? []);
+        if (list.length === 0 || !target)
             return;
+        const task = taskById.get(target);
         setUploading(target);
         try {
-            for (const file of Array.from(files))
-                await uploadTaskAttachment(project.id, target, file);
-            toast.success(files.length === 1 ? "Photo added" : `${files.length} photos added`);
+            const fix = fixRef.current ?? locate();
+            fixRef.current = null;
+            for (const file of list) {
+                const ready = await prepareSiteMedia(file, fix, task?.title ?? "Task");
+                await uploadSitePhoto(target, ready.file, ready.capture);
+                if (!ready.capture.fix)
+                    toast.message("Location was off, so this shows the time only. Your PM will see it flagged.");
+            }
+            toast.success(list.length === 1 ? "Photo added" : `${list.length} photos added`);
             router.refresh();
         }
         catch (e) {
@@ -66,8 +81,6 @@ export function CrewPhotos({ data, viewerId }: {
         }
         finally {
             setUploading(null);
-            if (fileRef.current)
-                fileRef.current.value = "";
         }
     }
 
@@ -76,8 +89,8 @@ export function CrewPhotos({ data, viewerId }: {
     if (groupIds.length === 0)
         return <p className="materialize rounded-[20px] material px-6 py-7 text-sm text-ink-secondary">Photos you take on this project&apos;s tasks collect here.</p>;
 
-    const AddIcon = touch ? Camera : ImagePlus;
     return (<div className="grid gap-5">
+      {touch && writable ? <InAppBrowserNotice/> : null}
       {groupIds.map((id) => {
             const task = taskById.get(id);
             const list = photos.filter((p) => p.task_id === id);
@@ -95,15 +108,16 @@ export function CrewPhotos({ data, viewerId }: {
                       </button>
                     </li>);
                 })}
+                {/* Camera only, on phones: a laptop's webcam faces the person, not the work. */}
                 {canAdd ? (<li>
-                    <button type="button" disabled={uploading !== null} onClick={() => pick(id)} className={cn("press grid aspect-[4/3] w-full place-items-center rounded-2xl border-2 border-dashed border-copper/45 bg-brand-soft/60 text-brand hover:border-copper hover:bg-brand-soft disabled:opacity-60", focusRing)}>
-                      {uploading === id ? <Loader2 className="size-6 animate-spin" aria-hidden/> : <span className="flex flex-col items-center gap-1 text-xs font-semibold"><AddIcon className="size-6" aria-hidden/>{touch ? "Take photo" : "Add photo"}</span>}
-                    </button>
+                    {touch ? (<button type="button" disabled={uploading !== null} onClick={() => pick(id)} className={cn("press grid aspect-[4/3] w-full place-items-center rounded-2xl border-2 border-dashed border-copper/45 bg-brand-soft/60 text-brand hover:border-copper hover:bg-brand-soft disabled:opacity-60", focusRing)}>
+                      {uploading === id ? <Loader2 className="size-6 animate-spin" aria-hidden/> : <span className="flex flex-col items-center gap-1 text-xs font-semibold"><Camera className="size-6" aria-hidden/>Take photo</span>}
+                    </button>) : (<p className="grid aspect-[4/3] w-full place-items-center rounded-2xl bg-neutral-soft p-3 text-center text-xs text-ink-secondary"><span><Camera className="mx-auto mb-1 size-5" aria-hidden/>Open this task on your phone to take the photo.</span></p>)}
                   </li>) : null}
               </ul>
             </OverviewCard>);
         })}
-      <input ref={fileRef} type="file" accept="image/*" capture={touch ? "environment" : undefined} multiple={!touch} className="hidden" onChange={(e) => void upload(e.target.files)}/>
+      <SiteCamera open={camera} onClose={() => setCamera(false)} onCapture={(file) => void upload([file])}/>
       <PhotoViewer photos={viewer} index={index} onIndex={setIndex} onClose={() => setIndex(null)}/>
     </div>);
 }

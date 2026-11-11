@@ -1,13 +1,16 @@
 "use client";
 import * as React from "react";
 import { motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
-import { Camera, Check, Expand, FileText, Film, Loader2, MessagesSquare, RotateCcw, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Camera, Check, ChevronRight, Expand, FileText, Film, Loader2, MapPin, MessagesSquare, RotateCcw, Send, ShieldCheck } from "lucide-react";
 import { Face, focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { useTouch } from "@/components/middleman/task-workbench";
+import { EvidenceMap } from "@/components/projects/pm/review/evidence-map";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
+import type { LatLng } from "@/components/projects/shared/site-map";
 import { TaskDiscussion } from "@/components/projects/shared/task-discussion";
 import { parseChecklist } from "@/lib/board-workflow";
 import { BUSINESS_TIME_ZONE } from "@/lib/dashboard";
+import { evidenceChips } from "@/lib/evidence";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
@@ -32,9 +35,11 @@ const variants = {
  * client), what was done, and the decision. Keys: A accept, S send back,
  * J / K move. On a phone the card swipes: right accepts, left sends back.
  */
-export function Submission({ task, attachments, projectId, viewerId, outcome, position, onAccept, onSendBack, onStep }: {
+export function Submission({ task, attachments, site, projectId, viewerId, outcome, position, onAccept, onSendBack, onStep }: {
     task: TaskWithRelations;
     attachments: TaskAttachment[];
+    /** The project's site pin; photos are shown against it on the map. */
+    site: LatLng | null;
     projectId: string;
     viewerId: string;
     /** How the previous card left; drives its exit. */
@@ -55,6 +60,8 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
     const [sending, setSending] = React.useState(false);
     const [reason, setReason] = React.useState("");
     const [stamp, setStamp] = React.useState(false);
+    /** Which photo the map opened on; null when it's closed. */
+    const [mapFor, setMapFor] = React.useState<string | null>(null);
     const reasonRef = React.useRef<HTMLTextAreaElement>(null);
     const card = React.useRef<HTMLElement>(null);
     const x = useMotionValue(0);
@@ -80,7 +87,8 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
     };
 
     const onKey = React.useEffectEvent((e: KeyboardEvent) => {
-        if (e.metaKey || e.ctrlKey || e.altKey)
+        // A or S over the map must not accept or send back the card behind it.
+        if (e.metaKey || e.ctrlKey || e.altKey || mapFor !== null)
             return;
         const typing = (e.target as HTMLElement | null)?.closest("input, textarea, select");
         if (typing) {
@@ -141,6 +149,8 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
           </motion.span>) : null}
       </div>
 
+      {current ? <Evidence item={current} onMap={setMapFor}/> : videos[0] ? <Evidence item={videos[0]} onMap={setMapFor}/> : null}
+
       {photos.length > 0 ? (<div className="relative grid gap-2">
           <div className="flex items-center justify-between gap-3 text-xs">
             <p className="font-medium text-ink-secondary"><ShieldCheck className="mr-1 inline size-3.5 align-[-2px] text-success" aria-hidden/>The client will see <b className="text-ink tabular">{keep.length} of {photos.length}</b> {photos.length === 1 ? "photo" : "photos"}</p>
@@ -153,6 +163,7 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
                     <button type="button" onClick={() => setShown(i)} aria-label={`Show photo ${i + 1}`} aria-current={i === shown} className={cn("block size-20 cursor-pointer overflow-hidden rounded-xl ring-2 transition-[box-shadow,opacity] duration-300", i === shown ? "ring-ink" : "ring-transparent hover:ring-line-strong", !kept && "opacity-50", focusRing)}>
                       {/* eslint-disable-next-line @next/next/no-img-element -- site photo thumbnail */}
                       <img src={publicTaskAttachmentUrl(p.storage_path)} alt="" className={cn("size-full object-cover", !kept && "grayscale")}/>
+                      {evidenceChips(p).some((c) => c.tone === "warn") ? <span className="absolute bottom-1.5 left-1.5 size-2.5 rounded-full bg-warning ring-2 ring-surface" aria-label="Flagged"/> : null}
                     </button>
                     <button type="button" role="checkbox" aria-checked={kept} aria-label={kept ? `Photo ${i + 1} is shared with the client` : `Photo ${i + 1} stays with the team`} onClick={() => toggle(p.id)} className={cn("absolute -top-1.5 -right-1.5 grid size-6 cursor-pointer place-items-center rounded-full ring-2 ring-canvas transition-colors duration-300", kept ? "bg-stage-done text-white" : "bg-surface text-ink-tertiary", focusRing)}>
                       {kept ? <Check className="size-3.5" strokeWidth={3} aria-hidden/> : <span className="size-2 rounded-full bg-line-strong" aria-hidden/>}
@@ -165,7 +176,7 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
       {videos.length > (current ? 0 : 1) ? (<div className="relative grid gap-2">
           <p className="text-xs font-medium text-ink-secondary"><Film className="mr-1 inline size-3.5 align-[-2px]" aria-hidden/>{current ? `${videos.length} ${videos.length === 1 ? "video" : "videos"}` : `${videos.length - 1} more ${videos.length === 2 ? "video" : "videos"}`} · stays between you and the crew</p>
           <ul className="grid gap-3 sm:grid-cols-2">
-            {videos.slice(current ? 0 : 1).map((v) => <li key={v.id}><SiteVideo item={v} className="aspect-video rounded-2xl"/></li>)}
+            {videos.slice(current ? 0 : 1).map((v) => <li key={v.id} className="grid gap-4"><SiteVideo item={v} className="aspect-video rounded-2xl"/><Evidence item={v} onMap={setMapFor}/></li>)}
           </ul>
         </div>) : null}
 
@@ -227,11 +238,34 @@ export function Submission({ task, attachments, projectId, viewerId, outcome, po
         </div>
       </div>
 
+      <EvidenceMap open={mapFor !== null} onOpenChange={(o) => !o && setMapFor(null)} site={site} items={[...photos, ...videos]} activeId={mapFor} when={(iso) => when.format(new Date(iso))}/>
       <PhotoViewer photos={photos.map((p, i) => ({ id: p.id, url: publicTaskAttachmentUrl(p.storage_path), caption: `${task.title} · photo ${i + 1}${excluded.has(p.id) ? " · kept from the client" : ""}` }))} index={viewer} onIndex={setViewer} onClose={() => setViewer(null)}/>
     </motion.article>);
 }
 
 /** A site video the PM can play in place. Pointer presses stay on the player, so scrubbing never swipes the card. */
+const CHIP = {
+    ok: "bg-success-soft text-success",
+    warn: "bg-warning-soft text-warning",
+    muted: "bg-neutral-soft text-ink-secondary",
+} as const;
+
+/** What the server recorded about the photo on screen: on site or not, and when it was really taken. */
+/** What the server recorded about one photo or video. A located one opens the map; its warning chips do too. */
+function Evidence({ item, onMap }: { item: TaskAttachment; onMap: (id: string) => void }) {
+    const chips = evidenceChips(item);
+    const located = item.latitude != null && item.longitude != null;
+    const chip = "inline-flex h-7 items-center gap-1 rounded-full px-2.5 font-semibold";
+    return (<div className="relative -mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" onPointerDownCapture={(e) => e.stopPropagation()}>
+      {chips.map((c) => {
+            const icon = c.tone === "ok" ? <Check className="size-3.5" strokeWidth={3} aria-hidden/> : c.tone === "warn" ? <AlertTriangle className="size-3.5" aria-hidden/> : null;
+            return located && c.tone === "warn" ? (<button key={c.text} type="button" onClick={() => onMap(item.id)} className={cn(chip, CHIP[c.tone], "cursor-pointer hover:brightness-95", focusRing)}>{icon}{c.text}<ChevronRight className="size-3.5" aria-hidden/></button>) : (<span key={c.text} className={cn(chip, CHIP[c.tone])}>{icon}{c.text}</span>);
+        })}
+      <span className="text-ink-tertiary">Taken <span className="tabular">{when.format(new Date(item.taken_at ?? item.created_at))}</span></span>
+      {located ? (<button type="button" onClick={() => onMap(item.id)} className={cn("inline-flex cursor-pointer items-center gap-1 font-medium text-ink-secondary underline-offset-2 hover:text-ink hover:underline", focusRing)}><MapPin className="size-3.5" aria-hidden/>View on map</button>) : null}
+    </div>);
+}
+
 function SiteVideo({ item, className }: { item: { storage_path: string; file_name: string }; className?: string }) {
     return (<video src={publicTaskAttachmentUrl(item.storage_path)} controls preload="metadata" playsInline aria-label={item.file_name} onPointerDownCapture={(e) => e.stopPropagation()} className={cn("block w-full bg-ink object-contain", className)}/>);
 }

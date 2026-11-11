@@ -22,6 +22,9 @@ export interface Project {
     completed_at: string | null;
     completed_by: string | null;
     completion_statement: string | null;
+    /** Where the job is; photos are measured against it. Both set or both null. */
+    site_latitude: number | null;
+    site_longitude: number | null;
     created_at: string;
     updated_at: string;
 }
@@ -97,6 +100,15 @@ export interface TaskAttachment {
     media_kind: "file" | "photo" | "video";
     uploaded_by: string;
     approved_for_client_at: string | null;
+    /** Set only by the server's evidence route; false for older uploads and PM files. */
+    verified_capture: boolean;
+    /** Server-trusted shutter time. */
+    taken_at: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    accuracy_m: number | null;
+    site_distance_m: number | null;
+    evidence_flags: string[];
     created_at: string;
 }
 export interface TaskComment {

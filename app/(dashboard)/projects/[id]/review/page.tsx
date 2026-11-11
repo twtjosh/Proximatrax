@@ -21,5 +21,5 @@ export default async function ProjectReviewPage(props: { params: Promise<{ id: s
     ]);
     if (!project)
         notFound();
-    return <ReviewMode projectId={id} tasks={tasks} attachments={attachments} viewerId={user.id} initialTask={task ?? null}/>;
+    return <ReviewMode projectId={id} site={project.site_latitude != null && project.site_longitude != null ? { lat: project.site_latitude, lng: project.site_longitude } : null} tasks={tasks} attachments={attachments} viewerId={user.id} initialTask={task ?? null}/>;
 }

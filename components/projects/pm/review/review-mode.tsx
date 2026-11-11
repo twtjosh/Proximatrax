@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import type { LatLng } from "@/components/projects/shared/site-map";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -27,8 +28,9 @@ const UNDO_MS = 4000;
  * the photos the PM keeps; Send back returns it with a reason the crew sees
  * on the task's checklist. Esc leaves; leaving commits any pending Accept.
  */
-export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTask }: {
+export function ReviewMode({ projectId, site, tasks, attachments, viewerId, initialTask }: {
     projectId: string;
+    site: LatLng | null;
     tasks: TaskWithRelations[];
     attachments: TaskAttachment[];
     viewerId: string;
@@ -207,7 +209,7 @@ export function ReviewMode({ projectId, tasks, attachments, viewerId, initialTas
           </nav>
           <main className="min-h-0 overflow-y-auto">
             <AnimatePresence mode="popLayout" initial={false} custom={outcome}>
-              {task ? <Submission key={task.id} task={task} attachments={byTask.get(task.id) ?? []} projectId={projectId} viewerId={viewerId} outcome={outcome} position={`${index + 1} of ${queue.length}`} onAccept={(ids) => accept(task, ids)} onSendBack={(reason) => void sendBack(task, reason)} onStep={step}/> : null}
+              {task ? <Submission key={task.id} task={task} attachments={byTask.get(task.id) ?? []} site={site} projectId={projectId} viewerId={viewerId} outcome={outcome} position={`${index + 1} of ${queue.length}`} onAccept={(ids) => accept(task, ids)} onSendBack={(reason) => void sendBack(task, reason)} onStep={step}/> : null}
             </AnimatePresence>
           </main>
         </div>)}

@@ -145,8 +145,10 @@ kase("IT-10.S01", "Supabase Storage", "Crew upload a photo into their project", 
     id.path = `${PROJECT}/${id.task}/${randomUUID()}-site.png`;
     ok(await s.crew1.storage.from("project-tasks").upload(id.path, png, { contentType: "image/png" }));
 });
-kase("IT-10.S02", "Supabase Storage + PostgREST", "Metadata row matches the object", "crew1 inserts attachment", "Row saved", async () => {
-    id.attachment = ok(await s.crew1.from("task_attachments").insert({ task_id: id.task, project_id: PROJECT, storage_path: id.path, file_name: "site.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: id.crew1 }).select("id").single()).id;
+kase("IT-10.S02", "Supabase Storage + PostgREST", "Metadata row matches the object; crew can't file it themselves (0033)", "crew1 inserts attachment, then the service role as the evidence route does", "Crew refused, route's row saved", async () => {
+    const row = { task_id: id.task, project_id: PROJECT, storage_path: id.path, file_name: "site.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: id.crew1 };
+    assert.ok((await s.crew1.from("task_attachments").insert(row)).error, "crew direct insert should be refused");
+    id.attachment = ok(await admin.from("task_attachments").insert({ ...row, verified_capture: true }).select("id").single()).id;
 });
 kase("IT-10.S03", "Supabase Storage", "An outsider can't upload into the project", "crew2 upload", "Error", async () => assert.ok((await s.crew2.storage.from("project-tasks").upload(`${PROJECT}/x/${randomUUID()}.png`, png, { contentType: "image/png" })).error));
 kase("IT-10.S04", "Supabase Storage", "A client can't upload site evidence", "client1 upload to project-tasks", "Error", async () => assert.ok((await s.client1.storage.from("project-tasks").upload(`${PROJECT}/x/${randomUUID()}.png`, png, { contentType: "image/png" })).error));

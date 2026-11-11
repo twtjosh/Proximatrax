@@ -355,7 +355,7 @@ for (const who of ["client1", "client2", "crew2", "pm2"])
     it(i10(), "storage.objects RLS", "The API won't list another project's objects or a client's", `${who} lists project one's objects`, "No rows", async () => assert.equal((await as(pg, u[who], "select 1 from storage.objects where name like $1", [`${p.one}/%`])).rows.length, 0));
 it(i10(), "storage.objects RLS", "Project staff can list their own project's files", "crew1", "1 object", async () => assert.equal((await as(pg, u.crew1, "select 1 from storage.objects where name like $1", [`${p.one}/%`])).rows.length, 1));
 it(i10(), "storage.objects RLS", "Files can't be deleted by outsiders", "crew2 deletes project one's object", "No row changed", () => refused(u.crew2, "delete from storage.objects where name like $1", [`${p.one}/%`]));
-it(i10(), "storage.buckets", "D-20 (OPEN): private project files aren't readable by link alone", "public flag on both buckets", "Both private", async () => assert.deepEqual((await su("select id, public from storage.buckets where id like 'project-%' order by id")).map((b) => b.public), [false, false]));
+it(i10(), "storage.buckets", "Regression D-20: private project files aren't readable by link alone", "public flag on both buckets", "Both private", async () => assert.deepEqual((await su("select id, public from storage.buckets where id like 'project-%' order by id")).map((b) => b.public), [false, false]));
 it(i10(), "storage.buckets", "D-21 (OPEN): the server restricts file type", "allowed_mime_types on both buckets", "Set on both", async () => assert.ok((await su("select allowed_mime_types a from storage.buckets where id like 'project-%'")).every((b) => b.a)));
 for (const what of ["Real upload, object and metadata consistency", "Permitted retrieval and private URL handling", "Oversized and invalid file rejected by the service", "Failed upload recovery against the service"])
     blocked(i10(), "Supabase Storage API", what, NEEDS_SUPABASE);
@@ -503,7 +503,8 @@ it("IT-14.01", "Whole lifecycle across roles", "Project to handover at the datab
     const t3 = (await as(pg, u.pm1, `insert into tasks (project_id, milestone_id, title, stage, assigned_to) values ($1, $2, 'Install', 'to_do', $3) returning id`, [P3, m3, u.crew2])).rows[0].id;
     await as(pg, u.pm1, "update projects set status = 'in_progress' where id = $1", [P3]);
     await move(u.crew2, t3, "in_progress");
-    await as(pg, u.crew2, `insert into task_attachments (task_id, project_id, storage_path, file_name, mime_type, byte_size, media_kind, uploaded_by) values ($1, $2, 'a/b/c.jpg', 'c.jpg', 'image/jpeg', 1, 'photo', $3)`, [t3, P3, u.crew2]);
+    // Crew photos arrive through the server route (0033), which writes as the service role.
+    await su(`insert into task_attachments (task_id, project_id, storage_path, file_name, mime_type, byte_size, media_kind, uploaded_by, verified_capture) values ($1, $2, 'a/b/c.jpg', 'c.jpg', 'image/jpeg', 1, 'photo', $3, true)`, [t3, P3, u.crew2]);
     await move(u.crew2, t3, "review");
     assert.equal((await as(pg, u.client2, "select 1 from tasks where id = $1", [t3])).rows.length, 0, "not visible while in review");
     await as(pg, u.pm1, "update tasks set stage = 'done', client_visible_at = now() where id = $1", [t3]);
@@ -515,3 +516,20 @@ it("IT-14.01", "Whole lifecycle across roles", "Project to handover at the datab
     await as(pg, u.pm1, "update projects set status = 'completed', completed_at = now(), completed_by = $1 where id = $2", [u.pm1, P3]);
     assert.equal(await status(), "completed");
 });
+
+// ─── IT-15 ──────────────────────────────────────────────────────────────────
+// Verified site photos (0032, 0033): crew photos only arrive through the server route.
+const i15 = seq("IT-15");
+const attach = (extra = "", values = "") => `insert into task_attachments (task_id, project_id, storage_path, file_name, mime_type, byte_size, media_kind, uploaded_by${extra}) values ($1, $2, 'p/q/r.jpg', 'r.jpg', 'image/jpeg', 1, 'photo', $3${values})`;
+it(i15(), "task_attachments RLS", "Crew can't add a photo directly; only the server route can", "crew1 inserts on their task", "Refused", () => refused(u.crew1, attach(), [t.doing, p.one, u.crew1]));
+it(i15(), "task_attachments RLS", "The PM can still attach files to a task", "pm1 inserts on project one", "Saved", async () => assert.equal((await as(pg, u.pm1, attach() + " returning id", [t.doing, p.one, u.pm1])).rows.length, 1));
+it(i15(), "evidence guard", "A user can't mark their own upload as verified", "pm1 inserts with verified_capture", "Refused", () => refused(u.pm1, attach(", verified_capture", ", true"), [t.doing, p.one, u.pm1]));
+it(i15(), "evidence guard", "A user can't rewrite a photo's recorded distance", "pm1 updates site_distance_m", "Refused", () => refused(u.pm1, "update task_attachments set site_distance_m = 5 where id = $1", [a.draft]));
+it(i15(), "evidence guard", "The PM can still share a photo with the client", "pm1 sets approved_for_client_at", "Saved", async () => assert.equal((await as(pg, u.pm1, "update task_attachments set approved_for_client_at = now() where id = $1 returning id", [a.draft])).rows.length, 1));
+it(i15(), "evidence guard", "The server route (service role) records verified evidence", "superuser inserts verified row with flags", "Saved", async () => {
+    await su(attach(", verified_capture, evidence_flags, site_distance_m", ", true, '{off_site}', 8312"), [t.doing, p.one, u.crew1]);
+    assert.equal((await one("select count(*)::int n from task_attachments where verified_capture and 'off_site' = any(evidence_flags)")).n, 1);
+});
+it(i15(), "projects site pin", "The PM sets the project's site location", "pm1 sets both coordinates", "Saved", async () => assert.equal((await as(pg, u.pm1, "update projects set site_latitude = 14.6, site_longitude = 121 where id = $1 returning id", [p.one])).rows.length, 1));
+it(i15(), "projects site pin", "A site needs both coordinates", "pm1 sets latitude only", "Refused", () => refused(u.pm1, "update projects set site_latitude = 14.6 where id = $1", [p.one]));
+it(i15(), "projects site pin", "Coordinates must be on the map", "pm1 sets latitude 120", "Refused", () => refused(u.pm1, "update projects set site_latitude = 120, site_longitude = 14 where id = $1", [p.one]));

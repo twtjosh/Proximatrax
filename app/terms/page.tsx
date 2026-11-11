@@ -17,7 +17,7 @@ const SECTIONS: LegalSection[] = [
         { list: [
             "Clients follow their own projects: phases and due dates, work once it is accepted, approved site photos, shared documents, status updates and messages with their project team.",
             "Project managers plan and run the projects they manage: they invite the client and crew, add tasks, review and accept work, share files and post status updates.",
-            "Middlemen (our site managers, foremen and safety officers) see the projects they have joined, take and update tasks, upload site photos and submit work for review.",
+            "Middlemen (our site managers, foremen and safety officers) see the projects they have joined, take and update tasks, take site photos and short videos in the portal, and submit work for review.",
             `The super admin (the owner of ${COMPANY_NAME}) adds and removes accounts, answers inquiries and can see every project.`,
         ] },
     ] },
@@ -38,9 +38,16 @@ const SECTIONS: LegalSection[] = [
         "Work counts as accepted only once your project manager approves it, and only accepted work and approved photos are shown to the client. When a project is closed, the client keeps its handover record.",
         "Portal records do not replace your project agreement, quotations or official billing documents. The portal does not handle payments.",
     ] },
+    { id: "site-evidence", title: "Site photos, videos and location", body: [
+        "Site photos and videos for a task are taken with the portal's own camera, live on site. Saved pictures and videos from the phone's gallery cannot be added, so submitted work shows what is really there.",
+        "Each one records the time it was taken and, if you allow it, your phone's location at that moment and how accurate it was. The time is checked against our server's clock, and the location against the site location your project manager set. Your project manager then sees whether it was taken on site, how far away it was, and anything that looks wrong, such as no location or a phone clock that was off.",
+        "Your location is recorded only at the moment you take a site photo or video, never at any other time. You can refuse location access: the photo or video is still accepted, and your project manager sees it marked “No location”.",
+        "The project manager and the super admin see these details. The client's view of the project does not show where or exactly when a photo was taken.",
+        "Location can be wrong or faked on some phones, so these checks help your project manager decide. They are not proof on their own, and your project manager makes the final call.",
+    ] },
     { id: "uploads", title: "Messages and uploads", body: [
         "Messages are shared with the project team on that project. Photos and documents you upload are kept with the project they belong to.",
-        "Each uploaded file has its own long, hard-to-guess link. Anyone who has that link can open the file, so do not forward file links outside your project.",
+        "Files open only for people signed in to the portal who are allowed to see them on that project. Each time you open one, the portal gives you a link that works for 5 minutes, so a forwarded link soon stops working. Do not share downloaded files outside your project.",
         "Upload only what the project needs. Do not upload anything unlawful, or anything you do not have the right to share.",
     ] },
     { id: "acceptable-use", title: "Acceptable use", body: [
@@ -52,6 +59,8 @@ const SECTIONS: LegalSection[] = [
     ] },
     { id: "privacy", title: "Your personal data", body: [
         "We collect your name, email address, contact number and profile photo, what you send through the inquiry form, and what you do on your projects (tasks, messages, uploads and the activity log), to run your project and answer your inquiries. We do not sell your personal data.",
+        "For middlemen, we also record the time and, if allowed, the location of each site photo or video, as described under “Site photos, videos and location”. Its only purpose is to check that site evidence was taken on site.",
+        "Maps and place search use OpenStreetMap. When a project manager searches for a place, what they type is sent to OpenStreetMap to find it; ProximaTrax does not keep those searches.",
         "We handle personal data in line with the Data Privacy Act of 2012 (Republic Act No. 10173). How long each kind of record is kept, and how it is deleted, is set out in our Data Retention Policy.",
         "To see, correct or delete the data we hold about you, ask your project manager or send us a message through the inquiry form.",
     ] },
@@ -73,5 +82,5 @@ const SECTIONS: LegalSection[] = [
 ];
 
 export default function TermsPage() {
-    return <LegalPage title="Terms and conditions" updated="October 23, 2026" sections={SECTIONS}/>;
+    return <LegalPage title="Terms and conditions" updated="November 12, 2026" sections={SECTIONS}/>;
 }

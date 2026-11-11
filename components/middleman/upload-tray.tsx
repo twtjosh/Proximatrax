@@ -3,10 +3,12 @@ import * as React from "react";
 import { AlertCircle, Check, FileText, Loader2, Play, Upload, X } from "lucide-react";
 import { focusRing } from "@/components/dashboard/overview-kit";
 import { mediaKindFromMime, uploadTooBig } from "@/lib/media-kind";
+import type { Capture } from "@/lib/photo-stamp";
 import { formatDuration, formatSize, traySummary, type TrayStatus } from "@/lib/upload-tray";
 import { cn } from "@/lib/utils";
 
-export type StagedFile = { id: string; file: File; url: string; status: TrayStatus; error?: string };
+/** `capture` is what the phone knew at the shutter; site photos carry it to the server. */
+export type StagedFile = { id: string; file: File; url: string; status: TrayStatus; error?: string; capture?: Capture };
 
 /**
  * Picked files wait here with a preview until the person sends them, so a

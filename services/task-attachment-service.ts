@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fileUrl, mediaKindFromMime, uploadTooBig, type MediaKind } from "@/lib/media-kind";
 import { createClient as createBrowserClient, signedInUser } from "@/lib/supabase/client";
+import { evidenceUploadError } from "@/lib/evidence";
+import type { Capture } from "@/lib/photo-stamp";
 import type { TaskAttachment } from "@/types/database";
 const TASK_BUCKET = "project-tasks";
 function resolveClient(client?: SupabaseClient): SupabaseClient {
@@ -107,6 +109,49 @@ export async function uploadTaskAttachment(projectId: string, taskId: string, fi
         },
     });
     return attachment as TaskAttachment;
+}
+/**
+ * Sends a camera photo to the server, which records the time, place and
+ * flags. The only way a middleman's photo reaches a task.
+ */
+export async function uploadSitePhoto(taskId: string, file: File, capture: Capture): Promise<TaskAttachment> {
+    const tooBig = evidenceUploadError(file);
+    if (tooBig)
+        throw new Error(tooBig);
+    const form = new FormData();
+    form.set("file", file);
+    form.set("takenAt", String(capture.takenAt));
+    if (capture.fix) {
+        form.set("lat", String(capture.fix.lat));
+        form.set("lng", String(capture.fix.lng));
+        form.set("accuracy", String(capture.fix.accuracy));
+    }
+    form.set("deviceNow", String(Date.now()));
+    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/evidence`, { method: "POST", body: form });
+    const body = await res.json().catch(() => null);
+    if (!res.ok)
+        throw new Error(evidenceUploadError(file, res.status, body) ?? "");
+    return body as TaskAttachment;
+}
+/**
+ * A site video in three hops: the server hands out a one-time upload link,
+ * the phone uploads straight to storage (too big to pass through the app's
+ * server), then the server checks the file and records time, place and flags.
+ */
+export async function uploadSiteVideo(taskId: string, file: File, capture: Capture): Promise<TaskAttachment> {
+    const url = `/api/tasks/${encodeURIComponent(taskId)}/evidence/video`;
+    const post = async (payload: Record<string, unknown>) => {
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const body = await res.json().catch(() => null);
+        if (!res.ok)
+            throw new Error(body?.error ?? "The video didn't save. Check your signal and try again.");
+        return body;
+    };
+    const { path, token } = await post({ step: "start", type: file.type, size: file.size });
+    const { error } = await createBrowserClient().storage.from(TASK_BUCKET).uploadToSignedUrl(path, token, file, { contentType: file.type.split(";")[0] });
+    if (error)
+        throw new Error("The video didn't upload. Check your signal and try again.");
+    return await post({ step: "finish", path, takenAt: capture.takenAt, deviceNow: Date.now(), lat: capture.fix?.lat, lng: capture.fix?.lng, accuracy: capture.fix?.accuracy }) as TaskAttachment;
 }
 export async function deleteTaskAttachment(attachmentId: string, storagePath: string, client?: SupabaseClient): Promise<void> {
     const sb = resolveClient(client);

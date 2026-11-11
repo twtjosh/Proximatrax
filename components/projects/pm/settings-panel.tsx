@@ -2,13 +2,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, Loader2, Lock, Trash2, X } from "lucide-react";
+import { Check, Loader2, Lock, Map as MapIcon, MapPin, Navigation, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
+import { SitePicker } from "@/components/projects/pm/site-picker";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ROUTES } from "@/lib/constants";
 import type { DashboardMilestone } from "@/lib/dashboard";
+import { mapLink, parseCoordinates, WEAK_GPS_M } from "@/lib/evidence";
 import { SPRING } from "@/lib/motion";
+import { locate } from "@/lib/photo-stamp";
 import { assessProjectClosureReadiness, DEFAULT_COMPLETION_STATEMENT } from "@/lib/project-lifecycle";
 import { cn } from "@/lib/utils";
 import { completeProject, deleteProjectPermanently, reopenProject, updateProject, type ProjectWithRelations } from "@/services/project-service";
@@ -168,6 +171,8 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
             </div>
           </section>
 
+          <SiteSection project={project} closed={closed}/>
+
           <section ref={closeRef} aria-labelledby="settings-close" className="scroll-mt-4 grid gap-4 rounded-2xl material p-5">
             <div className="flex items-center gap-2">
               <Lock className="size-4 text-ink-tertiary" aria-hidden/>
@@ -218,4 +223,86 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
         </div>
       </SheetContent>
     </Sheet>);
+}
+
+/**
+ * Where the job is. Crew photos are measured against it, so the PM sets it
+ * once: standing on site, or by pasting coordinates from Google Maps.
+ */
+function SiteSection({ project, closed }: { project: ProjectWithRelations; closed: boolean }) {
+    const router = useRouter();
+    const [text, setText] = React.useState("");
+    const [busy, setBusy] = React.useState<"here" | "paste" | "clear" | null>(null);
+    const [picking, setPicking] = React.useState(false);
+    const site = project.site_latitude != null && project.site_longitude != null ? { lat: project.site_latitude, lng: project.site_longitude } : null;
+
+    async function store(next: { lat: number; lng: number } | null, kind: "here" | "paste" | "clear"): Promise<boolean> {
+        setBusy(kind);
+        try {
+            await updateProject({ id: project.id, site_latitude: next?.lat ?? null, site_longitude: next?.lng ?? null });
+            setText("");
+            router.refresh();
+            return true;
+        }
+        catch (e) {
+            toast.error(e instanceof Error ? e.message : "That didn't save. Try again.");
+            return false;
+        }
+        finally {
+            setBusy(null);
+        }
+    }
+    async function useHere() {
+        setBusy("here");
+        const fix = await locate();
+        if (!fix) {
+            setBusy(null);
+            toast.error("Couldn't get your location. Allow location access, or paste coordinates.");
+            return;
+        }
+        if (!(await store(fix, "here")))
+            return;
+        if (fix.accuracy > WEAK_GPS_M)
+            toast.message(`Saved, but GPS was weak (±${Math.round(fix.accuracy)} m). Paste exact coordinates for a better pin.`);
+        else
+            toast.success("Site location saved");
+    }
+    async function savePasted() {
+        const pin = parseCoordinates(text);
+        if (!pin) {
+            toast.error("Paste coordinates like 14.59950, 120.98420 (in Google Maps, right-click the building and click the numbers).");
+            return;
+        }
+        if (await store(pin, "paste"))
+            toast.success("Site location saved");
+    }
+
+    return (<section aria-labelledby="settings-site" className="grid gap-3 rounded-2xl material p-5">
+      <div>
+        <h3 id="settings-site" className="text-[15px] font-semibold text-ink">Site location</h3>
+        <p className="mt-1 text-xs text-ink-tertiary">Crew photos taken more than 200 m from here are flagged in review.</p>
+      </div>
+      {site ? (<p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink">
+          <span className="inline-flex items-center gap-1.5 tabular"><MapPin className="size-4 text-copper" aria-hidden/>{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</span>
+          <a href={mapLink(site.lat, site.lng)} target="_blank" rel="noopener noreferrer" className={cn("text-xs font-medium text-ink-secondary underline-offset-2 hover:text-ink hover:underline", focusRing)}>View on map</a>
+          {!closed ? <button type="button" disabled={busy !== null} onClick={() => void store(null, "clear").then((ok) => ok && toast.success("Site location cleared"))} className={cn("cursor-pointer text-xs font-medium text-ink-tertiary hover:text-danger disabled:opacity-50", focusRing)}>Clear</button> : null}
+        </p>) : <p className="text-sm text-ink-secondary">Not set. Photos will show “Site location not set”.</p>}
+      {!closed ? (<>
+          <button type="button" disabled={busy !== null} onClick={() => setPicking(true)} className={cn(primaryAction, "h-11 justify-center")}><MapIcon aria-hidden/>{site ? "Change on map" : "Pick on map"}</button>
+          <SitePicker open={picking} onOpenChange={setPicking} initial={site} onSave={async (pin) => {
+                const ok = await store(pin, "paste");
+                if (ok)
+                    toast.success("Site location saved");
+                return ok;
+            }}/>
+          <button type="button" disabled={busy !== null} onClick={() => void useHere()} className={cn(softAction, "h-11 justify-center")}>
+            {busy === "here" ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Navigation className="size-4" aria-hidden/>}Use my current location
+          </button>
+          <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void savePasted(); }}>
+            <label className="sr-only" htmlFor="site-coordinates">Site coordinates</label>
+            <input id="site-coordinates" value={text} onChange={(e) => setText(e.target.value)} placeholder="14.59950, 120.98420" inputMode="decimal" autoComplete="off" className={cn(field, "h-11 min-w-0 flex-1")}/>
+            <button type="submit" disabled={busy !== null || !text.trim()} className={cn(primaryAction, "h-11 shrink-0")}>{busy === "paste" ? <Loader2 className="size-4 animate-spin" aria-hidden/> : null}Save</button>
+          </form>
+        </>) : null}
+    </section>);
 }

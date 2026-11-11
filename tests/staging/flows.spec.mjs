@@ -169,7 +169,9 @@ test("ST-09.S | crew and PM | The PM's board updates live when crew submit | Car
     const crew = await api("crew1");
     const path = `${state.project}/${state.task}/${randomUUID()}-site.png`;
     expect((await crew.storage.from("project-tasks").upload(path, png, { contentType: "image/png" })).error).toBeNull();
-    expect((await crew.from("task_attachments").insert({ task_id: state.task, project_id: state.project, storage_path: path, file_name: "site.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId })).error).toBeNull();
+    // 0033: crew can't file a photo directly; the evidence route writes it as the service role.
+    expect((await crew.from("task_attachments").insert({ task_id: state.task, project_id: state.project, storage_path: path, file_name: "site.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId })).error).not.toBeNull();
+    expect((await admin.from("task_attachments").insert({ task_id: state.task, project_id: state.project, storage_path: path, file_name: "site.png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId, verified_capture: true })).error).toBeNull();
     state.path = path;
     const pm = await signIn(browser, "pm");
     await pm.goto(`/projects/${state.project}/board`);
@@ -230,10 +232,10 @@ test("ST-10.S | system | Prepares files of every kind on the private buckets | U
     const put = async (who, bucket, path, type, body = png) => expect((await who.storage.from(bucket).upload(path, body, { contentType: type })).error).toBeNull();
     state.draft = `${state.project}/${task2.id}/${randomUUID()}-draft photo (1).png`;
     await put(crew, "project-tasks", state.draft, "image/png");
-    expect((await crew.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.draft, file_name: "draft photo (1).png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId })).error).toBeNull();
+    expect((await admin.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.draft, file_name: "draft photo (1).png", mime_type: "image/png", byte_size: png.length, media_kind: "photo", uploaded_by: crew.userId })).error).toBeNull();
     state.video = `${state.project}/${task2.id}/${randomUUID()}-clip.mp4`;
     await put(crew, "project-tasks", state.video, "video/mp4", Buffer.alloc(4096, 7));
-    expect((await crew.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.video, file_name: "clip.mp4", mime_type: "video/mp4", byte_size: 4096, media_kind: "video", uploaded_by: crew.userId })).error).toBeNull();
+    expect((await admin.from("task_attachments").insert({ task_id: task2.id, project_id: state.project, storage_path: state.video, file_name: "clip.mp4", mime_type: "video/mp4", byte_size: 4096, media_kind: "video", uploaded_by: crew.userId })).error).toBeNull();
     state.internal = `${state.project}/files/${randomUUID()}-internal.pdf`;
     state.shared = `${state.project}/files/${randomUUID()}-shared plan.pdf`;
     await put(pm, "project-tasks", state.internal, "application/pdf");

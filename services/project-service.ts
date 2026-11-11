@@ -34,6 +34,8 @@ export type UpdateProjectInput = Partial<Omit<CreateProjectInput, "client_id" | 
     id: string;
     client_id?: string;
     pm_id?: string;
+    site_latitude?: number | null;
+    site_longitude?: number | null;
 };
 const PROJECT_RELATIONS_SELECT = `
   *,

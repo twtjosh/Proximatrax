@@ -8,7 +8,7 @@ import { ROUTES } from "@/lib/constants";
  * and auth screens are styled for both themes; the signed-in workspace only
  * for light, so it is forced light while the stored choice is kept.
  */
-const THEMED_PATHS: string[] = [ROUTES.HOME, ROUTES.LOGIN, ROUTES.FORGOT_PASSWORD, ROUTES.UPDATE_PASSWORD];
+const THEMED_PATHS: string[] = [ROUTES.HOME, ROUTES.LOGIN, ROUTES.FORGOT_PASSWORD, ROUTES.UPDATE_PASSWORD, ROUTES.TERMS, ROUTES.DATA_RETENTION];
 export function ThemeProvider({ children }: {
     children: React.ReactNode;
 }) {
