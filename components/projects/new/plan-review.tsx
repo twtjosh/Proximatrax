@@ -129,7 +129,7 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
                     {t.description ? <p className="truncate px-2 text-xs text-ink-tertiary" title={t.description}>{t.description}</p> : null}
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-ink-tertiary">
-                    <input type="number" min={LIMITS.minDays} max={LIMITS.maxDays} value={t.workingDays} onChange={(e) => editTask(gi, ti, { workingDays: Math.min(LIMITS.maxDays, Math.max(LIMITS.minDays, Math.round(Number(e.target.value) || 1))) })} aria-label={`Working days for ${t.title}`} className="h-8 w-12 rounded-lg border border-line bg-surface text-center text-[13px] text-ink tabular outline-none focus:border-copper"/>days
+                    <input type="number" min={LIMITS.minDays} max={LIMITS.maxDays} value={t.workingDays} onChange={(e) => editTask(gi, ti, { workingDays: Math.min(LIMITS.maxDays, Math.max(LIMITS.minDays, Math.round(Number(e.target.value) || 1))) })} aria-label={`Working days for ${t.title}`} className="h-8 w-12 rounded-lg border border-line bg-surface text-center text-[13px] text-ink tabular outline-none focus:border-copper"/>{t.workingDays === 1 ? "day" : "days"}
                   </label>
                   <span className="text-[12.5px] text-ink-secondary tabular">{pt ? (pt.start_date === pt.due_date ? day(pt.due_date) : `${day(pt.start_date)} – ${day(pt.due_date)}`) : "—"}</span>
                   <select aria-label={`Who does ${t.title}`} value={pt?.planned_to ?? ""} onChange={(e) => editTask(gi, ti, { pick: e.target.value || null })} className="h-8 min-w-0 rounded-lg border border-line bg-surface px-2 text-[13px] text-ink outline-none focus:border-copper">

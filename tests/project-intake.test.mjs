@@ -55,7 +55,11 @@ test("PLAN_SCHEMA asks for milestones with tasks, days and a crew role", () => {
     const task = PLAN_SCHEMA.properties.milestones.items.properties.tasks.items;
     assert.deepEqual(task.properties.role.enum, ["site_manager", "foreman", "safety_officer"]);
     assert.deepEqual(task.required, ["title", "description", "workingDays", "role"]);
-    assert.equal(PLAN_SCHEMA.properties.milestones.maxItems, 8);
+    // Gemini refuses nested array and number bounds as "too many states" (live check, 2026-11-17);
+    // the bounds are in the prompt and enforced by sanitizeDraft instead.
+    const text = JSON.stringify(PLAN_SCHEMA);
+    for (const bound of ["minItems", "maxItems", "minimum", "maximum"])
+        assert.ok(!text.includes(bound), `PLAN_SCHEMA has no ${bound}`);
 });
 
 test("READ_SCHEMA reads names as text, never ids", () => {
@@ -112,4 +116,10 @@ test("impossible calendar dates are not read from a scan", () => {
 test("intakeMissing refuses a project longer than three years", () => {
     assert.match(intakeMissing({ ...filled(), endDate: "2030-01-01" }), /three years/);
     assert.equal(intakeMissing({ ...filled(), endDate: "2029-11-30" }), null);
+});
+
+test("a blank printed area label is not read as an area", () => {
+    const { intake, filled: got } = matchReadIntake({ areas: [{ name: "Area 1", work: [], sqm: null, notes: "" }, { name: "AREA 2", work: ["Painting"], sqm: null, notes: "" }] }, [], [], "2026-11-17");
+    assert.deepEqual(intake.areas.map((a) => a.name), ["AREA 2"]);
+    assert.deepEqual(got, ["areas"]);
 });

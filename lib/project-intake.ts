@@ -94,34 +94,35 @@ export function readPrompt(): string {
     return [
         "This is a filled-in PROJECT REPORT form from an interior design company, printed from their system and completed by hand or typed.",
         "Read exactly what is written in each field. Do not guess or invent anything; leave a field empty (\"\" or []) when it is blank or unreadable.",
-        "Dates: write them as YYYY-MM-DD. Working days: the ticked weekdays, as day names. Scope of work: one entry per area, with the ticked work types written exactly as printed on the form.",
+        "Printed labels and headings (such as PROJECT TITLE, AREA 1, SIZE, SQM, Choose a client) are not answers; only what was filled in counts. People are written by name under TEAM: a person counts only if their circle is ticked, filled or circled by hand.",
+        "Dates: write them as YYYY-MM-DD. Working days: only the weekdays whose circle is filled or marked, as day names. Scope of work: one entry per area whose name was written in, with only the work types whose box is ticked, written exactly as printed on the form.",
     ].join("\n");
 }
 
 const str = { type: "string" };
 const dates = { type: "array", items: str };
 
+/**
+ * The shape only. Gemini refuses nested count and range limits ("too many
+ * states"), so the limits are in the prompt and sanitizeDraft enforces them.
+ */
 export const PLAN_SCHEMA = {
     type: "object",
     properties: {
         milestones: {
             type: "array",
-            minItems: LIMITS.minMilestones,
-            maxItems: LIMITS.maxMilestones,
             items: {
                 type: "object",
                 properties: {
                     title: str,
                     tasks: {
                         type: "array",
-                        minItems: 1,
-                        maxItems: LIMITS.maxTasksPerMilestone,
                         items: {
                             type: "object",
                             properties: {
                                 title: str,
                                 description: str,
-                                workingDays: { type: "integer", minimum: LIMITS.minDays, maximum: LIMITS.maxDays },
+                                workingDays: { type: "integer" },
                                 role: { type: "string", enum: [...CREW_ROLES] },
                             },
                             required: ["title", "description", "workingDays", "role"],
@@ -193,7 +194,7 @@ export function matchReadIntake(read: unknown, clients: { id: string; name: stri
         const work = (Array.isArray(o.work) ? o.work : []).map((w) => WORK_TYPES.find((t) => norm(t) === norm(w))).filter((w): w is (typeof WORK_TYPES)[number] => Boolean(w));
         const sqm = Number(o.sqm);
         return { name: typeof o.name === "string" ? o.name.trim() : "", work, sqm: o.sqm != null && Number.isFinite(sqm) && sqm > 0 ? sqm : null, notes: typeof o.notes === "string" ? o.notes.trim() : "" };
-    }).filter((a) => a.name || a.work.length > 0);
+    }).filter((a) => a.work.length > 0 || (a.name && !/^area \d+$/i.test(a.name)));
     set("areas", areas, areas.length > 0);
     const weekdays = [...new Set((Array.isArray(r.workingDays) ? r.workingDays : []).map((d) => DAY_NAMES.findIndex((n) => norm(d).length >= 3 && n.toLowerCase().startsWith(norm(d).slice(0, 3)))).filter((d) => d >= 0))].sort();
     set("weekdays", weekdays, weekdays.length > 0);
