@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { NewProjectForm } from "@/components/projects/new/new-project-form";
+import { ReportForm } from "@/components/projects/new/report-form";
 import type { PersonOption } from "@/components/projects/new/person-picker";
 import { ROUTES } from "@/lib/constants";
 import { isoDateIn } from "@/lib/dashboard";
-import { personTitle } from "@/lib/vocabulary";
 import { clientContext, crewContext } from "@/lib/new-project";
 import { getViewer } from "@/lib/supabase/server";
 import { throwIfSupabaseError } from "@/lib/utils";
@@ -13,8 +12,9 @@ type PersonRow = Pick<Profile, "id" | "full_name" | "role" | "avatar_url" | "cla
 const none = { data: [], error: null };
 
 /**
- * Only a project manager opens projects. The pickers say how each person
- * relates to this PM, from the projects RLS lets them read.
+ * Only a project manager opens projects, by filling in the project report.
+ * The pickers say how each person relates to this PM, from the projects RLS
+ * lets them read.
  */
 export default async function NewProjectPage() {
     const { supabase, user, profile } = await getViewer();
@@ -45,5 +45,5 @@ export default async function NewProjectPage() {
     const invites = (invitesRes.data ?? []) as { project_id: string; invitee_id: string }[];
 
     const option = (p: PersonRow, context: string): PersonOption => ({ id: p.id, name: p.full_name, avatarUrl: p.avatar_url, context });
-    return (<NewProjectForm today={isoDateIn(new Date())} clients={people.filter((p) => p.role === "client").map((p) => option(p, clientContext(p.id, projects)))} middlemen={people.filter((p) => p.role === "middleman").map((p) => option(p, `${personTitle(p)} · ${crewContext(p.id, projects, members, invites)}`))}/>);
+    return (<ReportForm today={isoDateIn(new Date())} pmName={me.full_name} clients={people.filter((p) => p.role === "client").map((p) => option(p, clientContext(p.id, projects)))} crew={people.filter((p) => p.role === "middleman").map((p) => ({ ...option(p, crewContext(p.id, projects, members, invites)), role: p.classification }))}/>);
 }
