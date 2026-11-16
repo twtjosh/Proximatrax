@@ -54,6 +54,7 @@ export function NeedsYou({ overdue, projects, loads, readyToClose, titleOf, toda
     const [resolved, setResolved] = React.useState<Set<string>>(() => new Set());
     const [openGroup, setOpenGroup] = React.useState<string | null>(null);
     const [expanded, setExpanded] = React.useState(false);
+    const lockedIds = React.useMemo(() => new Set(projects.filter((p) => p.plan_locked_at).map((p) => p.id)), [projects]);
 
     const resolve = React.useCallback((d: Deadline) => {
         setResolved((prev) => new Set(prev).add(keyOf(d)));
@@ -75,7 +76,7 @@ export function NeedsYou({ overdue, projects, loads, readyToClose, titleOf, toda
         ...lateGroups.map((late) => {
             const first = late[0];
             if (late.length === 1)
-                return { key: keyOf(first), node: <OverdueItem deadline={first} project={titleOf(first.project_id)} today={today} onResolved={resolve} badge/> };
+                return { key: keyOf(first), node: <OverdueItem deadline={first} project={titleOf(first.project_id)} today={today} onResolved={resolve} fixed={lockedIds.has(first.project_id)} badge/> };
             const open = openGroup === first.project_id;
             return {
                 key: `g-${first.project_id}`,
@@ -94,7 +95,7 @@ export function NeedsYou({ overdue, projects, loads, readyToClose, titleOf, toda
                     {open ? (<motion.ul key="items" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={SPRING} className="overflow-hidden bg-surface-subtle/70">
                         <AnimatePresence initial={false}>
                           {late.map((d) => (<motion.li key={keyOf(d)} {...rowLeave} className="overflow-hidden border-t border-line">
-                              <OverdueItem deadline={d} today={today} onResolved={resolve} nested/>
+                              <OverdueItem deadline={d} today={today} onResolved={resolve} fixed={lockedIds.has(d.project_id)} nested/>
                             </motion.li>))}
                         </AnimatePresence>
                       </motion.ul>) : null}
@@ -153,8 +154,10 @@ function LinkRow({ href, tone, badge, title, detail, meta, action }: {
  * marked delivered (the client is told, as from the timeline) or moved to a
  * new date; tasks open on the board, where acceptance happens.
  */
-function OverdueItem({ deadline: d, project, today, onResolved, badge = false, nested = false }: {
+function OverdueItem({ deadline: d, project, today, onResolved, fixed = false, badge = false, nested = false }: {
     deadline: Deadline;
+    /** Its project's plan is locked: the date can't move, only delivery is offered. */
+    fixed?: boolean;
     /** Named when the row stands alone rather than inside its project's group. */
     project?: string;
     today: string;
@@ -207,10 +210,10 @@ function OverdueItem({ deadline: d, project, today, onResolved, badge = false, n
           </button>
           <button type="button" disabled={busy !== null} onClick={() => setPicking(false)} className={cn(mini, ghost)}>Cancel</button>
         </span>) : (<span className={cn("flex items-center gap-1", busy === null && reveal)}>
-          <button type="button" disabled={busy !== null} onClick={() => setPicking(true)} className={cn(mini, ghost)}>
+          {fixed ? null : (<button type="button" disabled={busy !== null} onClick={() => setPicking(true)} className={cn(mini, ghost)}>
             <CalendarClock aria-hidden/>
             Reschedule
-          </button>
+          </button>)}
           <button type="button" disabled={busy !== null} onClick={() => void run("deliver")} className={cn(mini, "bg-brand-soft text-brand hover:bg-brand hover:text-white disabled:opacity-60")}>
             {busy === "deliver" ? <Loader2 className="animate-spin" aria-hidden/> : <Check aria-hidden/>}
             Delivered

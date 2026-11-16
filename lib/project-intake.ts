@@ -33,6 +33,9 @@ export function emptyIntake(today: string): Intake {
     return { title: "", clientId: "", site: null, startDate: today, endDate: "", team: [], areas: [emptyArea()], weekdays: [1, 2, 3, 4, 5, 6], offDates: [], notes: "" };
 }
 
+/** Projects run at most about three years; it also bounds the day-by-day scheduling. */
+const MAX_SPAN_DAYS = 1095;
+
 const listPhrase = (parts: string[]) => (parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]);
 
 /** "Add a title, the team and the scope of work", or null when the report is ready to plan. */
@@ -43,6 +46,7 @@ export function intakeMissing(i: Intake): string | null {
         !i.startDate && "a start date",
         !i.endDate && "an end date",
         i.startDate && i.endDate && i.endDate < i.startDate && "an end date after the start",
+        i.startDate && i.endDate && Date.parse(i.endDate) - Date.parse(i.startDate) > MAX_SPAN_DAYS * 86_400_000 && "an end date within three years of the start",
         i.team.length === 0 && "the team",
         !i.areas.some((a) => a.name.trim() && a.work.length > 0) && "the scope of work",
         i.weekdays.length === 0 && "a working day",
@@ -155,7 +159,13 @@ export const READ_SCHEMA = {
 };
 
 const norm = (s: unknown) => (typeof s === "string" ? s.trim().replace(/\s+/g, " ").toLowerCase() : "");
-const isoDate = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) ? s : "");
+/** A real calendar date: "2026-02-31" parses in JavaScript but is not one. */
+const isoDate = (s: unknown) => {
+    if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s))
+        return "";
+    const t = Date.parse(`${s}T00:00:00Z`);
+    return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s ? s : "";
+};
 
 /** A scanned report, read by Gemini as text, matched back to real people; `filled` lists the fields it set. */
 export function matchReadIntake(read: unknown, clients: { id: string; name: string }[], crew: { id: string; name: string }[], today: string): { intake: Intake; filled: (keyof Intake)[] } {

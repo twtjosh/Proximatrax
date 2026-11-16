@@ -136,3 +136,18 @@ test("planProblem accepts a plan made by the rules and names what is wrong with 
     assert.match(tweak((p) => (p[0].tasks[0].due_date = p[1].due_date)), /date/); // past its milestone
     assert.match(planProblem("junk", c, []), /plan/);
 });
+
+test("planProblem refuses non-text fields and over-long titles from the browser", async () => {
+    const { planProblem } = await import("../lib/auto-plan.ts");
+    const c = cal("2026-12-01", "2026-12-12");
+    const good = assign(schedule([ms("A", task("a", 2)), ms("B", task("b", 2))], c), []);
+    const tweak = (fn) => {
+        const copy = structuredClone(good);
+        fn(copy);
+        return planProblem(copy, c, []);
+    };
+    assert.match(tweak((p) => (p[0].tasks[0].description = 42)), /description/);
+    assert.match(tweak((p) => (p[0].tasks[0].title = "x".repeat(161))), /title/);
+    assert.match(tweak((p) => (p[0].title = "x".repeat(121))), /title/);
+    assert.match(tweak((p) => (p[0].tasks[0].description = "x".repeat(601))), /description/);
+});

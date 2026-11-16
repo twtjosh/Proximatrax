@@ -102,3 +102,14 @@ test("asIntake keeps a well-formed report and refuses a malformed one", async ()
     assert.equal(asIntake({ ...good, site: { lat: 200, lng: 0 } }), null);
     assert.deepEqual(asIntake({ ...good, areas: [{ ...good.areas[0], work: ["Tiling", "Juggling"] }] }).areas[0].work, ["Tiling"]);
 });
+
+test("impossible calendar dates are not read from a scan", () => {
+    const { intake } = matchReadIntake({ startDate: "2026-02-31", endDate: "2026-02-28" }, [], [], "2026-01-10");
+    assert.equal(intake.startDate, "2026-01-10");
+    assert.equal(intake.endDate, "2026-02-28");
+});
+
+test("intakeMissing refuses a project longer than three years", () => {
+    assert.match(intakeMissing({ ...filled(), endDate: "2030-01-01" }), /three years/);
+    assert.equal(intakeMissing({ ...filled(), endDate: "2029-11-30" }), null);
+});

@@ -31,8 +31,10 @@ const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" 
  * here: move a date, hand late work to someone else, or nudge whoever has
  * it. Each acts at once and offers Undo. Milestones deliver themselves.
  */
-export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = false }: {
+export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = false, planLocked = false }: {
     projectId: string;
+    /** A locked plan: late work can be nudged, reassigned or delivered, but not moved. */
+    planLocked?: boolean;
     needs: ProjectNeeds;
     team: TeamMember[];
     today: string;
@@ -112,7 +114,7 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
                     <span className="block truncate text-sm font-medium text-ink">{m.title} is {plural(m.daysLate, "day")} late</span>
                     <span className="block truncate text-xs text-ink-tertiary">Milestone{m.total > 0 ? ` · ${m.accepted} of ${plural(m.total, "task")} accepted` : ""}</span>
                   </span>
-                  {readOnly ? null : (<span className="flex items-center gap-1.5 max-sm:basis-full max-sm:pl-[3.125rem]">
+                  {readOnly || planLocked ? null : (<span className="flex items-center gap-1.5 max-sm:basis-full max-sm:pl-[3.125rem]">
                       <MoveDate today={today} title={m.title} onPick={(date) => void moveMilestone(m, date)}/>
                     </span>)}
                 </div>
@@ -132,7 +134,7 @@ export function ProjectNeedsYou({ projectId, needs, team, today, readOnly = fals
                             {crew.filter((p) => p.id !== t.assigned_to).map((p) => <DropdownMenuItem key={p.id} onClick={() => void reassign(t, p)}>{p.name}</DropdownMenuItem>)}
                           </DropdownMenuContent>
                         </DropdownMenu>) : null}
-                      <MoveDate today={today} title={t.title} onPick={(date) => void moveTask(t, date)}/>
+                      {planLocked ? null : <MoveDate today={today} title={t.title} onPick={(date) => void moveTask(t, date)}/>}
                     </span>)}
                 </div>
               </motion.li>))}

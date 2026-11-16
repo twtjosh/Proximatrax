@@ -590,3 +590,5 @@ it(i16(), "project_reports RLS", "A filed report can't be rewritten", "pm1 updat
     await su("insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.pm1]);
     await refused(u.pm1, "update project_reports set data = '{\"x\":1}' where project_id = $1", [p.one]);
 });
+locked(i16(), "plan lock", "A locked project's start and handover dates can't move", "pm1 changes end_date", "Refused", () => refused(u.pm1, "update projects set end_date = '2026-12-31' where id = $1", [p.one]));
+locked(i16(), "plan lock", "A locked project's other details can still change", "pm1 renames it", "Saved", () => saved(u.pm1, "update projects set title = 'Renamed' where id = $1", [p.one]));

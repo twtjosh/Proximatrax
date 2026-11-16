@@ -162,11 +162,11 @@ export function SettingsPanel({ open, onOpenChange, section, project, milestones
             <div className="grid grid-cols-2 gap-3">
               <label className="grid gap-1.5">
                 <span className="flex items-center text-xs font-medium text-ink-secondary">Starts{mark("start_date")}</span>
-                <input type="date" defaultValue={project.start_date} disabled={closed} onChange={(e) => void save("start_date", e.target.value)} className={cn(field, "h-11")}/>
+                <input type="date" defaultValue={project.start_date} disabled={closed || Boolean(project.plan_locked_at)} onChange={(e) => void save("start_date", e.target.value)} className={cn(field, "h-11")}/>
               </label>
               <label className="grid gap-1.5">
                 <span className="flex items-center text-xs font-medium text-ink-secondary">Ends{mark("end_date")}</span>
-                <input type="date" defaultValue={project.end_date} disabled={closed} onChange={(e) => void save("end_date", e.target.value)} className={cn(field, "h-11")}/>
+                <input type="date" defaultValue={project.end_date} disabled={closed || Boolean(project.plan_locked_at)} onChange={(e) => void save("end_date", e.target.value)} className={cn(field, "h-11")}/>
               </label>
             </div>
           </section>

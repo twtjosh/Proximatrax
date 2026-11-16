@@ -12,6 +12,7 @@ import type { PlannedMilestone } from "@/lib/auto-plan";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/dashboard";
 import { endDateError, spanPhrase } from "@/lib/new-project";
+import { BUSY_MESSAGE } from "@/lib/gemini";
 import { asIntake, emptyIntake, intakeMissing, MAX_REPORT_UPLOAD_BYTES, REPORT_UPLOAD_TYPES, type Intake } from "@/lib/project-intake";
 import { cn, getErrorMessage } from "@/lib/utils";
 
@@ -97,7 +98,8 @@ export function ReportForm({ today, pmName, clients, crew }: {
             const body = new FormData();
             body.append("file", file);
             const res = await fetch("/api/project-report/read", { method: "POST", body });
-            const data = (await res.json()) as { error?: string; intake?: Intake; filled?: (keyof Intake)[] };
+            // A timed-out function answers with an HTML page, not JSON.
+            const data = (await res.json().catch(() => ({ error: BUSY_MESSAGE }))) as { error?: string; intake?: Intake; filled?: (keyof Intake)[] };
             if (!res.ok || !data.intake)
                 throw new Error(data.error ?? "The report could not be read.");
             const read = data.intake, keys = data.filled ?? [];
@@ -121,7 +123,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
         setError(null);
         try {
             const res = await fetch("/api/project-report/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intake }) });
-            const data = (await res.json()) as { error?: string; plan?: PlannedMilestone[] };
+            const data = (await res.json().catch(() => ({ error: BUSY_MESSAGE }))) as { error?: string; plan?: PlannedMilestone[] };
             if (!res.ok || !data.plan)
                 throw new Error(data.error ?? "The plan could not be made.");
             setPlan(data.plan);

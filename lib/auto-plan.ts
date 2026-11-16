@@ -156,8 +156,8 @@ export function planProblem(plan: unknown, cal: Calendar, team: string[]): strin
     const days = new Set(workingDays(cal));
     let total = 0, previous = "";
     for (const m of ms) {
-        if (!m || typeof m.title !== "string" || !m.title.trim())
-            return "Every milestone needs a title.";
+        if (!m || typeof m.title !== "string" || !m.title.trim() || m.title.length > 120)
+            return "Every milestone needs a title of up to 120 characters.";
         if (!Array.isArray(m.tasks) || m.tasks.length < 1 || m.tasks.length > LIMITS.maxTasksPerMilestone)
             return `Each milestone has 1 to ${LIMITS.maxTasksPerMilestone} tasks.`;
         if (!days.has(m.due_date))
@@ -166,8 +166,10 @@ export function planProblem(plan: unknown, cal: Calendar, team: string[]): strin
             return "Milestones must end in order, each after the one before.";
         previous = m.due_date;
         for (const t of m.tasks) {
-            if (!t || typeof t.title !== "string" || !t.title.trim())
-                return "Every task needs a title.";
+            if (!t || typeof t.title !== "string" || !t.title.trim() || t.title.length > 160)
+                return "Every task needs a title of up to 160 characters.";
+            if (typeof t.description !== "string" || t.description.length > 600)
+                return `${t.title}: the description must be text of up to 600 characters.`;
             if (!Number.isInteger(t.workingDays) || t.workingDays < LIMITS.minDays || t.workingDays > LIMITS.maxDays)
                 return `${t.title}: working days must be ${LIMITS.minDays} to ${LIMITS.maxDays}.`;
             if (!days.has(t.start_date) || !days.has(t.due_date) || t.start_date > t.due_date || t.due_date > m.due_date)

@@ -70,7 +70,7 @@ export function PmOverview({ data, viewerId, people, readOnly = false }: {
       {/* Two stacked columns, not two rows: a tall card no longer leaves a hole beside a short one. */}
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-5">
-          <ProjectNeedsYou projectId={project.id} needs={projectNeeds(milestones, tasks, today)} team={team} today={today}/>
+          <ProjectNeedsYou projectId={project.id} needs={projectNeeds(milestones, tasks, today)} team={team} today={today} planLocked={Boolean(project.plan_locked_at)}/>
           <NoOwner projectId={project.id} tasks={tasks} people={people} today={today} closed={closedNow}/>
           <OnSiteNow projectId={project.id} tasks={tasks} team={team} today={today}/>
         </div>

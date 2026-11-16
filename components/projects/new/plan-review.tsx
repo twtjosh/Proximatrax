@@ -76,7 +76,7 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
         setError(null);
         try {
             const res = await fetch("/api/project-report/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intake, plan: planned }) });
-            const data = (await res.json()) as { error?: string; projectId?: string };
+            const data = (await res.json().catch(() => ({ error: "No answer from the server. Check Projects before trying again, in case it was created." }))) as { error?: string; projectId?: string };
             if (!res.ok || !data.projectId)
                 throw new Error(data.error ?? "The project was not created.");
             onConfirmed();

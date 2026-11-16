@@ -23,10 +23,6 @@ export async function createReportProject(intake: Intake, plan: PlannedMilestone
         status: "pending_invites",
     }, sb);
     try {
-        await createProjectInvitations([
-            { project_id: project.id, invitee_id: intake.clientId, invitee_role: "client", invited_by: pmId, project_title: project.title },
-            ...intake.team.map((id) => ({ project_id: project.id, invitee_id: id, invitee_role: "middleman" as const, invited_by: pmId, project_title: project.title })),
-        ], sb);
         throwIfSupabaseError((await sb.from("project_reports").insert({ project_id: project.id, data: intake, created_by: pmId })).error);
         const milestones = plan.map((m) => ({ id: crypto.randomUUID(), project_id: project.id, title: m.title.trim(), due_date: m.due_date, completed: false }));
         throwIfSupabaseError((await sb.from("milestones").insert(milestones)).error);
@@ -43,6 +39,11 @@ export async function createReportProject(intake: Intake, plan: PlannedMilestone
             position: position++,
         })));
         throwIfSupabaseError((await sb.from("tasks").insert(tasks)).error);
+        // Invitations go out only once the tasks exist: accepting hands over the work planned for you.
+        await createProjectInvitations([
+            { project_id: project.id, invitee_id: intake.clientId, invitee_role: "client", invited_by: pmId, project_title: project.title },
+            ...intake.team.map((id) => ({ project_id: project.id, invitee_id: id, invitee_role: "middleman" as const, invited_by: pmId, project_title: project.title })),
+        ], sb);
         throwIfSupabaseError((await sb.from("projects").update({
             plan_locked_at: new Date().toISOString(),
             ...(intake.site ? { site_latitude: intake.site.lat, site_longitude: intake.site.lng } : {}),
