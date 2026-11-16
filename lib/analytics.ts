@@ -147,7 +147,8 @@ export function inquiryYear(rows: { id: string; status: string; created_at: stri
     return {
         received: mine.length,
         converted: mine.filter((r) => r.status === "converted").length,
-        unopened: mine.filter((r) => !seen.has(r.id)).length,
+        // One that became a project isn't waiting to be opened, so the three groups never overlap.
+        unopened: mine.filter((r) => r.status !== "converted" && !seen.has(r.id)).length,
     };
 }
 

@@ -47,16 +47,20 @@ const tally = (list) => {
     return { planned: list.length, executed: passed + failed, passed, failed, blocked: count("BLOCKED"), notRun: count("NOT RUN"), passRate: passed + failed ? Number(((passed / (passed + failed)) * 100).toFixed(1)) : null };
 };
 /** Blocked cases that a staging test fully exercised. Partly covered ones stay listed as not run. */
-const COVERED = new Set(["IT-08.10", "IT-08.12", "IT-08.14", "IT-10.14", "IT-13.06", "ST-02.B01", "ST-02.B04", "ST-02.B05", "ST-02.B06", "ST-03.B01", "ST-04.B02", "ST-05.B01", "ST-05.B02", "ST-06.B01", "ST-06.B02", "ST-07.B01"]);
+const COVERED = new Set(["IT-08.10", "IT-08.12", "IT-08.14", "IT-10.14", "IT-10.15", "IT-13.06", "ST-10.B02", "ST-02.B01", "ST-02.B04", "ST-02.B05", "ST-02.B06", "ST-03.B01", "ST-04.B02", "ST-04.B04", "ST-04.B07", "ST-05.B01", "ST-05.B02", "ST-05.B04", "ST-06.B01", "ST-06.B02", "ST-07.B01"]);
 const NOT_RUN = "A staging environment now exists, but this case was not exercised before the defense.";
 const settle = (list) => list.filter((t) => !(t.status === "BLOCKED" && COVERED.has(t.name.split(" | ")[0]))).map((t) => (t.status === "BLOCKED" ? { ...t, status: "NOT RUN", note: NOT_RUN } : t));
-/** Gives each staging browser test its own number: "ST-02.S" becomes "ST-02.S01". */
+/** Numbers staging browser tests: "ST-02.S" becomes "ST-02.S01", the same number for the same test in every browser. */
 const numbered = (list) => {
-    const seen = new Map();
+    const ids = new Map(), next = new Map();
     return list.map((t) => {
-        const area = t.name.split(" | ")[0], n = (seen.get(area) ?? 0) + 1;
-        seen.set(area, n);
-        return { ...t, name: t.name.replace(area, `${area}${String(n).padStart(2, "0")}`), browser: "staging" };
+        const area = t.name.split(" | ")[0];
+        if (!ids.has(t.name)) {
+            const n = (next.get(area) ?? 0) + 1;
+            next.set(area, n);
+            ids.set(t.name, `${area}${String(n).padStart(2, "0")}`);
+        }
+        return { ...t, name: t.name.replace(area, ids.get(t.name)) };
     });
 };
 const areas = (list) => {
@@ -87,12 +91,12 @@ writeFileSync(join(OUT, "unit-testing-report.md"), `${header("Unit Testing Repor
     return `| ${id} | ${cell(fn)} | ${cell(purpose)} | ${cell(input)} | ${cell(expected)} | ${cell(actual(t))} | ${t.status} | unit.log |`;
 }).join("\n")}\n`);
 
-writeFileSync(join(OUT, "integration-testing-report.md"), `${header("Integration Testing Report", `Two environments. IDs without an S ran on PGlite (PostgreSQL 18 in-process) after applying migrations 0001 to 0030 to a new database, each statement as an individual user with row-level security active. IDs with an S (such as IT-08.S01) ran against a dedicated Supabase test project through its real Auth, PostgREST, Realtime and Storage services, with each user's own session. Evidence: \`test-evidence/final/integration.log\`, \`integration-before-fix.log\` (the PGlite suite on migrations 0001 to 0029), and \`test-evidence/staging/services.log\`.\n\n**Limit of this evidence:** both environments were built from the migration files. Production also has nine hand-added policies; their definitions and the function they call were reviewed, but they weren't exercised by these tests.`)}\n## Summary\n\n${summary(integration)}\n\n## Results\n\n| Test ID | Connected modules | Test scenario | Input | Expected integration behavior | Actual integration behavior | Database verification | Status |\n|---|---|---|---|---|---|---|---|\n${integration.map((t) => {
+writeFileSync(join(OUT, "integration-testing-report.md"), `${header("Integration Testing Report", `Two environments. IDs without an S ran on PGlite (PostgreSQL 18 in-process) after applying migrations 0001 to 0033 to a new database, each statement as an individual user with row-level security active. IDs with an S (such as IT-08.S01) ran against a dedicated Supabase test project through its real Auth, PostgREST, Realtime and Storage services, with each user's own session. Evidence: \`test-evidence/final/integration.log\`, \`integration-before-fix.log\` (the PGlite suite on migrations 0001 to 0029), and \`test-evidence/staging/services.log\`.\n\n**Limit of this evidence:** both environments were built from the migration files. Production also has nine hand-added policies; their definitions and the function they call were reviewed, but they weren't exercised by these tests.`)}\n## Summary\n\n${summary(integration)}\n\n## Results\n\n| Test ID | Connected modules | Test scenario | Input | Expected integration behavior | Actual integration behavior | Database verification | Status |\n|---|---|---|---|---|---|---|---|\n${integration.map((t) => {
     const [id, fn, purpose, input, expected] = fields(t.name);
     return `| ${id} | ${cell(fn)} | ${cell(purpose)} | ${cell(input)} | ${cell(expected)} | ${cell(actual(t))} | ${t.status === "NOT RUN" ? "None" : "Read back by the test"} | ${t.status} |`;
 }).join("\n")}\n`);
 
-const browserName = { "local-chromium": "Chromium (Edge), local build", "local-firefox": "Firefox, local build", "local-webkit": "WebKit, local build", "prod-readonly": "Chromium (Edge), production, read-only", staging: "Chromium (Edge), build on staging Supabase" };
+const browserName = { "local-chromium": "Chromium (Edge), local build", "local-firefox": "Firefox, local build", "local-webkit": "WebKit, local build", "prod-readonly": "Chromium (Edge), production, read-only", "staging-chromium": "Chromium (Edge), staging", "staging-firefox": "Firefox, staging", "staging-webkit": "WebKit, staging" };
 const sysAll = [...sysRun, ...sysBlocked];
 const sysRows = [...sysRun.map((t) => {
     const [id, role, workflow, expected] = fields(t.name);
@@ -101,7 +105,7 @@ const sysRows = [...sysRun.map((t) => {
     const [id, , purpose] = fields(t.name);
     return `| ${id} | Signed-in user | None | ${cell(purpose)} | n/a | ${cell(t.note)} | None | ${t.status} |`;
 })].sort();
-writeFileSync(join(OUT, "system-testing-report.md"), `${header("System Testing Report", `Playwright in three parts: public pages on a local production build with an unreachable Supabase URL, in three browser engines; read-only checks of https://proximatrax.vercel.app (every non-GET request aborted); and signed-in flows on a local build connected to a dedicated Supabase test project (IDs with an S), in Chromium only. A test run in three browsers counts as three executions. Chromium ran through installed Microsoft Edge. Evidence: \`test-evidence/playwright/html/index.html\`, \`results.json\`, \`performance-production.json\`, \`test-evidence/staging/\`.`)}\n## Summary\n\n${summary(sysAll)}\n\n## Results\n\n| Test ID | User role | Browser/device | Workflow | Expected result | Actual result | Evidence | Status |\n|---|---|---|---|---|---|---|---|\n${sysRows.join("\n")}\n`);
+writeFileSync(join(OUT, "system-testing-report.md"), `${header("System Testing Report", `Playwright in three parts: public pages on a local production build with an unreachable Supabase URL, in three browser engines; read-only checks of https://proximatrax.vercel.app (every non-GET request aborted); and signed-in flows on a local build connected to a dedicated Supabase test project (IDs with an S), in all three engines, plus screen timing in Chromium. A test run in three browsers counts as three executions. Chromium ran through installed Microsoft Edge. Evidence: \`test-evidence/playwright/html/index.html\`, \`results.json\`, \`performance-production.json\`, \`test-evidence/staging/\`.`)}\n## Summary\n\n${summary(sysAll)}\n\n## Results\n\n| Test ID | User role | Browser/device | Workflow | Expected result | Actual result | Evidence | Status |\n|---|---|---|---|---|---|---|---|\n${sysRows.join("\n")}\n`);
 
 const metrics = { generated: new Date().toISOString(), unit: tally([...unit, ...existing]), unitNew: tally(unit), unitExisting: tally(existing), integration: tally(integration), system: tally(sysAll), failures: { integration: integration.filter((t) => t.status === "FAIL").map((t) => t.name.split(" | ")[0]), system: sysRun.filter((t) => t.status === "FAIL").map((t) => `${t.name.split(" | ")[0]} [${t.browser}]`), unit: [...unit, ...existing].filter((t) => t.status === "FAIL").map((t) => t.name.split(" | ")[0]) } };
 writeFileSync(join(EV, "final/metrics.json"), JSON.stringify(metrics, null, 2));

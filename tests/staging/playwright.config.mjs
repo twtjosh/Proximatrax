@@ -16,7 +16,12 @@ export default defineConfig({
     workers: 1,
     retries: 0,
     reporter: [["list"], ["json", { outputFile: join(evidence, "results.json") }]],
-    use: { baseURL: "http://localhost:3200", browserName: "chromium", channel: "msedge", viewport: { width: 1366, height: 850 }, screenshot: "only-on-failure" },
+    use: { baseURL: "http://localhost:3200", viewport: { width: 1366, height: 850 }, screenshot: "only-on-failure" },
+    projects: [
+        { name: "staging-chromium", use: { browserName: "chromium", channel: "msedge" } },
+        { name: "staging-firefox", testMatch: "flows.spec.mjs", use: { browserName: "firefox" } },
+        { name: "staging-webkit", testMatch: "flows.spec.mjs", use: { browserName: "webkit" } },
+    ],
     webServer: {
         command: "npx next build && npx next start -p 3200",
         cwd: root,

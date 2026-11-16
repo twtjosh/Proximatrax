@@ -136,6 +136,17 @@ test("inquiryYear: this year's inquiries, converted, and not yet opened by this 
     assert.deepEqual(inquiryYear(rows, ["1", "3"], "2026"), { received: 3, converted: 1, unopened: 1 });
 });
 
+test("inquiryYear: one that became a project isn't waiting to be opened, so the groups never overlap", () => {
+    const rows = [
+        { id: "1", status: "converted", created_at: at("2026-02-01") },
+        { id: "2", status: "converted", created_at: at("2026-03-01") },
+        { id: "3", status: "new", created_at: at("2026-09-01") },
+    ];
+    const y = inquiryYear(rows, [], "2026");
+    assert.deepEqual(y, { received: 3, converted: 2, unopened: 1 });
+    assert.ok(y.received - y.converted - y.unopened >= 0);
+});
+
 const task = (o = {}) => ({ id: "t1", project_id: "p1", title: "Grout and seal backsplash", stage: "to_do", assigned_to: null, due_date: null, completed_at: null, updated_at: at("2026-10-01"), ...o });
 const move = (task_id, from, to, when) => ({ task_id, from, to, at: when });
 
