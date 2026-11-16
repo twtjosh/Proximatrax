@@ -49,6 +49,6 @@ export function TeamCards({ crew, value, onChange, highlighted }: {
             </ul>
           </div>);
         })}
-      {value.length > 0 ? <p className="text-[12.5px] text-ink-secondary" aria-live="polite">{value.length === 1 ? "1 person" : `${value.length} people`} on the team. Each gets an invitation.</p> : null}
+      {value.length > 0 ? <p className="text-[12.5px] text-ink-secondary" aria-live="polite">{value.length === 1 ? "1 person" : `${value.length} people`} on the team. They join the project as soon as you confirm the plan.</p> : null}
     </div>);
 }

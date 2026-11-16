@@ -38,9 +38,16 @@ test("a rate limit is the busy error", async () => {
     await assert.rejects(generateJson([{ text: "hi" }], schema, opts), (e) => e instanceof AiBusyError && e.message === BUSY_MESSAGE);
 });
 
-test("a server error at Google is the busy error", async () => {
-    stub(new Response("{}", { status: 503 }));
-    await assert.rejects(generateJson([{ text: "hi" }], schema, opts), AiBusyError);
+test("an overloaded Google (5xx) is tried once more after a pause", async () => {
+    const calls = stub(new Response("{}", { status: 503 }), answer('{"ok":true}'));
+    assert.deepEqual(await generateJson([{ text: "hi" }], schema, { ...opts, retryDelayMs: 1 }), { ok: true });
+    assert.equal(calls.length, 2);
+});
+
+test("a server error twice is the busy error", async () => {
+    const calls = stub(new Response("{}", { status: 503 }), new Response("{}", { status: 500 }));
+    await assert.rejects(generateJson([{ text: "hi" }], schema, { ...opts, retryDelayMs: 1 }), AiBusyError);
+    assert.equal(calls.length, 2);
 });
 
 test("a missing key is a plain error naming GEMINI_API_KEY", async () => {

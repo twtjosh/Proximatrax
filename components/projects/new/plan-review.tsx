@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowDown, ArrowUp, ChevronLeft, Loader2, Lock, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
+import { Face, focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import type { CrewOption } from "@/components/projects/new/team-cards";
 import { assign, LIMITS, schedule, type CrewRole, type PlannedMilestone } from "@/lib/auto-plan";
 import { projectPath } from "@/lib/constants";
@@ -96,16 +96,26 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
       </button>
       <header className="materialize mt-2.5 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[13px] text-ink-tertiary">Drafted plan{clientName ? ` · ${clientName}` : ""}</p>
-          <h1 className="mt-1 text-[2rem] leading-[1.05] font-semibold tracking-[-0.035em] break-words text-ink sm:text-[2.5rem]">{intake.title}</h1>
-          <p className="mt-2 text-[15px] text-ink-secondary tabular">
-            {groups.length} milestones · {total} tasks · {formatDate(intake.startDate, { month: "short", day: "numeric", year: "numeric" })} to {formatDate(intake.endDate, { month: "short", day: "numeric", year: "numeric" })}
+          <h1 className="text-[2rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance break-words text-ink sm:text-[2.5rem]">{intake.title}</h1>
+          <p className="mt-2 text-[15px] text-pretty text-ink-secondary tabular">
+            Drafted plan{clientName ? ` for ${clientName}` : ""} · {groups.length} milestones · {total} tasks · {formatDate(intake.startDate, { month: "short", day: "numeric", year: "numeric" })} to {formatDate(intake.endDate, { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </div>
         <button type="button" disabled={regenerating || busy} onClick={() => { if (window.confirm("Draft a new plan? Your edits here will be replaced.")) void onRegenerate(); }} className={cn(softAction, "h-10 px-4 disabled:opacity-45")}>
           {regenerating ? <Loader2 className="animate-spin" aria-hidden/> : <RefreshCw aria-hidden/>}{regenerating ? "Drafting…" : "Draft again"}
         </button>
       </header>
+
+      {planned && team.length > 0 ? (<ul aria-label="Work per person" className="mt-5 flex flex-wrap gap-2">
+          {team.map((p) => {
+                const mine = planned.flatMap((m) => m.tasks).filter((t) => t.planned_to === p.id);
+                return (<li key={p.id} className="flex items-center gap-2.5 rounded-full bg-surface py-1 pr-3.5 pl-1 ring-1 ring-line">
+                <Face person={{ id: p.id, name: p.name, avatarUrl: p.avatarUrl, role: "" }} size={28}/>
+                <span className="text-[13px] leading-tight"><span className="font-medium text-ink">{p.name}</span><span className="block text-xs text-ink-tertiary tabular">{mine.length === 1 ? "1 task" : `${mine.length} tasks`} · {mine.reduce((n, t) => n + t.workingDays, 0)} days of work</span></span>
+              </li>);
+            })}
+          {planned.some((m) => m.tasks.some((t) => !t.planned_to)) ? <li className="flex items-center rounded-full bg-warning-soft px-3.5 text-[13px] font-medium text-warning">Some tasks have no one yet</li> : null}
+        </ul>) : null}
 
       {"error" in result ? <Alert text={`${TOO_SHORT} Go back and move the handover date, or remove some work.`}/> : null}
       {shown ? <Alert text={shown}/> : null}
@@ -120,6 +130,7 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
               <span className="shrink-0 text-[13px] text-ink-secondary tabular">{m ? `Due ${day(m.due_date)}` : ""}</span>
               <Order label={g.title || `milestone ${gi + 1}`} up={gi > 0 ? () => setGroups((gs) => move(gs, gi, gi - 1)) : null} down={gi < groups.length - 1 ? () => setGroups((gs) => move(gs, gi, gi + 1)) : null} remove={groups.length > LIMITS.minMilestones ? () => setGroups((gs) => gs.filter((_, n) => n !== gi)) : null}/>
             </div>
+            {m ? <SpanBar from={m.tasks[0].start_date} to={m.due_date} start={intake.startDate} end={intake.endDate}/> : null}
             <ul className="mt-3 grid gap-1.5">
               {g.tasks.map((t, ti) => {
                     const pt = m?.tasks[ti];
@@ -150,7 +161,7 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
           <Plus className="size-4" aria-hidden/>Add milestone
         </button>) : null}
 
-      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-line bg-surface/95 px-4 pt-3 pb-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:flex lg:items-center lg:justify-end lg:gap-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-line bg-surface/95 pt-3 pr-[4.75rem] pb-3 pl-4 backdrop-blur-md sm:-mx-6 sm:pl-6 lg:static lg:mx-0 lg:flex lg:items-center lg:justify-end lg:gap-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
         <p className="mb-2 flex items-start justify-center gap-1.5 text-center text-xs text-ink-tertiary lg:mb-0 lg:max-w-md lg:text-right lg:text-[13px]">
           <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden/>{blank ? "Give every milestone and task a title." : "After this, milestones, tasks and dates can't be changed. Late work shows as late. Crew get their tasks when they accept."}
         </p>
@@ -158,6 +169,20 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
           {busy ? <Loader2 className="animate-spin" aria-hidden/> : <Lock aria-hidden/>}{busy ? "Creating the project…" : "Confirm & lock"}
         </button>
       </div>
+    </div>);
+}
+
+/** Where a milestone falls in the project, as a bar on the project's span. */
+function SpanBar({ from, to, start, end }: { from: string; to: string; start: string; end: string }) {
+    const t = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+    const total = Math.max(1, t(end) - t(start) + 86_400_000);
+    const left = ((t(from) - t(start)) / total) * 100, width = Math.max(1.5, ((t(to) - t(from) + 86_400_000) / total) * 100);
+    const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
+    return (<div className="mt-3 ml-11 flex items-center gap-3">
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
+        <span className="absolute inset-y-0 rounded-full bg-copper" style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }}/>
+      </div>
+      <span className="shrink-0 text-xs text-ink-tertiary tabular">{short(from)} – {short(to)}</span>
     </div>);
 }
 

@@ -3,7 +3,7 @@
  * from a client component.
  *
  * One call to Gemini that must come back as JSON matching a schema. A rate
- * limit, an outage, a timeout or two unreadable answers in a row all become
+ * limit, a timeout, or two outages or unreadable answers in a row become
  * AiBusyError, whose message the PM sees as is.
  */
 
@@ -21,7 +21,7 @@ export type AiPart = { text: string } | { inline_data: { mime_type: string; data
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
-export async function generateJson(parts: AiPart[], schema: object, opts: { model?: string; key?: string; timeoutMs?: number } = {}): Promise<unknown> {
+export async function generateJson(parts: AiPart[], schema: object, opts: { model?: string; key?: string; timeoutMs?: number; retryDelayMs?: number } = {}): Promise<unknown> {
     const key = opts.key ?? process.env.GEMINI_API_KEY;
     if (!key)
         throw new Error("GEMINI_API_KEY is not set on the server.");
@@ -43,8 +43,16 @@ export async function generateJson(parts: AiPart[], schema: object, opts: { mode
         catch {
             throw new AiBusyError();
         }
-        if (res.status === 429 || res.status >= 500)
+        if (res.status === 429)
             throw new AiBusyError();
+        // The free tier is sometimes briefly overloaded: one more try after a pause.
+        if (res.status >= 500) {
+            if (attempt === 0) {
+                await new Promise((r) => setTimeout(r, opts.retryDelayMs ?? 2000));
+                continue;
+            }
+            throw new AiBusyError();
+        }
         if (!res.ok)
             throw new Error(`Gemini refused the request (${res.status}): ${(await res.text()).slice(0, 300)}`);
         try {
