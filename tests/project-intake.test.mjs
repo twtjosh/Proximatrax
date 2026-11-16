@@ -89,3 +89,16 @@ test("matchReadIntake on junk gives an empty report", () => {
     assert.deepEqual(intake, emptyIntake("2026-11-17"));
     assert.deepEqual(got, []);
 });
+
+test("asIntake keeps a well-formed report and refuses a malformed one", async () => {
+    const { asIntake } = await import("../lib/project-intake.ts");
+    const good = { ...filled(), site: { lat: 14.6, lng: 121 }, offDates: ["2026-12-25"] };
+    assert.deepEqual(asIntake(good), good);
+    assert.equal(asIntake(null), null);
+    assert.equal(asIntake({ ...good, team: "m1" }), null);
+    assert.equal(asIntake({ ...good, areas: [{ name: 1 }] }), null);
+    assert.equal(asIntake({ ...good, startDate: "soon" }), null);
+    assert.equal(asIntake({ ...good, weekdays: [9] }), null);
+    assert.equal(asIntake({ ...good, site: { lat: 200, lng: 0 } }), null);
+    assert.deepEqual(asIntake({ ...good, areas: [{ ...good.areas[0], work: ["Tiling", "Juggling"] }] }).areas[0].work, ["Tiling"]);
+});

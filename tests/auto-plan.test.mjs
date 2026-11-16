@@ -113,3 +113,26 @@ test("buildPlan reports invalid drafts and too-short dates", () => {
     assert.deepEqual(buildPlan(raw, cal("2026-12-01", "2026-12-02"), []), { error: "too_short" });
     assert.equal(buildPlan(raw, cal("2026-12-01", "2026-12-12"), []).length, 3);
 });
+
+test("planProblem accepts a plan made by the rules and names what is wrong with a tampered one", async () => {
+    const { planProblem } = await import("../lib/auto-plan.ts");
+    const c = cal("2026-12-01", "2026-12-12");
+    const team = [{ id: "f", name: "F", role: "foreman" }];
+    const good = assign(schedule([ms("A", task("a", 2)), ms("B", task("b", 2))], c), team);
+    assert.equal(planProblem(good, c, ["f"]), null);
+    const tweak = (fn) => {
+        const copy = structuredClone(good);
+        fn(copy);
+        return planProblem(copy, c, ["f"]);
+    };
+    assert.match(tweak((p) => (p[0].tasks[0].due_date = "2026-12-20")), /date/);
+    assert.match(tweak((p) => (p[0].tasks[0].start_date = "2026-12-06")), /date/); // a Sunday
+    assert.match(tweak((p) => (p[1].due_date = p[0].due_date)), /order/);
+    assert.match(tweak((p) => (p[0].tasks[0].planned_to = "stranger")), /team/);
+    assert.match(tweak((p) => (p[0].tasks[0].title = " ")), /title/);
+    assert.match(tweak((p) => (p[0].tasks[0].workingDays = 31)), /days/);
+    assert.match(tweak((p) => p.pop()), /milestones/);
+    assert.match(tweak((p) => (p[0].tasks = [])), /tasks/);
+    assert.match(tweak((p) => (p[0].tasks[0].due_date = p[1].due_date)), /date/); // past its milestone
+    assert.match(planProblem("junk", c, []), /plan/);
+});

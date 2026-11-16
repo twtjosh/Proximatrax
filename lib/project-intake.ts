@@ -193,3 +193,39 @@ export function matchReadIntake(read: unknown, clients: { id: string; name: stri
     set("notes", notes, Boolean(notes));
     return { intake, filled };
 }
+
+/** Vercel refuses request bodies over 4.5 MB, so uploads stop at 4 MB. */
+export const MAX_REPORT_UPLOAD_BYTES = 4 * 1024 * 1024;
+export const REPORT_UPLOAD_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+
+const isStr = (v: unknown): v is string => typeof v === "string";
+const dateOrBlank = (v: unknown) => isStr(v) && (v === "" || isoDate(v) === v);
+
+/** A report sent by the browser, checked field by field; null when any field has the wrong shape. */
+export function asIntake(raw: unknown): Intake | null {
+    if (!raw || typeof raw !== "object")
+        return null;
+    const r = raw as Record<string, unknown>;
+    const site = r.site as { lat?: unknown; lng?: unknown } | null;
+    const siteOk = site === null || (site && typeof site === "object" && typeof site.lat === "number" && typeof site.lng === "number" && Math.abs(site.lat) <= 90 && Math.abs(site.lng) <= 180);
+    const areasOk = Array.isArray(r.areas) && r.areas.length <= 30 && r.areas.every((a) => a && typeof a === "object" && isStr(a.name) && Array.isArray(a.work) && a.work.every(isStr) && (a.sqm === null || typeof a.sqm === "number") && isStr(a.notes));
+    if (!isStr(r.title) || !isStr(r.clientId) || !siteOk || !dateOrBlank(r.startDate) || !dateOrBlank(r.endDate)
+        || !Array.isArray(r.team) || !r.team.every(isStr) || !areasOk
+        || !Array.isArray(r.weekdays) || !r.weekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        || !Array.isArray(r.offDates) || !r.offDates.every((d) => isoDate(d) === d) || !isStr(r.notes))
+        return null;
+    return {
+        title: r.title.slice(0, 160),
+        clientId: r.clientId,
+        site: site ? { lat: site.lat as number, lng: site.lng as number } : null,
+        startDate: r.startDate as string,
+        endDate: r.endDate as string,
+        team: [...new Set(r.team as string[])],
+        areas: (r.areas as ScopeArea[]).map((a) => ({ name: a.name.slice(0, 80), work: a.work.filter((w) => (WORK_TYPES as readonly string[]).includes(w)), sqm: a.sqm, notes: a.notes.slice(0, 600) })),
+        weekdays: [...new Set(r.weekdays as number[])],
+        offDates: [...new Set(r.offDates as string[])],
+        notes: r.notes.slice(0, 2000),
+    };
+}
+
+export const TOO_SHORT = "The dates are too short for this scope.";

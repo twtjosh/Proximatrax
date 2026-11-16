@@ -99,7 +99,7 @@ for (const path of PROTECTED)
         await page.waitForURL("**/login**");
         expect(new URL(page.url()).searchParams.get("next")).toBe(path);
     });
-for (const [method, path] of [["POST", "/api/admin/users"], ["DELETE", "/api/admin/users/11111111-1111-4111-8111-111111111111"], ["PATCH", "/api/admin/users/11111111-1111-4111-8111-111111111111"], ["POST", "/api/projects/with-invitations"]])
+for (const [method, path] of [["POST", "/api/admin/users"], ["DELETE", "/api/admin/users/11111111-1111-4111-8111-111111111111"], ["PATCH", "/api/admin/users/11111111-1111-4111-8111-111111111111"], ["POST", "/api/projects/with-invitations"], ["POST", "/api/project-report/read"], ["POST", "/api/project-report/plan"], ["POST", "/api/project-report/confirm"]])
     test(`ST-02.${String(++n).padStart(2, "0")} | anonymous | Private API without a session | ${method} ${path} returns 401`, async ({ request }) => {
         const res = await request.fetch(path, { method, data: {} });
         expect(res.status()).toBe(401);
