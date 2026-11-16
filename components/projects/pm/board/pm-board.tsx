@@ -5,7 +5,7 @@ import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandle
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, Columns3, Flag, List, Lock, MessageSquare, Paperclip, RotateCcw, Search, SquareCheck, X } from "lucide-react";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
-import { checklistProgress, normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
+import { checklistProgress, normalizeBoardStage, splitLate, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
 import { daysBetween, duePhrase } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -148,7 +148,10 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
       {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
         <div role="region" aria-label="Board columns" tabIndex={0} className={cn("-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0", focusRing)}>
           {COLUMNS.map((col, ci) => {
-                const all = order(col.stage, visible.filter((t) => normalizeBoardStage(t.stage) === col.stage), today);
+                const sorted = order(col.stage, visible.filter((t) => normalizeBoardStage(t.stage) === col.stage), today);
+                // Late work leads its column in a band of its own, still under its real stage.
+                const { late, onTime } = splitLate(sorted, today);
+                const all = [...late, ...onTime];
                 const shown = col.stage === "done" && !allAccepted ? all.slice(0, ACCEPTED_SHOWN) : all;
                 return (<section key={col.stage} id={`column-${col.stage}`} aria-label={col.label} style={{ "--i": ci } as React.CSSProperties} className="materialize flex w-[min(20rem,82vw)] shrink-0 snap-start flex-col rounded-[22px] bg-surface-subtle p-2 ring-1 ring-line lg:w-auto">
                 <header className="flex items-center gap-2 px-2.5 pt-1.5 pb-2.5">
@@ -159,8 +162,11 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                 </header>
                 <Droppable droppableId={col.stage} isDropDisabled={closed}>
                   {(drop, dropState) => (<ul ref={drop.innerRef} {...drop.droppableProps} className={cn("grid min-h-24 flex-1 content-start gap-2 rounded-2xl p-0.5 transition-colors duration-300", dropState.isDraggingOver && "bg-brand-soft/60")}>
+                      {late.length > 0 ? (<li aria-hidden className="flex items-center gap-1.5 px-2 pt-1 text-[11px] font-semibold tracking-[0.06em] text-danger uppercase">
+                          <span className="size-1.5 rounded-full bg-stage-late"/>Running late · {late.length}
+                        </li>) : null}
                       {shown.map((t, i) => (<Draggable key={t.id} draggableId={t.id} index={i} isDragDisabled={closed || col.stage === "done"} disableInteractiveElementBlocking>
-                          {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style}>
+                          {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style} className={cn(i < late.length && "rounded-[18px] bg-danger-soft p-1", i === late.length && late.length > 0 && "mt-2 border-t border-dashed border-line pt-3")}>
                               <Card handle={drag.dragHandleProps} task={t} comments={counts[t.id] ?? 0} today={today} files={byTask.get(t.id) ?? []} blocked={col.stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null} dragging={dragState.isDragging} fresh={fresh.has(t.id)} onOpen={() => show(t)}/>
                             </li>)}
                         </Draggable>))}

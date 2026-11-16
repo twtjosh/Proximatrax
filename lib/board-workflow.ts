@@ -224,3 +224,10 @@ export function taskBlockedReason(task: TaskForGate, viewerRole: UserRole, gateC
     }
     return null;
 }
+/** Work past its due date and not yet accepted, for the board's "Running late" band; both lists keep their order. */
+export function splitLate<T extends { due_date: string | null; stage: string }>(tasks: T[], today: string): { late: T[]; onTime: T[] } {
+    const late: T[] = [], onTime: T[] = [];
+    for (const t of tasks)
+        (t.due_date && t.due_date < today && t.stage !== "done" ? late : onTime).push(t);
+    return { late, onTime };
+}
