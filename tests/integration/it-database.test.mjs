@@ -533,3 +533,59 @@ it(i15(), "evidence guard", "The server route (service role) records verified ev
 it(i15(), "projects site pin", "The PM sets the project's site location", "pm1 sets both coordinates", "Saved", async () => assert.equal((await as(pg, u.pm1, "update projects set site_latitude = 14.6, site_longitude = 121 where id = $1 returning id", [p.one])).rows.length, 1));
 it(i15(), "projects site pin", "A site needs both coordinates", "pm1 sets latitude only", "Refused", () => refused(u.pm1, "update projects set site_latitude = 14.6 where id = $1", [p.one]));
 it(i15(), "projects site pin", "Coordinates must be on the map", "pm1 sets latitude 120", "Refused", () => refused(u.pm1, "update projects set site_latitude = 120, site_longitude = 14 where id = $1", [p.one]));
+
+// Locked plans from the project report (0034): once confirmed, the plan's shape and dates are fixed.
+const i16 = seq("IT-16");
+const lock = () => su("update projects set plan_locked_at = now() where id = $1", [p.one]);
+const locked = (id, fn, purpose, input, expected, body) => it(id, fn, purpose, input, expected, async () => {
+    await lock();
+    await body();
+});
+const saved = async (who, sql, params) => assert.ok((await as(pg, who, `${sql} returning 1`, params)).rows.length > 0, "expected this to be saved");
+locked(i16(), "plan lock", "No new task on a locked plan", "pm1 inserts a task", "Refused", () => refused(u.pm1, "insert into tasks (project_id, milestone_id, title) values ($1, $2, 'Extra')", [p.one, m.one]));
+locked(i16(), "plan lock", "A locked task's deadline can't move", "pm1 changes due_date", "Refused", () => refused(u.pm1, "update tasks set due_date = '2026-05-05' where id = $1", [t.todo]));
+locked(i16(), "plan lock", "A locked task's title can't change", "pm1 renames it", "Refused", () => refused(u.pm1, "update tasks set title = 'Renamed' where id = $1", [t.todo]));
+locked(i16(), "plan lock", "No task is removed from a locked plan", "pm1 deletes a task", "Refused", () => refused(u.pm1, "delete from tasks where id = $1", [t.todo]));
+locked(i16(), "plan lock", "Work still moves on a locked plan", "pm1 moves a task to in progress", "Saved", () => saved(u.pm1, "update tasks set stage = 'in_progress' where id = $1", [t.todo]));
+locked(i16(), "plan lock", "Crew still move their own work", "crew1 starts their task", "Saved", () => saved(u.crew1, "update tasks set stage = 'in_progress' where id = $1", [t.todo]));
+locked(i16(), "plan lock", "The PM can still reassign to someone on the project", "pm1 assigns the open task to crew1", "Saved", () => saved(u.pm1, "update tasks set assigned_to = $1 where id = $2", [u.crew1, t.open]));
+locked(i16(), "plan lock", "No milestone is added to a locked plan", "pm1 inserts a milestone", "Refused", () => refused(u.pm1, "insert into milestones (project_id, title, due_date) values ($1, 'Extra', '2026-03-01')", [p.one]));
+locked(i16(), "plan lock", "A locked milestone's date can't move", "pm1 changes due_date", "Refused", () => refused(u.pm1, "update milestones set due_date = '2026-03-01' where id = $1", [m.one]));
+locked(i16(), "plan lock", "No milestone is removed from a locked plan", "pm1 deletes a milestone", "Refused", () => refused(u.pm1, "delete from milestones where id = $1", [m.oneNext]));
+locked(i16(), "plan lock", "A locked milestone can still be completed", "pm1 marks it completed", "Saved", () => saved(u.pm1, "update milestones set completed = true where id = $1", [m.one]));
+locked(i16(), "plan lock", "A plan can't be unlocked", "pm1 clears plan_locked_at", "Refused", () => refused(u.pm1, "update projects set plan_locked_at = null where id = $1", [p.one]));
+it(i16(), "plan lock", "An unlocked project works as before", "pm1 inserts a task and moves a date", "Saved", async () => {
+    await saved(u.pm1, "insert into tasks (project_id, milestone_id, title) values ($1, $2, 'Extra')", [p.one, m.one]);
+    await saved(u.pm1, "update milestones set due_date = '2026-03-01' where id = $1", [m.one]);
+});
+locked(i16(), "plan lock", "Deleting a locked project still removes its plan", "superuser deletes project one", "Tasks and milestones gone", async () => {
+    await su("delete from projects where id = $1", [p.one]);
+    assert.equal((await one("select count(*)::int n from tasks where project_id = $1", [p.one])).n, 0);
+    assert.equal((await one("select count(*)::int n from milestones where project_id = $1", [p.one])).n, 0);
+});
+locked(i16(), "planned work", "Accepting the invite hands over the work planned for you", "crew2 joins project one with two planned tasks, one already taken", "Only the open one becomes theirs", async () => {
+    const [mine] = await su("insert into tasks (project_id, milestone_id, title, planned_to) values ($1, $2, 'Planned', $3) returning id", [p.one, m.one, u.crew2]);
+    await su("update tasks set planned_to = $1 where id = $2", [u.crew2, t.todo]);
+    await su("insert into project_invitations (project_id, invitee_id, invitee_role, status, invited_by, project_title) values ($1, $2, 'middleman', 'pending', $3, 'Project One')", [p.one, u.crew2, u.pm1]);
+    await as(pg, u.crew2, "insert into project_members (project_id, user_id, role_in_project) values ($1, $2, 'middleman')", [p.one, u.crew2]);
+    assert.equal((await one("select assigned_to from tasks where id = $1", [mine.id])).assigned_to, u.crew2);
+    assert.equal((await one("select assigned_to from tasks where id = $1", [t.todo])).assigned_to, u.crew1);
+});
+locked(i16(), "planned work", "Work planned for someone who declined can be reassigned", "pm1 assigns it to crew1", "Saved", async () => {
+    const [task] = await su("insert into tasks (project_id, milestone_id, title, planned_to) values ($1, $2, 'Planned', $3) returning id", [p.one, m.one, u.crew2]);
+    await saved(u.pm1, "update tasks set assigned_to = $1 where id = $2", [u.crew1, task.id]);
+});
+it(i16(), "project_reports RLS", "The project's client can read the report", "client1 selects", "One row", async () => {
+    await su("insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.pm1]);
+    assert.equal((await as(pg, u.client1, "select * from project_reports")).rows.length, 1);
+    assert.equal((await as(pg, u.crew2, "select * from project_reports")).rows.length, 0);
+});
+it(i16(), "project_reports RLS", "Only the project's PM files the report", "client1 and pm2 insert", "Refused; pm1 saved", async () => {
+    await refused(u.client1, "insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.client1]);
+    await refused(u.pm2, "insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.pm2]);
+    await saved(u.pm1, "insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.pm1]);
+});
+it(i16(), "project_reports RLS", "A filed report can't be rewritten", "pm1 updates it", "Refused", async () => {
+    await su("insert into project_reports (project_id, data, created_by) values ($1, '{}', $2)", [p.one, u.pm1]);
+    await refused(u.pm1, "update project_reports set data = '{\"x\":1}' where project_id = $1", [p.one]);
+});

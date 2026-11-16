@@ -25,8 +25,17 @@ export interface Project {
     /** Where the job is; photos are measured against it. Both set or both null. */
     site_latitude: number | null;
     site_longitude: number | null;
+    /** Set when the PM confirms a plan made from the project report; the plan can't change after. */
+    plan_locked_at: string | null;
     created_at: string;
     updated_at: string;
+}
+/** The project report a locked plan was made from (`Intake` in lib/project-intake.ts). */
+export interface ProjectReport {
+    project_id: string;
+    data: unknown;
+    created_by: string;
+    created_at: string;
 }
 export interface ProjectMember {
     project_id: string;
@@ -68,6 +77,8 @@ export interface Task {
     description: string | null;
     stage: TaskStage;
     assigned_to: string | null;
+    /** Who the plan gave this task to; becomes assigned_to when they accept the invite. */
+    planned_to: string | null;
     priority: TaskPriority;
     due_date: string | null;
     /** Set by the database when the task enters "done"; cleared if it leaves. */
