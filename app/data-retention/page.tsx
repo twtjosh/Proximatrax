@@ -22,6 +22,7 @@ const SECTIONS: LegalSection[] = [
             "File storage (Supabase Storage): site photos, project documents and files sent in messages.",
             "The web host (Vercel, running in Singapore): short-lived request and error logs.",
             "Maps and place search (OpenStreetMap): shows map images, and finds the places a project manager searches for. ProximaTrax keeps none of those searches.",
+            "Plan drafting (Google Gemini): when a project manager saves or uploads a project report, it is sent to Google to draft the milestones and tasks. When drafting, people are described by their crew role, not their name; an uploaded report is sent as it is, including any names written on it. On the free tier Google may use what it receives to improve its models, so project managers write only what the job needs.",
         ] },
         "Contracts, quotations, invoices and payments are not handled in ProximaTrax. They are kept outside the portal under our accounting and tax obligations, so this policy does not cover them.",
     ] },
@@ -147,6 +148,7 @@ const SECTIONS: LegalSection[] = [
             "Supabase: database, file storage, sign-in, password-reset emails and backups.",
             "Vercel: hosting the website and portal, with short-lived request logs.",
         ] },
+        "It also sends project reports to Google Gemini to draft each project's plan, as described above. An uploaded report is read once and not kept by ProximaTrax; only the confirmed form is saved with the project.",
         "If we stop using a provider, we move the data we still need and delete the rest from that provider.",
     ] },
     { id: "roles", title: "Who does what", body: [

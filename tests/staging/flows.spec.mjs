@@ -103,19 +103,21 @@ test("ST-03.S | super admin | Dashboard, People and Inquiries open | No crash; t
     await page.context().close();
 });
 
-test("ST-04.S | project manager | Creates a project in the form and invites a team | Project pending, 5 phases, 2 invitations", async ({ browser }) => {
+test("ST-04.S | project manager | Creates a project without the report form and invites a team | Project pending, 5 phases, 2 invitations", async ({ browser }) => {
+    // The New project page is now the AI-drafted project report; this flow keeps its fixed five-phase project from the direct route.
     const page = await signIn(browser, "pm");
-    await page.goto("/projects/new");
-    await page.waitForLoadState("networkidle");
-    await page.locator("#title").fill(TITLE);
-    await page.locator("#client").click();
-    await page.getByRole("option", { name: /Test Client 1/ }).click();
-    await page.locator("#middleman").click();
-    await page.getByRole("option", { name: /Test Crew 1/ }).click();
-    await page.locator("#start-date").fill("2026-11-01");
-    await page.locator("#end-date").fill("2027-03-31");
-    await page.getByRole("button", { name: /Create project/ }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: 30_000 });
+    const [client] = await row("profiles", "full_name", "Test Client 1");
+    const [crew] = await row("profiles", "full_name", "Test Crew 1");
+    const res = await page.request.post("/api/projects/with-invitations", { data: { title: TITLE, clientId: client.id, middlemanId: crew.id, startDate: "2026-11-01", endDate: "2027-03-31" } });
+    expect(res.status()).toBe(200);
+    state.project = (await res.json()).projectId;
+    await noCrash(page, `/projects/${state.project}`);
+    expect((await row("projects", "id", state.project))[0].status).toBe("pending_invites");
+    expect((await row("milestones", "project_id", state.project)).length).toBe(5);
+    expect((await row("project_invitations", "project_id", state.project)).length).toBe(2);
+    expect(page.errors).toEqual([]);
+    await page.context().close();
+});
     state.project = /\/projects\/([0-9a-f-]{36})/.exec(page.url())[1];
     expect((await row("projects", "id", state.project))[0].status).toBe("pending_invites");
     expect((await row("milestones", "project_id", state.project)).length).toBe(5);
