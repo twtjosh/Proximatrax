@@ -171,7 +171,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
           </p>) : null}
       </div>
 
-      <article className="print-record materialize mt-6 rounded-[6px] bg-surface px-6 py-8 text-ink shadow-[0_1px_2px_rgb(0_0_0/0.06),0_18px_40px_-18px_rgb(60_40_20/0.35)] ring-1 ring-line sm:px-12 sm:py-12 print:mt-0 print:rounded-none print:p-0 print:shadow-none print:ring-0" style={{ "--i": 1 } as React.CSSProperties}>
+      <article className="print-record materialize mt-6 rounded-[6px] [print-color-adjust:exact] bg-surface px-6 py-8 text-ink shadow-[0_1px_2px_rgb(0_0_0/0.06),0_18px_40px_-18px_rgb(60_40_20/0.35)] ring-1 ring-line sm:px-12 sm:py-12 print:mt-0 print:rounded-none print:p-0 print:shadow-none print:ring-0" style={{ "--i": 1 } as React.CSSProperties}>
         <header className="flex items-start justify-between gap-4 border-b-2 border-ink pb-4">
           <div>
             <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-tertiary uppercase">AEG Home Fashion · ProximaTrax</p>

@@ -692,8 +692,9 @@ body {
   body:has(.print-record) * {
     visibility: hidden;
   }
-  .print-record,
-  .print-record * {
+  /* As specific as the rule above, and later, so the record itself stays visible. */
+  body:has(.print-record) .print-record,
+  body:has(.print-record) .print-record * {
     visibility: visible;
   }
   .print-record {
