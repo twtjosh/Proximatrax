@@ -36,7 +36,7 @@ function order(stage: BoardColumnStage, tasks: TaskWithRelations[], today: strin
  * one stage at a time. In review is decided in Review mode, so a card dragged
  * out of it opens there; Accepted is the client's record and stays put.
  */
-export function PmBoard({ projectId, tasks, attachments, comments, milestones, people, projectStart, today, viewerId, closed }: {
+export function PmBoard({ projectId, tasks, attachments, comments, milestones, people, projectStart, today, viewerId, closed, planLocked = false }: {
     projectId: string;
     tasks: TaskWithRelations[];
     attachments: TaskAttachment[];
@@ -49,6 +49,8 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
     today: string;
     viewerId: string;
     closed: boolean;
+    /** A locked plan: no adding, deleting or rescheduling; work still moves. */
+    planLocked?: boolean;
 }) {
     const router = useRouter();
     const params = useSearchParams();
@@ -134,14 +136,14 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
               <Icon className="size-3.5" aria-hidden/>{label}
             </button>))}
         </div>
-        {!closed ? <TaskComposer projectId={projectId} people={people} milestones={milestones} projectStart={projectStart} today={today} onAdded={(task) => {
+        {!closed && !planLocked ? <TaskComposer projectId={projectId} people={people} milestones={milestones} projectStart={projectStart} today={today} onAdded={(task) => {
                 setItems((list) => [...list, task]);
                 router.refresh();
             }}/> : null}
         </div>
       </div>
 
-      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
+      {view === "list" ? <TaskList tasks={visible} people={people} milestones={milestones} today={today} closed={closed} planLocked={planLocked} fileCounts={fileCounts} comments={counts} onOpen={show} onMove={requestMove} onPatch={patchTask} onRemoved={(ids) => setItems((list) => list.filter((t) => !ids.includes(t.id)))}/> : null}
 
       {view === "board" ? (<DragDropContext onDragEnd={onDragEnd}>
         <div role="region" aria-label="Board columns" tabIndex={0} className={cn("-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0", focusRing)}>
@@ -163,7 +165,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                             </li>)}
                         </Draggable>))}
                       {drop.placeholder}
-                      {all.length === 0 && !dropState.isDraggingOver ? <EmptyColumn stage={col.stage} filtered={filtered}/> : null}
+                      {all.length === 0 && !dropState.isDraggingOver ? <EmptyColumn stage={col.stage} filtered={filtered} planLocked={planLocked}/> : null}
                       {col.stage === "done" && all.length > ACCEPTED_SHOWN ? (<li>
                           <button type="button" onClick={() => setAllAccepted((v) => !v)} className={cn("press h-9 w-full cursor-pointer rounded-xl text-xs font-medium text-ink-secondary hover:bg-surface-sunken hover:text-ink", focusRing)}>
                             {allAccepted ? "Show the newest" : `+${all.length - ACCEPTED_SHOWN} more accepted`}
@@ -176,15 +178,16 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
         </div>
       </DragDropContext>) : null}
 
-      <TaskSheet {...sheet} people={people} projectStart={projectStart} today={today} reduce={!!reduce}/>
+      <TaskSheet {...sheet} planLocked={planLocked} people={people} projectStart={projectStart} today={today} reduce={!!reduce}/>
     </div>);
 }
 
-function EmptyColumn({ stage, filtered }: {
+function EmptyColumn({ stage, filtered, planLocked }: {
     stage: BoardColumnStage;
     filtered: boolean;
+    planLocked: boolean;
 }) {
-    const text = filtered ? "Nothing matches" : stage === "to_do" ? "Add work above, or press N" : stage === "in_progress" ? "No one is working on anything" : stage === "review" ? "Nothing waiting on you" : "Nothing accepted yet";
+    const text = filtered ? "Nothing matches" : stage === "to_do" ? (planLocked ? "Nothing waiting to start" : "Add work above, or press N") : stage === "in_progress" ? "No one is working on anything" : stage === "review" ? "Nothing waiting on you" : "Nothing accepted yet";
     return <li className="grid min-h-20 place-items-center rounded-2xl border border-dashed border-line px-3 text-center text-xs text-ink-tertiary">{text}</li>;
 }
 

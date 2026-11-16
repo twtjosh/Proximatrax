@@ -549,6 +549,7 @@ locked(i16(), "plan lock", "No task is removed from a locked plan", "pm1 deletes
 locked(i16(), "plan lock", "Work still moves on a locked plan", "pm1 moves a task to in progress", "Saved", () => saved(u.pm1, "update tasks set stage = 'in_progress' where id = $1", [t.todo]));
 locked(i16(), "plan lock", "Crew still move their own work", "crew1 starts their task", "Saved", () => saved(u.crew1, "update tasks set stage = 'in_progress' where id = $1", [t.todo]));
 locked(i16(), "plan lock", "The PM can still reassign to someone on the project", "pm1 assigns the open task to crew1", "Saved", () => saved(u.pm1, "update tasks set assigned_to = $1 where id = $2", [u.crew1, t.open]));
+locked(i16(), "plan lock", "Priority can still be raised on a locked plan", "pm1 flags a task high priority", "Saved", () => saved(u.pm1, "update tasks set priority = 'high' where id = $1", [t.todo]));
 locked(i16(), "plan lock", "No milestone is added to a locked plan", "pm1 inserts a milestone", "Refused", () => refused(u.pm1, "insert into milestones (project_id, title, due_date) values ($1, 'Extra', '2026-03-01')", [p.one]));
 locked(i16(), "plan lock", "A locked milestone's date can't move", "pm1 changes due_date", "Refused", () => refused(u.pm1, "update milestones set due_date = '2026-03-01' where id = $1", [m.one]));
 locked(i16(), "plan lock", "No milestone is removed from a locked plan", "pm1 deletes a milestone", "Refused", () => refused(u.pm1, "delete from milestones where id = $1", [m.oneNext]));

@@ -42,5 +42,5 @@ export default async function ProjectBoardPage(props: {
     ]);
     if (!project)
         notFound();
-    return <PmBoard projectId={id} tasks={tasks} attachments={attachments} comments={comments} milestones={milestones} people={people} projectStart={project.start_date} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"}/>;
+    return <PmBoard projectId={id} tasks={tasks} attachments={attachments} comments={comments} milestones={milestones} people={people} projectStart={project.start_date} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"} planLocked={Boolean(project.plan_locked_at)}/>;
 }

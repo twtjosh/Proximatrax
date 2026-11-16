@@ -33,6 +33,8 @@ type Props = {
     milestones: Milestone[];
     today: string;
     closed: boolean;
+    /** A locked plan: no moving between milestones, rescheduling or deleting. */
+    planLocked?: boolean;
     fileCounts: Map<string, number>;
     comments: Record<string, number>;
     onOpen: (task: TaskWithRelations) => void;
@@ -47,7 +49,7 @@ type Props = {
  * Stage, who and when change in place; ticking rows (hover, focus, or Select
  * on touch) brings up a bar that changes them all at once.
  */
-export function TaskList({ tasks, people, milestones, today, closed, fileCounts, comments, onOpen, onMove, onPatch, onRemoved }: Props) {
+export function TaskList({ tasks, people, milestones, today, closed, planLocked = false, fileCounts, comments, onOpen, onMove, onPatch, onRemoved }: Props) {
     const router = useRouter();
     const reduce = useReducedMotion();
     const [filter, setFilter] = React.useState<AgendaFilter>(null);
@@ -305,20 +307,20 @@ export function TaskList({ tasks, people, milestones, today, closed, fileCounts,
                   <DropdownMenuSeparator/>
                   <DropdownMenuItem onClick={() => void bulk({ assigned_to: null }, { assigned_to: null, assignee: null }, "Unassigned")}>No one</DropdownMenuItem>
                 </BulkMenu>
-                <BulkMenu label="Milestone" disabled={busy}>
+                {planLocked ? null : (<BulkMenu label="Milestone" disabled={busy}>
                   {milestones.map((m) => <DropdownMenuItem key={m.id} onClick={() => void bulk({ milestone_id: m.id }, { milestone_id: m.id, milestone: { id: m.id, title: m.title } }, `Moved to ${m.title}`)}>{m.title}</DropdownMenuItem>)}
                   <DropdownMenuSeparator/>
                   <DropdownMenuItem onClick={() => void bulk({ milestone_id: null }, { milestone_id: null, milestone: null }, "Out of milestones")}>None</DropdownMenuItem>
-                </BulkMenu>
-                <label className="relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-xl px-3 font-medium hover:bg-white/10">
+                </BulkMenu>)}
+                {planLocked ? null : (<label className="relative inline-flex h-8 shrink-0 cursor-pointer items-center rounded-xl px-3 font-medium hover:bg-white/10">
                   Due date
                   <input type="date" disabled={busy} aria-label="Due date for the selected tasks" onChange={(e) => e.target.value && void bulk({ due_date: e.target.value }, { due_date: e.target.value }, `Due ${short(e.target.value)}`)} className="absolute inset-0 cursor-pointer opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:size-full"/>
-                </label>
+                </label>)}
                 <BulkMenu label="Priority" disabled={busy}>
                   <DropdownMenuItem onClick={() => void bulk({ priority: "high" }, { priority: "high" }, "Marked high priority")}><Flag className="fill-stage-late text-stage-late" aria-hidden/>High</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void bulk({ priority: "medium" }, { priority: "medium" }, "Normal priority")}>Normal</DropdownMenuItem>
                 </BulkMenu>
-                <button type="button" disabled={busy} onClick={() => void removeTicked()} className={cn("inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-medium transition-colors duration-200", confirmDelete ? "bg-danger text-white" : "text-[#ff9c9c] hover:bg-white/10")}><Trash2 className="size-4" aria-hidden/>{confirmDelete ? `Delete ${ticked.length}?` : "Delete"}</button>
+                {planLocked ? null : <button type="button" disabled={busy} onClick={() => void removeTicked()} className={cn("inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-medium transition-colors duration-200", confirmDelete ? "bg-danger text-white" : "text-[#ff9c9c] hover:bg-white/10")}><Trash2 className="size-4" aria-hidden/>{confirmDelete ? `Delete ${ticked.length}?` : "Delete"}</button>}
               </>)}
             {busy ? <Loader2 className="mx-1 size-4 animate-spin" aria-hidden/> : null}
             <button type="button" onClick={clearSelection} aria-label="Clear selection" className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-xl hover:bg-white/10"><X className="size-4" aria-hidden/></button>

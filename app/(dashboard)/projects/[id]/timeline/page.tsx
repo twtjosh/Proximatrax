@@ -41,5 +41,5 @@ export default async function ProjectTimelinePage(props: {
     ]);
     if (!project)
         notFound();
-    return <PmTimeline projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} attachments={attachments} comments={comments} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"}/>;
+    return <PmTimeline projectId={id} start={project.start_date} end={project.end_date} milestones={milestones} tasks={tasks} attachments={attachments} comments={comments} people={people} today={isoDateIn(new Date())} viewerId={user.id} closed={project.status === "completed" || role === "super_admin"} planLocked={Boolean(project.plan_locked_at)}/>;
 }

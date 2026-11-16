@@ -47,7 +47,7 @@ type Drag = { kind: "task" | "milestone"; id: string; mode: "move" | "start" | "
  * from start to due. Drag a bar to move it, an end to stretch it, a diamond
  * to move a milestone; it snaps to days and can be undone. Click opens the task.
  */
-export function PmTimeline({ projectId, start, end, milestones, tasks, attachments, comments, people, today, viewerId, closed }: {
+export function PmTimeline({ projectId, start, end, milestones, tasks, attachments, comments, people, today, viewerId, closed, planLocked = false }: {
     projectId: string;
     start: string;
     end: string;
@@ -59,6 +59,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     today: string;
     viewerId: string;
     closed: boolean;
+    /** A locked plan: milestones and task dates can't be dragged, added or set. */
+    planLocked?: boolean;
 }) {
     const router = useRouter();
     const params = useSearchParams();
@@ -173,7 +175,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     }
 
     function begin(e: React.PointerEvent, d: Omit<Drag, "x0" | "delta">) {
-        if (closed || e.button !== 0)
+        if (closed || planLocked || e.button !== 0)
             return;
         e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -221,7 +223,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             return;
         }
         const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-        if (!step || closed || !t.due_date || t.stage === "done")
+        if (!step || closed || planLocked || !t.due_date || t.stage === "done")
             return;
         e.preventDefault();
         const by = step * (e.shiftKey ? 7 : 1);
@@ -260,7 +262,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
               </button>))}
           </div>
           {todayX !== null ? <button type="button" onClick={() => scroller.current?.scrollTo({ left: Math.max(todayX - scroller.current.clientWidth / 3, 0), behavior: reduce ? "auto" : "smooth" })} className={cn("press h-9 cursor-pointer rounded-full bg-surface-sunken px-3.5 text-xs font-medium hover:bg-line", focusRing)}>Today</button> : null}
-          {!closed ? <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className={cn(primaryAction, "h-9 px-4")}><Plus aria-hidden/>Milestone</button> : null}
+          {!closed && !planLocked ? <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className={cn(primaryAction, "h-9 px-4")}><Plus aria-hidden/>Milestone</button> : null}
         </div>
       </div>
 
@@ -326,7 +328,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                         <span className="absolute top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full bg-copper/20" style={{ left: x(span.start), width: Math.max(x(span.end) - x(span.start) + px, px) }}>
                           <motion.span className={cn("absolute inset-y-0 left-0 rounded-full", m.completed ? "bg-stage-done" : "bg-copper")} initial={reduce ? false : { width: 0 }} animate={{ width: `${share * 100}%` }} transition={SPRING}/>
                         </span>
-                        <button type="button" aria-label={`${m.title}, due ${short(msDue(m))}. Drag to move.`} disabled={closed || m.completed} onPointerDown={(e) => begin(e, { kind: "milestone", id: m.id, mode: "move", start: null, due: m.due_date })} onClick={() => !moved.current && setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none", !closed && !m.completed && "cursor-ew-resize", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
+                        <button type="button" aria-label={`${m.title}, due ${short(msDue(m))}.${planLocked ? "" : " Drag to move."}`} disabled={closed || m.completed} onPointerDown={(e) => begin(e, { kind: "milestone", id: m.id, mode: "move", start: null, due: m.due_date })} onClick={() => !moved.current && setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none", !closed && !planLocked && !m.completed && "cursor-ew-resize", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
                           <span className={cn("size-3.5 rotate-45 rounded-[3px] ring-[3px] ring-surface shadow-[0_1px_4px_rgb(14_18_34/0.3)] transition-transform duration-200", m.completed ? "bg-stage-done" : late ? "bg-stage-late" : "bg-copper", dragging && "scale-125")}/>
                         </button>
                         {dragging && drag.delta ? <DragLabel x={x(msDue(m)) + px} text={short(msDue(m))} shift={shiftLabel(m.due_date, msDue(m))}/> : null}
@@ -341,7 +343,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 const dragging = drag?.kind === "task" && drag.id === t.id;
                 const late = isLate(t, today);
                 const blocked = stage === "to_do" ? taskBlockedReason(t, "project_manager", gate) : null;
-                const movable = !closed && stage !== "done";
+                const movable = !closed && !planLocked && stage !== "done";
                 const inside = barW > 110;
                 const owner =t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={22}/> : (<span className="grid size-5.5 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>);
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
@@ -378,7 +380,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
           <ul className="mt-3 flex flex-wrap gap-2">
             {unscheduled.map((t) => (<li key={t.id} className="flex items-center gap-1.5 rounded-full bg-surface-sunken py-1 pr-1 pl-3 text-xs">
                 <button type="button" onClick={() => show(t)} className={cn("max-w-56 cursor-pointer truncate font-medium text-ink hover:underline", focusRing)}>{t.title}</button>
-                {!closed ? (<label className="relative inline-flex h-7 cursor-pointer items-center rounded-full bg-surface px-2.5 font-medium text-ink-secondary hover:text-ink">
+                {!closed && !planLocked ? (<label className="relative inline-flex h-7 cursor-pointer items-center rounded-full bg-surface px-2.5 font-medium text-ink-secondary hover:text-ink">
                     Set date
                     <input type="date" aria-label={`Due date for ${t.title}`} onChange={(e) => e.target.value && void saveTask(t, { start: t.start_date, due: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:size-full"/>
                   </label>) : null}
@@ -386,8 +388,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
           </ul>
         </section>) : null}
 
-      <TaskSheet {...actions.sheet} people={people} projectStart={start} today={today} reduce={!!reduce}/>
-      <MilestonePanel milestone={openMs} projectId={projectId} tasks={items} people={people} milestones={ms} projectStart={start} today={today} closed={closed} count={openMs ? counts.get(openMs.id) ?? { total: 0, accepted: 0 } : { total: 0, accepted: 0 }} onClose={() => setQuery({ milestone: null })} onPatch={(id, p) => setMs((list) => list.map((m) => (m.id === id ? { ...m, ...p } : m)))} onReschedule={(m, to) => void saveMilestone(m, to)} onDeleted={(id) => {
+      <TaskSheet {...actions.sheet} planLocked={planLocked} people={people} projectStart={start} today={today} reduce={!!reduce}/>
+      <MilestonePanel milestone={openMs} projectId={projectId} tasks={items} people={people} milestones={ms} projectStart={start} today={today} closed={closed} planLocked={planLocked} count={openMs ? counts.get(openMs.id) ?? { total: 0, accepted: 0 } : { total: 0, accepted: 0 }} onClose={() => setQuery({ milestone: null })} onPatch={(id, p) => setMs((list) => list.map((m) => (m.id === id ? { ...m, ...p } : m)))} onReschedule={(m, to) => void saveMilestone(m, to)} onDeleted={(id) => {
             setQuery({ milestone: null });
             setMs((list) => list.filter((m) => m.id !== id));
             router.refresh();

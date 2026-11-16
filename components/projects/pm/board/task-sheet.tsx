@@ -37,6 +37,8 @@ type Props = {
     projectStart: string;
     today: string;
     closed: boolean;
+    /** The plan came from a confirmed project report: title, dates, milestone and description are fixed. */
+    planLocked?: boolean;
     gate: WorkflowGateContext;
     reduce: boolean;
     onClose: () => void;
@@ -59,7 +61,7 @@ export function TaskSheet(props: Props) {
     </Sheet>);
 }
 
-function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachments, people, milestones, projectStart, today, closed, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
+function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachments, people, milestones, projectStart, today, closed, planLocked = false, gate, reduce, onPatch, onMove, onFiles, onDeleted }: Props & {
     task: TaskWithRelations;
 }) {
     const stage = normalizeBoardStage(task.stage);
@@ -167,7 +169,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
           <SavedMark n={saved}/>
         </SheetDescription>
         <SheetTitle className="sr-only">{task.title}</SheetTitle>
-        <textarea value={title} disabled={locked} rows={1} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ""))} onBlur={() => {
+        <textarea value={title} disabled={locked || planLocked} rows={1} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ""))} onBlur={() => {
                 const next = title.trim();
                 if (next && next !== task.title)
                     void save({ title: next }, { title: next }, true);
@@ -205,7 +207,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
             </select>
           </label>
           <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">Milestone
-            <select value={task.milestone_id ?? ""} onChange={(e) => {
+            <select disabled={planLocked} value={task.milestone_id ?? ""} onChange={(e) => {
                 const m = milestones.find((x) => x.id === e.target.value);
                 // Dates follow the new milestone while they are unset or still the old one's default.
                 const from = milestones.find((x) => x.id === task.milestone_id);
@@ -217,11 +219,11 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
             </select>
           </label>
           <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">Starts
-            <input type="date" value={task.start_date ?? ""} max={task.due_date ?? undefined} onChange={(e) => void save({ start_date: e.target.value || null }, { start_date: e.target.value || null })} className={cn(field, "tabular")}/>
+            <input type="date" disabled={planLocked} value={task.start_date ?? ""} max={task.due_date ?? undefined} onChange={(e) => void save({ start_date: e.target.value || null }, { start_date: e.target.value || null })} className={cn(field, "tabular")}/>
           </label>
           <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">
             <span>Due{isLate(task, today) ? <span className="ml-1.5 font-semibold text-danger">late</span> : null}</span>
-            <input type="date" value={task.due_date ?? ""} onChange={(e) => void save({ due_date: e.target.value || null }, { due_date: e.target.value || null }, true)} className={cn(field, "tabular", isLate(task, today) && "border-danger/40 text-danger")}/>
+            <input type="date" disabled={planLocked} value={task.due_date ?? ""} onChange={(e) => void save({ due_date: e.target.value || null }, { due_date: e.target.value || null }, true)} className={cn(field, "tabular", isLate(task, today) && "border-danger/40 text-danger")}/>
           </label>
           <div className="col-span-2 grid gap-1.5 text-xs font-medium text-ink-secondary">Priority
             <button type="button" role="switch" aria-checked={task.priority === "high"} onClick={() => void save({ priority: task.priority === "high" ? "medium" : "high" })} className={cn("press flex h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm transition-colors duration-300", task.priority === "high" ? "border-stage-late/40 bg-danger-soft font-semibold text-danger" : "border-line bg-surface text-ink-secondary hover:text-ink", focusRing)}>
@@ -231,7 +233,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
         </fieldset>
 
         <label className="grid gap-1.5 text-xs font-medium text-ink-secondary">Notes for the crew
-          <textarea value={description} disabled={locked} onChange={(e) => setDescription(e.target.value)} onBlur={() => {
+          <textarea value={description} disabled={locked || planLocked} onChange={(e) => setDescription(e.target.value)} onBlur={() => {
                 if (description.trim() !== (task.description ?? ""))
                     void save({ description: description.trim() || null }, { description: description.trim() || null });
             }} rows={3} placeholder="Materials, measurements, where to start…" className="field-sizing-content min-h-20 resize-none rounded-xl border border-line bg-surface px-3 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-tertiary focus:border-brand focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none disabled:opacity-60"/>
@@ -289,7 +291,7 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
         </section>
       </div>)}
 
-      {!locked && tab === "details" ? (<footer className="border-t border-line px-6 py-3">
+      {!locked && !planLocked && tab === "details" ? (<footer className="border-t border-line px-6 py-3">
           <button type="button" disabled={deleting} onClick={() => void remove()} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors duration-300", confirmDelete ? "bg-danger text-white" : "text-ink-tertiary hover:bg-danger-soft hover:text-danger", focusRing)}>
             {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Trash2 className="size-4" aria-hidden/>}{confirmDelete ? "Click again to delete" : "Delete task"}
           </button>

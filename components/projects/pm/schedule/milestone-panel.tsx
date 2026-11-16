@@ -30,6 +30,8 @@ type Props = {
     projectStart: string;
     today: string;
     closed: boolean;
+    /** A locked plan: the milestone's name and date are fixed, and no tasks are added or removed. */
+    planLocked?: boolean;
     count: { total: number; accepted: number };
     onClose: () => void;
     onPatch: (id: string, patch: Partial<Milestone>) => void;
@@ -49,7 +51,7 @@ export function MilestonePanel(props: Props) {
     </Sheet>);
 }
 
-function Body({ milestone: m, projectId, tasks, people, milestones, projectStart, today, closed, count, onPatch, onReschedule, onDeleted }: Props & {
+function Body({ milestone: m, projectId, tasks, people, milestones, projectStart, today, closed, planLocked = false, count, onPatch, onReschedule, onDeleted }: Props & {
     milestone: Milestone;
 }) {
     const router = useRouter();
@@ -152,9 +154,9 @@ function Body({ milestone: m, projectId, tasks, people, milestones, projectStart
       <SheetHeader className="gap-3 border-b border-line px-6 pt-6 pb-5">
         <SheetDescription className="text-xs text-ink-tertiary tabular">Milestone {position} of {milestones.length}</SheetDescription>
         <SheetTitle className="sr-only">{m.title}</SheetTitle>
-        <input value={title} disabled={closed} onChange={(e) => setTitle(e.target.value)} onBlur={() => void rename()} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} aria-label="Milestone name" className="-mx-2 rounded-xl bg-transparent px-2 py-1 text-[1.35rem] font-semibold tracking-[-0.025em] text-ink hover:bg-surface-sunken focus:bg-surface focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none disabled:hover:bg-transparent"/>
+        <input value={title} disabled={closed || planLocked} onChange={(e) => setTitle(e.target.value)} onBlur={() => void rename()} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} aria-label="Milestone name" className="-mx-2 rounded-xl bg-transparent px-2 py-1 text-[1.35rem] font-semibold tracking-[-0.025em] text-ink hover:bg-surface-sunken focus:bg-surface focus:shadow-[0_0_0_4px_rgb(217_119_6/0.14)] focus:outline-none disabled:hover:bg-transparent"/>
         <label className="flex items-center gap-3 text-sm text-ink-secondary">Due
-          <input type="date" value={m.due_date} disabled={closed || m.completed} onChange={(e) => e.target.value && onReschedule(m, e.target.value)} className={cn("h-9 rounded-xl border border-line bg-surface px-3 text-sm tabular focus:border-brand focus:outline-none disabled:opacity-60", !m.completed && m.due_date < today ? "border-danger/40 text-danger" : "text-ink")}/>
+          <input type="date" value={m.due_date} disabled={closed || planLocked || m.completed} onChange={(e) => e.target.value && onReschedule(m, e.target.value)} className={cn("h-9 rounded-xl border border-line bg-surface px-3 text-sm tabular focus:border-brand focus:outline-none disabled:opacity-60", !m.completed && m.due_date < today ? "border-danger/40 text-danger" : "text-ink")}/>
           {!m.completed && m.due_date < today ? <span className="text-xs font-semibold text-danger">Late</span> : null}
         </label>
       </SheetHeader>
@@ -188,7 +190,7 @@ function Body({ milestone: m, projectId, tasks, people, milestones, projectStart
                   </Link>
                 </motion.li>))}
             </ul>) : null}
-          {!closed ? (<div className="grid gap-2">
+          {!closed && !planLocked ? (<div className="grid gap-2">
               <label>
                 <span className="sr-only">Add tasks, one per line</span>
                 <textarea value={bulk} onChange={(e) => setBulk(e.target.value)} onKeyDown={(e) => {
@@ -205,7 +207,7 @@ function Body({ milestone: m, projectId, tasks, people, milestones, projectStart
         </section>
       </div>
 
-      {!closed ? (<footer className="border-t border-line px-6 py-3">
+      {!closed && !planLocked ? (<footer className="border-t border-line px-6 py-3">
           <button type="button" disabled={busy} onClick={() => void remove()} className={cn("press inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors duration-300", confirmDelete ? "bg-danger text-white" : "text-ink-tertiary hover:bg-danger-soft hover:text-danger", focusRing)}>
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden/> : <Trash2 className="size-4" aria-hidden/>}{confirmDelete ? (mine.length ? "Delete? Its tasks stay" : "Click again to delete") : "Delete milestone"}
           </button>
