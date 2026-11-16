@@ -62,34 +62,42 @@ test("PLAN_SCHEMA asks for milestones with tasks, days and a crew role", () => {
         assert.ok(!text.includes(bound), `PLAN_SCHEMA has no ${bound}`);
 });
 
-test("READ_SCHEMA reads names as text, never ids", () => {
-    assert.ok(READ_SCHEMA.properties.clientName && READ_SCHEMA.properties.teamNames);
-    assert.ok(!READ_SCHEMA.properties.clientId);
+test("READ_SCHEMA reads the client by name and never the team", () => {
+    assert.ok(READ_SCHEMA.properties.clientName);
+    assert.ok(!READ_SCHEMA.properties.clientId && !READ_SCHEMA.properties.teamNames);
 });
 
-test("matchReadIntake matches people by name and marks only what it filled", () => {
+test("readPrompt takes any project document and dates it from today", async () => {
+    const { readPrompt } = await import("../lib/project-intake.ts");
+    const p = readPrompt("2026-11-17");
+    assert.match(p, /2026-11-17/);
+    assert.match(p, /any/i);
+    assert.match(p, /team/i);
+});
+
+test("matchReadIntake matches the client by name, leaves the team to the PM, and marks only what it filled", () => {
     const clients = [{ id: "c1", name: "Maria Santos" }];
-    const crew = [{ id: "m1", name: "Jose Reyes" }, { id: "m2", name: "Ana Lim" }];
     const read = {
-        title: " Santos kitchen ", clientName: "maria  SANTOS", teamNames: ["jose reyes", "Nobody Here"],
+        title: " Santos kitchen ", clientName: "maria  SANTOS", teamNames: ["jose reyes"],
         startDate: "2026-12-01", endDate: "not a date",
         areas: [{ name: "Kitchen", work: ["Tiling", "Juggling"], sqm: 12, notes: "" }],
-        workingDays: ["Mon", "Tue", "Wednesday"], offDates: ["2026-12-25", "xmas"], notes: "",
+        workingDays: ["Mon", "Tue", "Wednesday"], offDates: ["2026-12-25", "xmas"], notes: "Gate code 1234",
     };
-    const { intake, filled: got } = matchReadIntake(read, clients, crew, "2026-11-17");
+    const { intake, filled: got } = matchReadIntake(read, clients, "2026-11-17");
     assert.equal(intake.title, "Santos kitchen");
     assert.equal(intake.clientId, "c1");
-    assert.deepEqual(intake.team, ["m1"]);
+    assert.deepEqual(intake.team, []);
     assert.equal(intake.startDate, "2026-12-01");
     assert.equal(intake.endDate, "");
     assert.deepEqual(intake.areas, [{ name: "Kitchen", work: ["Tiling"], sqm: 12, notes: "" }]);
     assert.deepEqual(intake.weekdays, [1, 2, 3]);
     assert.deepEqual(intake.offDates, ["2026-12-25"]);
-    assert.deepEqual(got.sort(), ["areas", "clientId", "offDates", "startDate", "team", "title", "weekdays"].sort());
+    assert.equal(intake.notes, "Gate code 1234");
+    assert.deepEqual(got.sort(), ["areas", "clientId", "notes", "offDates", "startDate", "title", "weekdays"].sort());
 });
 
 test("matchReadIntake on junk gives an empty report", () => {
-    const { intake, filled: got } = matchReadIntake(null, [], [], "2026-11-17");
+    const { intake, filled: got } = matchReadIntake(null, [], "2026-11-17");
     assert.deepEqual(intake, emptyIntake("2026-11-17"));
     assert.deepEqual(got, []);
 });
@@ -108,7 +116,7 @@ test("asIntake keeps a well-formed report and refuses a malformed one", async ()
 });
 
 test("impossible calendar dates are not read from a scan", () => {
-    const { intake } = matchReadIntake({ startDate: "2026-02-31", endDate: "2026-02-28" }, [], [], "2026-01-10");
+    const { intake } = matchReadIntake({ startDate: "2026-02-31", endDate: "2026-02-28" }, [], "2026-01-10");
     assert.equal(intake.startDate, "2026-01-10");
     assert.equal(intake.endDate, "2026-02-28");
 });
@@ -119,7 +127,7 @@ test("intakeMissing refuses a project longer than three years", () => {
 });
 
 test("a blank printed area label is not read as an area", () => {
-    const { intake, filled: got } = matchReadIntake({ areas: [{ name: "Area 1", work: [], sqm: null, notes: "" }, { name: "AREA 2", work: ["Painting"], sqm: null, notes: "" }] }, [], [], "2026-11-17");
+    const { intake, filled: got } = matchReadIntake({ areas: [{ name: "Area 1", work: [], sqm: null, notes: "" }, { name: "AREA 2", work: ["Painting"], sqm: null, notes: "" }] }, [], "2026-11-17");
     assert.deepEqual(intake.areas.map((a) => a.name), ["AREA 2"]);
     assert.deepEqual(got, ["areas"]);
 });

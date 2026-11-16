@@ -90,12 +90,23 @@ export function planPrompt(i: Intake, team: { name: string; role: CrewRole | nul
     ].filter((line, n, all) => line !== "" || all[n - 1] !== "").join("\n");
 }
 
-export function readPrompt(): string {
+/**
+ * Any project document the PM has (our printed form, their own report, a
+ * proposal, interview notes, a photo of handwriting). Gemini interprets all
+ * of it except the team, which the PM picks in the app.
+ */
+export function readPrompt(today: string): string {
     return [
-        "This is a filled-in PROJECT REPORT form from an interior design company, printed from their system and completed by hand or typed.",
-        "Read exactly what is written in each field. Do not guess or invent anything; leave a field empty (\"\" or []) when it is blank or unreadable.",
-        "Printed labels and headings (such as PROJECT TITLE, AREA 1, SIZE, SQM, Choose a client) are not answers; only what was filled in counts. People are written by name under TEAM: a person counts only if their circle is ticked, filled or circled by hand.",
-        "Dates: write them as YYYY-MM-DD. Working days: only the weekdays whose circle is filled or marked, as day names. Scope of work: one entry per area whose name was written in, with only the work types whose box is ticked, written exactly as printed on the form.",
+        `Today is ${today}. Read this project document from an interior design and fit-out company. It may be any format: their printed project report form, their own written report, a proposal, interview notes, or a photo of handwriting.`,
+        "Interpret everything in it that describes the job, and fill in the fields:",
+        "- title: a short name for the project (client and place, or what is being done).",
+        "- clientName: the client's name, as written.",
+        "- startDate and endDate: as YYYY-MM-DD, whatever format the document uses (\"Jan 5, 2027\", \"5/1/27\", \"first week of December\" as its first day). If only a duration is given (\"8 weeks\"), compute endDate from startDate. If no year is given, use the next such date after today. Leave a date empty only if the document gives no way to tell it.",
+        `- areas: one entry per room or area of work. For each, the kinds of work it needs, mapped to these names exactly: ${WORK_TYPES.join(", ")}. Map loosely ("cabinets" or "kitchen units" is Cabinetry, "repaint" is Painting, "drapes" is Curtains & blinds, "hacking" or "tear out" is Demolition). sqm when a size is given; notes for the details (finishes, colours, materials named, measurements).`,
+        "- workingDays: the weekdays work may happen, as day names, only if the document says; otherwise leave it empty.",
+        "- offDates: specific dates with no work, as YYYY-MM-DD.",
+        "- notes: everything else useful for planning the work: site access, working hours, the client's preferences and restrictions, deadlines inside the project, the site address. Plain sentences.",
+        "Do not read the team, crew or workers: the project manager picks the team. Printed labels and empty boxes on a form are not answers. Do not invent anything the document does not say.",
     ].join("\n");
 }
 
@@ -141,7 +152,6 @@ export const READ_SCHEMA = {
     properties: {
         title: str,
         clientName: str,
-        teamNames: { type: "array", items: str },
         startDate: str,
         endDate: str,
         areas: {
@@ -156,7 +166,7 @@ export const READ_SCHEMA = {
         offDates: dates,
         notes: str,
     },
-    required: ["title", "clientName", "teamNames", "startDate", "endDate", "areas", "workingDays", "offDates", "notes"],
+    required: ["title", "clientName", "startDate", "endDate", "areas", "workingDays", "offDates", "notes"],
 };
 
 const norm = (s: unknown) => (typeof s === "string" ? s.trim().replace(/\s+/g, " ").toLowerCase() : "");
@@ -168,8 +178,8 @@ const isoDate = (s: unknown) => {
     return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s ? s : "";
 };
 
-/** A scanned report, read by Gemini as text, matched back to real people; `filled` lists the fields it set. */
-export function matchReadIntake(read: unknown, clients: { id: string; name: string }[], crew: { id: string; name: string }[], today: string): { intake: Intake; filled: (keyof Intake)[] } {
+/** A document read by Gemini, with the client matched by name; the team is left to the PM. `filled` lists the fields it set. */
+export function matchReadIntake(read: unknown, clients: { id: string; name: string }[], today: string): { intake: Intake; filled: (keyof Intake)[] } {
     const intake = emptyIntake(today);
     const filled: (keyof Intake)[] = [];
     if (!read || typeof read !== "object")
@@ -185,8 +195,6 @@ export function matchReadIntake(read: unknown, clients: { id: string; name: stri
     set("title", title, Boolean(title));
     const client = clients.find((c) => norm(c.name) === norm(r.clientName));
     set("clientId", client?.id ?? "", Boolean(client));
-    const team = (Array.isArray(r.teamNames) ? r.teamNames : []).map((n) => crew.find((c) => norm(c.name) === norm(n))?.id).filter((id): id is string => Boolean(id));
-    set("team", [...new Set(team)], team.length > 0);
     set("startDate", isoDate(r.startDate), Boolean(isoDate(r.startDate)));
     set("endDate", isoDate(r.endDate), Boolean(isoDate(r.endDate)));
     const areas = (Array.isArray(r.areas) ? r.areas : []).map((a): ScopeArea => {

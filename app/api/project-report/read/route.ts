@@ -6,7 +6,7 @@ import { aiFail, fail, people, pmOnly } from "../shared";
 
 export const maxDuration = 60;
 
-/** A printed report, filled in and scanned or photographed, read back into the form for the PM to check. */
+/** Any project document (PDF or photo) read into the report form for the PM to check; the team is left to them. */
 export async function POST(request: Request) {
     const ctx = await pmOnly();
     if (ctx instanceof NextResponse)
@@ -25,9 +25,10 @@ export async function POST(request: Request) {
         return fail(413, "That file is too large. Use one under 4 MB.");
     try {
         const data = Buffer.from(await file.arrayBuffer()).toString("base64");
-        const read = await generateJson([{ inline_data: { mime_type: file.type, data } }, { text: readPrompt() }], READ_SCHEMA);
-        const { clients, crew } = await people(ctx.supabase);
-        return NextResponse.json(matchReadIntake(read, clients, crew, isoDateIn(new Date())));
+        const today = isoDateIn(new Date());
+        const read = await generateJson([{ inline_data: { mime_type: file.type, data } }, { text: readPrompt(today) }], READ_SCHEMA);
+        const { clients } = await people(ctx.supabase);
+        return NextResponse.json(matchReadIntake(read, clients, today));
     }
     catch (e) {
         return aiFail(e);

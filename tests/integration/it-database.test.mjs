@@ -592,3 +592,14 @@ it(i16(), "project_reports RLS", "A filed report can't be rewritten", "pm1 updat
 });
 locked(i16(), "plan lock", "A locked project's start and handover dates can't move", "pm1 changes end_date", "Refused", () => refused(u.pm1, "update projects set end_date = '2026-12-31' where id = $1", [p.one]));
 locked(i16(), "plan lock", "A locked project's other details can still change", "pm1 renames it", "Saved", () => saved(u.pm1, "update projects set title = 'Renamed' where id = $1", [p.one]));
+it(i16(), "report project", "The PM's confirmed report puts the crew straight on the project, no invitations", "pm1 creates a planning project, adds crew2, inserts an assigned task, locks it", "All saved; crew2 sees the task", async () => {
+    const id = "00000000-0000-4000-8000-000000000990";
+    await saved(u.pm1, "insert into projects (id, title, status, client_id, pm_id, start_date, end_date) values ($1, 'Report job', 'planning', $2, $3, '2026-12-01', '2027-01-31')", [id, u.client1, u.pm1]);
+    // The server (service role) records both invitations as already accepted: nobody has to answer one.
+    await su("insert into project_invitations (project_id, invitee_id, invitee_role, status, invited_by, project_title, responded_at) values ($1, $2, 'client', 'accepted', $4, 'Report job', now()), ($1, $3, 'middleman', 'accepted', $4, 'Report job', now())", [id, u.client1, u.crew2, u.pm1]);
+    await saved(u.pm1, "insert into project_members (project_id, user_id, role_in_project) values ($1, $2, 'middleman')", [id, u.crew2]);
+    await saved(u.pm1, "insert into tasks (project_id, title, stage, assigned_to, planned_to) values ($1, 'Tile', 'to_do', $2, $2)", [id, u.crew2]);
+    await saved(u.pm1, "update projects set plan_locked_at = now() where id = $1", [id]);
+    assert.equal((await as(pg, u.crew2, "select id from tasks where project_id = $1", [id])).rows.length, 1);
+    assert.equal((await as(pg, u.client1, "select id from projects where id = $1", [id])).rows.length, 1);
+});
