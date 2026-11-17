@@ -45,8 +45,6 @@ export const KIND: Record<LogKind, { color: string; icon: LucideIcon; label: str
     discussion: { color: "var(--series-3)", icon: MessageSquare, label: "Discussion" },
     team: { color: "var(--series-4)", icon: Users, label: "Team" },
 };
-const KIND_ORDER = LOG_KINDS.map((k) => k.kind);
-const sortKinds = (kinds: LogKind[]) => [...kinds].sort((a, b) => KIND_ORDER.indexOf(a) - KIND_ORDER.indexOf(b));
 
 const day = (iso: string) => formatDate(iso, { month: "short", day: "numeric", year: "numeric" });
 const time = (instant: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(new Date(instant));
@@ -64,19 +62,6 @@ export function matches(e: TimelineEntry, f: Filters): boolean {
     return (!f.kind || logKind(e) === f.kind) && (!f.person || e.user_id === f.person);
 }
 const filterCount = (f: Filters) => [f.kind, f.person].filter(Boolean).length;
-
-/** Dots for the kinds of activity in a period: colour carries the kind, the count beside them says it in text. */
-export function KindDots({ kinds }: { kinds: LogKind[] }) {
-    return (<span className="flex items-center gap-1" aria-hidden>
-      {sortKinds(kinds).map((k) => <span key={k} className="size-1.5 rounded-full" style={{ background: KIND[k].color }}/>)}
-    </span>);
-}
-
-export function KindLegend() {
-    return (<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
-      {KIND_ORDER.map((k) => <span key={k} className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: KIND[k].color }} aria-hidden/>{KIND[k].label}</span>)}
-    </span>);
-}
 
 /** Now, Due, Upcoming, Past due: what a period is, in small labels. */
 export function PeriodFlags({ period, due, className }: { period: Period; due?: boolean; className?: string }) {

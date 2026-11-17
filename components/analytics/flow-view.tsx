@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
-import { ChartLine, Table2 } from "lucide-react";
-import { AreaChart, weekRange } from "@/components/analytics/flow-charts";
+import { ChartColumn, Table2 } from "lucide-react";
+import { WeekColumns, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { ProjectTimeline } from "@/components/analytics/timeline/project-timeline";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
@@ -77,7 +77,6 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
         </div>);
     }
 
-    const net = s.now.added - s.now.accepted;
     const whose = viewer === "pm" ? "your" : "their";
 
     return (<div ref={root} className="relative scroll-mt-6">
@@ -88,53 +87,62 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
       {timeline}
 
       <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-2">
-        {/* Throughput */}
-        <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks added and accepted each week · last 12 weeks" className="materialize flex flex-col [&>div:first-child]:min-h-[74px]" style={stagger(2)} aside={<div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[12.5px] text-ink-secondary">
-            <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-copper" aria-hidden/>Accepted</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-4 border-t-2 border-[color:var(--series-2)]" aria-hidden/>Added</span>
-            <button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 font-medium hover:text-ink", focusRing)}>{table ? <><ChartLine className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>
-          </div>}>
-          <p className="px-5 pt-1 text-[13.5px] text-ink-secondary sm:px-6">
-            <b className="font-semibold text-ink tabular">{s.now.added}</b> added · {net === 0 ? "open work unchanged" : <>open work {net > 0 ? "up" : "down"} <b className="font-semibold text-ink tabular">{Math.abs(net)}</b></>}
+        {/* Throughput: one series, so no legend; added work is in the sentence, the tooltip and the table. */}
+        <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks accepted each week · last 12 weeks" className="materialize flex flex-col" style={stagger(5)} aside={<button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}>{table ? <><ChartColumn className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>}>
+          <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-pretty text-ink-secondary sm:px-6">
+            {throughputSentence(s.now.added, s.now.accepted, viewer)}
           </p>
           {/* The table scrolls inside the chart's space, so switching views never changes the card's height. */}
-          <div className="relative flex min-h-56 flex-1 flex-col justify-center px-4 pt-4 pb-5 sm:px-5">
-            {table ? (<div tabIndex={0} aria-label="Weekly throughput table" className={cn("absolute inset-x-4 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-5", focusRing)}>
+          <div className="relative flex min-h-60 flex-1 flex-col justify-end px-5 pt-4 pb-5 sm:px-6">
+            {table ? (<div tabIndex={0} aria-label="Weekly throughput table" className={cn("absolute inset-x-5 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-6", focusRing)}>
                 <table className="w-full text-[13px] tabular">
                   <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium">Week</th><th className="px-3 py-2 text-right font-medium">Added</th><th className="px-3 py-2 text-right font-medium">Accepted</th></tr></thead>
                   <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{weekRange(w)}</td><td className="px-3 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-3 py-1.5 text-right">{s.weekly.accepted[i]}</td></tr>)}</tbody>
                 </table>
-              </div>) : <AreaChart accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks}/>}
+              </div>) : <WeekColumns accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks}/>}
           </div>
         </OverviewCard>
 
-        {/* Workload */}
-        <OverviewCard id="workload-heading" title="Workload" sub={workload.team === null ? "Open tasks per person" : `Open tasks per person · days per task against the team’s ${workload.team}`} className="materialize flex flex-col [&>div:first-child]:min-h-[74px]" style={stagger(3)} aside={<span className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-secondary">
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-todo" aria-hidden/>To do</span>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-progress" aria-hidden/>In progress</span>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-stage-review" aria-hidden/>In review</span>
-          </span>}>
-          <p className="px-5 pt-1 text-[13.5px] text-ink-secondary sm:px-6">
-            <b className="font-semibold text-ink tabular">{workload.total.open}</b> open {workload.total.open === 1 ? "task" : "tasks"} · {workload.total.late ? <><b className="font-semibold text-danger tabular">{workload.total.late}</b> late</> : "none late"} · <b className="font-semibold text-ink tabular">{workload.total.review}</b> waiting for {whose} review
-          </p>
-          {workload.rows.length === 0 ? <p className="px-5 pt-3 pb-6 text-sm text-ink-tertiary sm:px-6">No crew has open work.</p> : (<div className="grid content-start gap-0.5 px-3 pt-2 pb-3.5">
-              {workload.rows.map((r) => {
-                    const [a, b, c] = r.open, slow = r.pace !== null && workload.team !== null && r.pace > workload.team + 0.5;
-                    return (<div key={r.person.id} className="grid grid-cols-[minmax(0,1fr)_76px] items-center gap-x-3.5 gap-y-2 rounded-xl px-2.5 py-2 transition-colors hover:bg-surface-subtle sm:grid-cols-[minmax(0,150px)_minmax(0,1fr)_76px]">
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        <Face person={asMember(r.person)} size={28}/>
-                        <span className="min-w-0"><span className="block truncate text-[13px] font-semibold">{r.person.name}</span>
-                          <span className="flex flex-wrap gap-1">{r.late ? <span className="rounded-full bg-danger-soft px-1.5 text-[11.5px] font-semibold text-danger">{r.late} late</span> : null}{workload.worst === r.person.id ? <span className="rounded-full bg-warning-soft px-1.5 text-[11.5px] font-semibold text-warning">Most rework</span> : null}</span>
+        {/* Workload: a table, so the column names do the work a colour legend did. */}
+        <OverviewCard id="workload-heading" title="Workload" sub="Open tasks per person, by where each one stands" className="materialize flex flex-col" style={stagger(6)}>
+          <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-pretty text-ink-secondary sm:px-6">{workloadSentence(workload, whose)}</p>
+          {workload.rows.length === 0 ? <p className="px-5 pt-3 pb-6 text-sm text-ink-tertiary sm:px-6">No crew has open work.</p> : (<div className="px-2 pt-3 pb-3 sm:px-3">
+              <table className="w-full text-[13px] tabular">
+                <thead>
+                  <tr className="text-right text-xs text-ink-tertiary">
+                    <th className="px-3 py-2 text-left font-medium">Person</th>
+                    <th className="px-2 py-2 font-medium max-sm:hidden">To do</th>
+                    <th className="px-2 py-2 font-medium max-sm:hidden">In progress</th>
+                    <th className="px-2 py-2 font-medium max-sm:hidden">In review</th>
+                    <th className="px-2 py-2 font-medium">Late</th>
+                    <th className="px-2 py-2 font-medium">Open</th>
+                    <th className="px-3 py-2 font-medium">Days per task</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workload.rows.map((r) => {
+                    const [a, b, c] = r.open, open = a + b + c, slow = r.pace !== null && workload.team !== null && r.pace > workload.team + 0.5;
+                    return (<tr key={r.person.id} className="border-t border-line text-right hover:bg-surface-subtle">
+                      <td className="px-3 py-2.5 text-left">
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <Face person={asMember(r.person)} size={26}/>
+                          <span className="min-w-0"><span className="block truncate font-semibold text-ink">{r.person.name}</span>
+                            <span className="block text-[11.5px] text-ink-tertiary sm:hidden">{a} to do · {b} in progress · {c} in review</span>
+                            {workload.worst === r.person.id ? <span className="block text-[11.5px] font-medium text-warning">Most work sent back</span> : null}
+                          </span>
                         </span>
-                      </span>
-                      <span className="col-span-2 flex h-[22px] gap-0.5 max-sm:row-start-2 sm:col-span-1" style={{ width: `${Math.max(8, ((a + b + c) / workload.maxOpen) * 100)}%` }} data-tip={`${r.person.name}\n${a} to do · ${b} in progress · ${c} in review`}>
-                        {a ? <i className="chart-widen grid min-w-[18px] place-items-center rounded-[5px] bg-stage-todo text-[11px] font-bold text-ink not-italic tabular" style={{ flex: a }}>{a}</i> : null}
-                        {b ? <i className="chart-widen grid min-w-[18px] place-items-center rounded-[5px] bg-stage-progress text-[11px] font-bold text-ink not-italic tabular" style={{ flex: b }}>{b}</i> : null}
-                        {c ? <i className="chart-widen grid min-w-[18px] place-items-center rounded-[5px] bg-stage-review text-[11px] font-bold text-ink not-italic tabular" style={{ flex: c }}>{c}</i> : null}
-                      </span>
-                      <span className={cn("text-right text-[13px] leading-tight font-semibold tabular max-sm:col-start-2 max-sm:row-start-1", slow && "text-danger")}>{r.pace === null ? "–" : `${r.pace} d`}<small className="block text-[11.5px] font-medium text-ink-tertiary">per task</small></span>
-                    </div>);
-                })}
+                      </td>
+                      <td className="px-2 max-sm:hidden">{a}</td>
+                      <td className="px-2 max-sm:hidden">{b}</td>
+                      <td className="px-2 max-sm:hidden">{c}</td>
+                      <td className={cn("px-2", r.late ? "font-semibold text-danger" : "text-ink-tertiary")}>{r.late}</td>
+                      <td className="px-2 font-semibold text-ink">{open}</td>
+                      <td className={cn("px-3", slow ? "font-semibold text-danger" : "text-ink-secondary")}>{r.pace === null ? "–" : `${r.pace} d`}</td>
+                    </tr>);
+                  })}
+                </tbody>
+              </table>
+              <p className="px-3 pt-2.5 text-xs leading-snug text-ink-tertiary">Late counts open work past its due date. Days per task is how long accepted tasks took from start to acceptance{workload.team !== null ? `; the team's figure is ${workload.team} days, and red means slower than that` : ""}.</p>
             </div>)}
         </OverviewCard>
       </div>
@@ -166,4 +174,24 @@ function Tooltip({ root }: { root: React.RefObject<HTMLDivElement | null> }) {
       <b className="block font-semibold text-rail-ink">{tip.lines[0]}</b>
       {tip.lines.slice(1).map((l, i) => <span key={i} className="block">{l}</span>)}
     </div>);
+}
+
+/** What the weeks add up to, in one sentence. */
+function throughputSentence(added: number, accepted: number, viewer: Viewer): string {
+    if (added === 0 && accepted === 0)
+        return "No tasks were added or accepted in the last 12 weeks.";
+    const net = added - accepted;
+    const trend = net > 0 ? `so open work grew by ${net}: work is arriving faster than it is finished.`
+        : net < 0 ? `so open work shrank by ${-net}: work is being finished faster than it arrives.`
+            : "so open work held steady.";
+    return `${viewer === "pm" ? "You" : "They"} accepted ${accepted} ${accepted === 1 ? "task" : "tasks"} while ${added} ${added === 1 ? "was" : "were"} added, ${trend}`;
+}
+
+/** The workload table in one sentence. */
+function workloadSentence(w: { rows: unknown[]; total: { open: number; late: number; review: number } }, whose: string): string {
+    if (w.rows.length === 0)
+        return "Nobody has open work right now.";
+    const people = w.rows.length === 1 ? "1 person" : `${w.rows.length} people`;
+    const late = w.total.late ? `${w.total.late} ${w.total.late === 1 ? "is" : "are"} late` : "none are late";
+    return `${w.total.open} open ${w.total.open === 1 ? "task" : "tasks"} across ${people}: ${late}, and ${w.total.review} ${w.total.review === 1 ? "is" : "are"} waiting for ${whose} review.`;
 }

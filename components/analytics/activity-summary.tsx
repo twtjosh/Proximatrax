@@ -59,21 +59,22 @@ export function ActivitySummary({ log, people, projects, today }: {
         URL.revokeObjectURL(url);
     };
 
-    return (<OverviewCard id="activity-heading" title="Activity" sub="What happened across your projects, by type, person and project" className="materialize mt-4" style={stagger(4)} aside={<span className="flex flex-wrap items-center gap-2">
+    return (<OverviewCard id="activity-heading" title="Activity" sub="What happened across your projects, by type, person and project" className="materialize mt-4" style={stagger(7)} aside={<span className="flex flex-wrap items-center gap-2">
         <Segmented label="Activity range" value={range} onChange={(v) => setRange(v as Range)} options={RANGES}/>
         <button type="button" onClick={download} disabled={total === 0} className={cn(softAction, "h-[38px] disabled:opacity-40")}><Download aria-hidden/>CSV</button>
       </span>}>
       <p className="px-5 pt-1 text-[13.5px] text-ink-secondary sm:px-6">
         <b className="font-semibold text-ink tabular">{total}</b> {total === 1 ? "activity" : "activities"}
         {diff === null ? null : diff === 0 ? " · same as the period before" : <> · <b className="font-semibold text-ink tabular">{Math.abs(diff)}</b> {diff > 0 ? "more" : "fewer"} than the {range} days before</>}
+        {total > 0 && s.kinds[0] ? <>. Most of it was <b className="font-semibold text-ink">{KIND[s.kinds[0][0]].label.toLowerCase()}</b> ({s.kinds[0][1]} of {total}){s.people[0] ? <>, and <b className="font-semibold text-ink">{people[s.people[0][0]]?.name ?? "someone"}</b> was the most active</> : null}.</> : null}
       </p>
       {total === 0 ? <p className="px-5 pt-3 pb-6 text-sm text-ink-tertiary sm:px-6">Nothing logged in this range.</p> : (<div className="grid gap-6 px-5 pt-4 pb-5 sm:px-6 md:grid-cols-3">
-          <Bars title="By type" rows={s.kinds.map(([k, n]) => ({ key: k, n, color: KIND[k].color, label: <span className="inline-flex items-center gap-2">{React.createElement(KIND[k].icon, { className: "size-3.5 text-ink-tertiary", "aria-hidden": true })}{KIND[k].label}</span> }))}/>
+          <Bars title="By type" rows={s.kinds.map(([k, n]) => ({ key: k, n, color: "var(--copper)", label: <span className="inline-flex items-center gap-2">{React.createElement(KIND[k].icon, { className: "size-3.5 text-ink-tertiary", "aria-hidden": true })}{KIND[k].label}</span> }))}/>
           <Bars title="Most active people" rows={s.people.map(([id, n]) => {
                 const p = people[id];
                 return { key: id, n, color: "var(--copper)", label: <span className="flex min-w-0 items-center gap-2"><Face person={asMember({ id, name: p?.name ?? "Someone", avatarUrl: p?.avatarUrl ?? null })} size={22}/><span className="min-w-0 truncate">{p?.name ?? "Someone"}<span className="text-ink-tertiary"> · {p?.role ?? ""}</span></span></span> };
             })}/>
-          <Bars title="By project" rows={s.projects.map(([id, n]) => ({ key: id, n, color: "var(--series-2)", label: <span className="block truncate">{titleOf.get(id) ?? "Project"}</span> }))}/>
+          <Bars title="By project" rows={s.projects.map(([id, n]) => ({ key: id, n, color: "var(--copper)", label: <span className="block truncate">{titleOf.get(id) ?? "Project"}</span> }))}/>
         </div>)}
     </OverviewCard>);
 }

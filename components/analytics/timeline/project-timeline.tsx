@@ -7,7 +7,9 @@ import { daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
 import { buildPeriods, groupMoves, periodMarks, periodOf, periodStats, phaseSummary, timelineSpan, type PeriodMarks, type PhaseState, type PhaseSummary, type TimelineData, type TimelineMove, type TimelineProject, type TimelineTask, type Unit } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 import { ProjectPicker, type ProjectOption } from "./project-picker";
-import { ActivityFilters, ActivityHistory, KindDots, KindLegend, matches, NO_FILTERS, PeriodFlags, QuickStats, type Filters, type TimelineModel } from "./timeline-parts";
+import { Meter } from "@/components/analytics/meter";
+import { ratio } from "@/lib/analytics-insights";
+import { ActivityFilters, ActivityHistory, matches, NO_FILTERS, PeriodFlags, QuickStats, type Filters, type TimelineModel } from "./timeline-parts";
 
 const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
 const long = (iso: string) => formatDate(iso, { month: "short", day: "numeric", year: "numeric" });
@@ -106,7 +108,7 @@ export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
     const planned = Math.max(1, daysBetween(project.start, project.end) + 1);
     const status = standing(project, today);
 
-    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="Every day, week or month of one project and what happened in it · click a period to open its activity" className="materialize mt-6" style={stagger(1)} aside={<KindLegend/>}>
+    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="One project, period by period. Pick a week to see everything that happened in it." className="materialize mt-4" style={stagger(4)}>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-5 pt-2 pb-5 sm:px-6">
         <div className="grid min-w-0 gap-2.5">
           <ProjectPicker projects={options} value={project.id} onChange={switchProject}/>
@@ -175,12 +177,6 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
       <div className="flex items-center justify-between gap-3 px-5 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1">
           <p className="text-[13px] text-ink-tertiary"><b className="font-semibold text-ink tabular">{periods.length} {units}</b> · {short(periods[0].from)} – {long(periods[periods.length - 1].to)}</p>
-          <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-ink-tertiary">
-            <span className="inline-flex items-center gap-1.5"><Diamond state="delivered"/>Phase delivered</span>
-            <span className="inline-flex items-center gap-1.5"><Diamond state="due"/>Phase due</span>
-            <span className="inline-flex items-center gap-1.5"><Diamond state="missed"/>Phase missed</span>
-            <span className="inline-flex items-center gap-1.5"><span className={cn("rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold", HEALTH_PILL.at_risk)}>At risk</span>PM’s status update</span>
-          </span>
         </div>
         <span className="flex shrink-0 gap-1.5">
           <button type="button" disabled={!edge.l} onClick={() => page(-1)} aria-label={`Earlier ${units}`} className={arrow}><ChevronLeft className="size-4" aria-hidden/></button>
@@ -193,8 +189,10 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
             const s = stats[i], on = model.selected === i, m = marks[i];
             const lines = [...m.phases.map((ph) => ph.text), ...(m.health ? [`${m.health.label}${m.health.note ? `: “${m.health.note}”` : ""}`] : [])];
             return (<div key={p.from} className="relative shrink-0 snap-center">
-              {i === startIndex ? <Marker icon={Play} text={`Start · ${short(model.project.start)}`}/> : null}
-              {i === model.dueIndex ? <Marker icon={Flag} text={`Due · ${short(model.project.end)}`} right/> : null}
+              {/* Start and due in the same period share one marker, so the two never overlap. */}
+              {i === startIndex && i === model.dueIndex ? <Marker icon={Flag} text={`Start ${short(model.project.start)} · Due ${short(model.project.end)}`}/>
+                : i === startIndex ? <Marker icon={Play} text={`Start · ${short(model.project.start)}`}/>
+                    : i === model.dueIndex ? <Marker icon={Flag} text={`Due · ${short(model.project.end)}`} right/> : null}
               <button type="button" data-period={i} aria-pressed={on} onClick={() => model.select(i)} data-tip={lines.length ? `${p.label} · ${p.range}\n${lines.join("\n")}` : undefined}
                 aria-label={`${p.label}, ${p.range}, ${s.activities} ${s.activities === 1 ? "activity" : "activities"}${lines.length ? `. ${lines.join(". ")}` : ""}`}
                 className={cn("flex w-[9.75rem] cursor-pointer flex-col gap-2 rounded-2xl px-3.5 py-3 text-left transition-[background-color,box-shadow,translate] duration-200 ease-out hover:-translate-y-0.5", focusRing,
@@ -214,10 +212,7 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
                 <span className="h-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
                   <span className={cn("block h-full rounded-full transition-[width] duration-500", on ? "bg-copper" : "bg-ink-tertiary/60")} style={{ width: `${(s.activities / max) * 100}%` }}/>
                 </span>
-                <span className="flex items-center justify-between gap-2 text-xs">
-                  <KindDots kinds={s.kinds}/>
-                  <span className={cn("tabular", s.activities ? "font-semibold text-ink-secondary" : "text-ink-tertiary")}>{p.upcoming ? (s.due ? `${s.due} due` : "–") : s.activities}</span>
-                </span>
+                <span className={cn("text-xs tabular", s.activities ? "font-semibold text-ink-secondary" : "text-ink-tertiary")}>{p.upcoming ? (s.due ? `${s.due} due` : "Nothing yet") : `${s.activities} ${s.activities === 1 ? "activity" : "activities"}`}</span>
               </button>
             </div>);
         })}
@@ -226,7 +221,6 @@ function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] })
 }
 
 const PHASE_DIAMOND: Record<PhaseState, keyof typeof DIAMOND> = { on_time: "delivered", late: "delivered", missed: "missed", due: "due" };
-const PHASE_BAR: Record<PhaseState, string> = { on_time: "bg-stage-done", late: "bg-warning", missed: "bg-danger", due: "bg-surface-sunken" };
 const PHASE_NOTE: Record<PhaseState, string> = { on_time: "On time", late: "Delivered late", missed: "Missed", due: "Due" };
 
 /**
@@ -242,25 +236,22 @@ function Phases({ summary: s, onOpen, openable }: { summary: PhaseSummary; onOpe
     const tile = "rounded-2xl bg-surface px-4 py-3 shadow-[0_0_0_1px_var(--line)]";
     return (<section aria-label="Phases" className="mx-5 mb-5 grid gap-3 sm:mx-6">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h3 className="text-sm font-semibold text-ink">Phases</h3>
-        <p className="text-[13px] text-ink-tertiary"><b className="font-semibold text-ink tabular">{s.delivered} of {total}</b> delivered</p>
-        <span className="flex h-2 min-w-32 flex-1 gap-0.5 overflow-hidden rounded-full" role="img" aria-label={`${s.onTime} on time, ${s.delivered - s.onTime} late, ${s.missedOpen} missed, ${s.due} due`}>
-          {s.rows.map((r, i) => <span key={i} className={cn("flex-1", PHASE_BAR[r.state])}/>)}
-        </span>
+        <h3 className="text-sm font-semibold text-ink">Milestones delivered</h3>
+        <Meter value={ratio(s.delivered, total)} unit="milestones" className="min-w-56 flex-1"/>
       </div>
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="delivered"/>Phases delivered</dt>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="delivered"/>Delivered</dt>
           <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.delivered}</dd>
           <dd className="text-xs text-ink-tertiary">{s.delivered ? `${s.onTime} on time · ${s.delivered - s.onTime} late` : "None yet"}</dd>
         </div>
         <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="due"/>Phases due</dt>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="due"/>Still due</dt>
           <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.due}</dd>
           <dd className="truncate text-xs text-ink-tertiary">{s.next ? `Next: ${s.next.title} · ${short(s.next.due)}` : "Nothing left to deliver"}</dd>
         </div>
         <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="missed"/>Phases missed</dt>
+          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="missed"/>Missed</dt>
           <dd className={cn("mt-1 text-xl font-semibold tabular", s.missed ? "text-danger" : "text-ink")}>{s.missed}</dd>
           <dd className="text-xs text-ink-tertiary">{s.missed ? `${s.missedOpen} still open · ${s.missed - s.missedOpen} delivered late` : "All on schedule"}</dd>
         </div>
