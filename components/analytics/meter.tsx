@@ -6,13 +6,15 @@ import { cn } from "@/lib/utils";
  * tasks"), quarter ticks to read it against, and no minimum width, so equal
  * values always draw equal bars. Names itself, so it needs no legend.
  */
-export function Meter({ label, value, unit, fill = "bg-copper", className }: {
+export function Meter({ label, value, unit, fill = "bg-copper", color, className }: {
     /** Shown before the bar; omit when the bar's card already names it. */
     label?: string;
     value: Ratio;
     /** What is counted, plural: "tasks", "days". */
     unit: string;
     fill?: string;
+    /** A colour for the fill instead of `fill`, such as a milestone's. */
+    color?: string;
     className?: string;
 }) {
     const pct = value.pct ?? 0;
@@ -22,7 +24,7 @@ export function Meter({ label, value, unit, fill = "bg-copper", className }: {
     return (<div className={cn("grid items-center gap-x-3 gap-y-1", label ? "grid-cols-[6.5rem_minmax(0,1fr)] sm:grid-cols-[6.5rem_minmax(0,1fr)_9.5rem]" : "grid-cols-[minmax(0,1fr)_auto]", className)}>
       {label ? <span className="text-[12.5px] text-ink-secondary">{label}</span> : null}
       <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={label ? `${label}: ${text}` : text} className="relative h-2 overflow-hidden rounded-full bg-surface-sunken">
-        <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-[var(--ease-spring)] motion-reduce:transition-none", fill)} style={{ width: `${pct}%` }}/>
+        <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-[var(--ease-spring)] motion-reduce:transition-none", !color && fill)} style={{ width: `${pct}%`, background: color }}/>
         {[25, 50, 75].map((t) => <span key={t} className="absolute inset-y-0 w-px bg-surface/90" style={{ left: `${t}%` }} aria-hidden/>)}
       </span>
       <span className={cn("text-[12.5px] whitespace-nowrap text-ink-tertiary tabular", label && "max-sm:col-start-2")}>

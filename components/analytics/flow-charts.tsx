@@ -21,16 +21,20 @@ export function WeekAxis({ weeks, className }: { weeks: string[]; className?: st
  * every week that has one, so nothing needs reading off an axis. One series,
  * so no legend; tasks added are in the tooltip and the table.
  */
-export function WeekColumns({ accepted, added, weeks }: { accepted: number[]; added: number[]; weeks: string[] }) {
+export function WeekColumns({ accepted, added, weeks, average }: { accepted: number[]; added: number[]; weeks: string[]; average?: number }) {
     const max = Math.max(1, ...accepted);
     const last = accepted.length - 1;
     return (<div>
-      <div className="flex h-48 items-end gap-1.5 border-b border-line-strong" role="img" aria-label={`Tasks accepted each week, oldest first: ${accepted.join(", ")}.`}>
+      <div className="relative flex h-48 items-end gap-1.5 border-b border-line-strong" role="img" aria-label={`Tasks accepted each week, oldest first: ${accepted.join(", ")}.`}>
         {accepted.map((v, i) => (<div key={weeks[i]} className="group/col relative flex h-full flex-1 flex-col justify-end" data-tip={`${weekRange(weeks[i])}
 ${v} accepted · ${added[i]} added`}>
             {v ? <span className={cn("mb-1 text-center text-[12px] font-semibold tabular", i === last ? "text-ink" : "text-ink-secondary")}>{v}</span> : null}
             <span className={cn("block rounded-t-[4px] transition-colors", i === last ? "bg-copper" : "bg-copper/45 group-hover/col:bg-copper/70")} style={{ height: v ? `${(v / max) * 82}%` : 0 }}/>
           </div>))}
+        {/* The average week, as a reference line labelled with its value: bars above it beat a typical week. */}
+        {average ? (<span className="pointer-events-none absolute inset-x-0 border-t border-dashed border-ink-tertiary/70" style={{ bottom: `${(average / max) * 82}%` }} aria-hidden>
+            <span className="absolute -top-2 left-0 -translate-y-full rounded bg-surface px-1 text-[11px] font-medium text-ink-tertiary tabular">Average {average} a week</span>
+          </span>) : null}
       </div>
       <WeekAxis weeks={weeks}/>
     </div>);

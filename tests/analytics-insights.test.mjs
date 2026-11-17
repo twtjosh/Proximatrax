@@ -115,3 +115,26 @@ test("timelineSentence says where the project is and what comes next", async () 
     assert.equal(timelineSentence({ start: "2026-11-01", end: "2026-11-17", completedAt: null }, steps, TODAY), "3 days past its handover date. 1 of 3 milestones delivered, 1 missed. Next: Paint, due Nov 25.");
     assert.equal(timelineSentence({ start: "2026-11-01", end: "2026-11-17", completedAt: "2026-11-17T03:00:00Z" }, [], TODAY), "Handed over Nov 17. No milestones set yet.");
 });
+
+test("throughputFacts: average, last 4 weeks against the 4 before, busiest week, quiet weeks", async () => {
+    const { throughputFacts } = await import("../lib/analytics-insights.ts");
+    const accepted = [0, 0, 0, 0, 1, 0, 2, 1, 3, 0, 2, 1];
+    const added = [1, 0, 0, 2, 1, 1, 2, 2, 1, 1, 1, 0];
+    const f = throughputFacts(accepted, added);
+    assert.equal(f.accepted, 10);
+    assert.equal(f.added, 12);
+    assert.equal(f.average, 0.8);
+    assert.deepEqual(f.recent, { now: 6, before: 4 });
+    assert.equal(f.busiest, 8);
+    assert.equal(f.quiet, 6);
+    assert.equal(f.trend, "faster");
+});
+
+test("throughputFacts: slower, steady, and nothing at all", async () => {
+    const { throughputFacts } = await import("../lib/analytics-insights.ts");
+    assert.equal(throughputFacts([0, 0, 0, 0, 2, 2, 2, 2, 1, 0, 0, 0], Array(12).fill(0)).trend, "slower");
+    assert.equal(throughputFacts([0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], Array(12).fill(0)).trend, "steady");
+    const none = throughputFacts(Array(12).fill(0), Array(12).fill(0));
+    assert.equal(none.busiest, null);
+    assert.equal(none.trend, "none");
+});

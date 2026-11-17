@@ -180,3 +180,35 @@ export function timelineSentence(project: { start: string; end: string; complete
     const next = steps.find((s) => s.state === "due");
     return `${where} ${delivered} of ${steps.length} milestones delivered${missed ? `, ${missed} missed` : ""}. ${next ? `Next: ${next.title}, due ${shortDate(next.due)}.` : delivered === steps.length ? "All milestones delivered." : ""}`.trim();
 }
+
+export type ThroughputFacts = {
+    accepted: number;
+    added: number;
+    /** Tasks accepted per week, one decimal. */
+    average: number;
+    /** Accepted in the last 4 weeks, and in the 4 weeks before. */
+    recent: { now: number; before: number };
+    /** Index of the week with the most accepted (the latest on a tie), or null when none were. */
+    busiest: number | null;
+    /** Weeks with nothing accepted. */
+    quiet: number;
+    /** Last 4 weeks against the 4 before. */
+    trend: "faster" | "slower" | "steady" | "none";
+};
+
+/** What a run of weekly counts (oldest first) says, for Throughput's readout. */
+export function throughputFacts(accepted: number[], added: number[]): ThroughputFacts {
+    const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+    const total = sum(accepted), n = accepted.length;
+    const now = sum(accepted.slice(-4)), before = sum(accepted.slice(-8, -4));
+    const top = Math.max(0, ...accepted);
+    return {
+        accepted: total,
+        added: sum(added),
+        average: n ? Math.round((total / n) * 10) / 10 : 0,
+        recent: { now, before },
+        busiest: top > 0 ? accepted.lastIndexOf(top) : null,
+        quiet: accepted.filter((v) => v === 0).length,
+        trend: total === 0 ? "none" : now > before ? "faster" : now < before ? "slower" : "steady",
+    };
+}

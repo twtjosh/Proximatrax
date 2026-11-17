@@ -10,6 +10,7 @@ import { normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@
 import { projectPath } from "@/lib/constants";
 import { addDays, daysBetween, formatDate, plural } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
+import { milestoneColor } from "@/lib/milestone-colors";
 import { milestoneSpans, monthTicks, shiftLabel, timelineRange } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { logActivity } from "@/services/activity-service";
@@ -95,7 +96,11 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     const taskDates = (t: TaskWithRelations) => (drag?.kind === "task" && drag.id === t.id ? { start: shifted(drag, "start"), due: shifted(drag, "due") } : { start: t.start_date, due: t.due_date });
     const msDue = (m: Milestone) => (drag?.kind === "milestone" && drag.id === m.id ? addDays(drag.due, drag.delta) : m.due_date);
 
-    const sorted = [...ms].sort((a, b) => a.due_date.localeCompare(b.due_date));
+    // Same order as Analytics, so each milestone gets the same colour on both screens.
+    const sorted = [...ms].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.title.localeCompare(b.title));
+    // Each milestone keeps one colour (by date order) on its row, its bar and its tasks, so the groups read apart.
+    const colorOf = new Map(sorted.map((m, i) => [m.id, milestoneColor(i)]));
+    const tint = (c: string | undefined, pct: number) => (c ? `color-mix(in srgb, ${c} ${pct}%, var(--surface))` : undefined);
     const scheduled = items.filter(onTimeline);
     const range = React.useMemo(() => timelineRange(start, end, [...ms, ...scheduled.map((t) => ({ due_date: t.due_date! })), ...scheduled.filter((t) => t.start_date).map((t) => ({ due_date: t.start_date! }))]),
     // The window holds still while dragging so the bar doesn't run from the pointer.
@@ -301,8 +306,9 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             </div>
 
             <ol>
-              {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H }}>
-                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)" }}>
+              {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H, background: tint(colorOf.get(r.id), 7) }}>
+                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)", background: tint(colorOf.get(r.id), 9) }}>
+                      {colorOf.get(r.id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: colorOf.get(r.id) }} aria-hidden/> : null}
                       <button type="button" onClick={() => setExpanded((c) => {
                         const n = new Set(c);
                         if (n.has(r.id))
@@ -314,8 +320,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                         <ChevronRight className={cn("size-4 transition-transform duration-300 ease-spring", expanded.has(r.id) && "rotate-90")} aria-hidden/>
                       </button>
                       <button type="button" disabled={!r.milestone} onClick={() => r.milestone && setQuery({ milestone: r.milestone.id })} className={cn("min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 py-1 text-left hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", focusRing)}>
-                        <span className="block truncate text-[13px] font-semibold text-ink">{r.label}</span>
-                        <span className="block truncate text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}</span>
+                        <span className="flex min-w-0 items-center gap-1.5"><span className="size-2.5 shrink-0 rotate-45 rounded-[2px]" style={{ background: colorOf.get(r.id) ?? "var(--series-other)" }} aria-hidden/><span className="truncate text-[13px] font-semibold text-ink">{r.label}</span></span>
+                        <span className="block truncate text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}{r.milestone?.completed ? <b className="font-semibold text-success"> · delivered</b> : r.milestone && msDue(r.milestone) < today ? <b className="font-semibold text-danger"> · overdue</b> : null}</span>
                       </button>
                     </div>
                     {r.milestone ? (() => {
@@ -325,11 +331,11 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                     const share = m.completed ? 1 : r.count ? r.done / r.count : 0;
                     const dragging = drag?.kind === "milestone" && drag.id === m.id;
                     return (<div className="relative" style={{ width }}>
-                        <span className="absolute top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full bg-copper/20" style={{ left: x(span.start), width: Math.max(x(span.end) - x(span.start) + px, px) }}>
-                          <motion.span className={cn("absolute inset-y-0 left-0 rounded-full", m.completed ? "bg-stage-done" : "bg-copper")} initial={reduce ? false : { width: 0 }} animate={{ width: `${share * 100}%` }} transition={SPRING}/>
+                        <span className="absolute top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full" style={{ left: x(span.start), width: Math.max(x(span.end) - x(span.start) + px, px), background: tint(colorOf.get(m.id), 25) }}>
+                          <motion.span className="absolute inset-y-0 left-0 rounded-full" style={{ background: colorOf.get(m.id) }} initial={reduce ? false : { width: 0 }} animate={{ width: `${share * 100}%` }} transition={SPRING}/>
                         </span>
                         <button type="button" aria-label={`${m.title}, due ${short(msDue(m))}.${planLocked ? "" : " Drag to move."}`} disabled={closed || m.completed} onPointerDown={(e) => begin(e, { kind: "milestone", id: m.id, mode: "move", start: null, due: m.due_date })} onClick={() => !moved.current && setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none", !closed && !planLocked && !m.completed && "cursor-ew-resize", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
-                          <span className={cn("size-3.5 rotate-45 rounded-[3px] ring-[3px] ring-surface shadow-[0_1px_4px_rgb(14_18_34/0.3)] transition-transform duration-200", m.completed ? "bg-stage-done" : late ? "bg-stage-late" : "bg-copper", dragging && "scale-125")}/>
+                          <span className={cn("size-3.5 rotate-45 rounded-[3px] ring-[3px] ring-surface shadow-[0_1px_4px_rgb(14_18_34/0.3)] transition-transform duration-200", late ? "ring-danger" : "", dragging && "scale-125")} style={{ background: colorOf.get(m.id) }}/>
                         </button>
                         {dragging && drag.delta ? <DragLabel x={x(msDue(m)) + px} text={short(msDue(m))} shift={shiftLabel(m.due_date, msDue(m))}/> : null}
                       </div>);
@@ -348,6 +354,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 const owner =t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={22}/> : (<span className="grid size-5.5 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>);
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
                       <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r border-line bg-surface py-1 pr-2 pl-4 sm:pl-10 group-hover:bg-surface-subtle" style={{ width: "var(--label-w)" }}>
+                        {t.milestone_id && colorOf.get(t.milestone_id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: colorOf.get(t.milestone_id) }} aria-hidden/> : null}
                         <button type="button" onClick={() => show(t)} className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md py-1 text-left text-[13px] text-ink", focusRing)}>{t.title}</button>
                         {/* Choosing No one takes the task off the timeline, onto the Overview's No one assigned card. */}
                         {movable ? (<AssignMenu task={t} owner={t.assignee?.full_name ?? null} people={people} onAssign={(p) => void assign(t, p)} className="grid shrink-0 cursor-pointer place-items-center rounded-full p-0.5 hover:bg-surface-sunken data-popup-open:bg-surface-sunken">

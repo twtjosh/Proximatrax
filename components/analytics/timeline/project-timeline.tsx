@@ -6,6 +6,7 @@ import { Meter } from "@/components/analytics/meter";
 import { OverviewCard, stagger } from "@/components/dashboard/overview-kit";
 import { milestoneSteps, stepPhrase, timelineSentence, type Step, type StepState } from "@/lib/analytics-insights";
 import { daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
+import { milestoneColor } from "@/lib/milestone-colors";
 import type { TimelineData, TimelineProject } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 import { ProjectPicker, type ProjectOption } from "./project-picker";
@@ -77,7 +78,7 @@ export function ProjectTimeline({ data, tasks, today }: {
           <motion.ol key={project.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="relative grid min-w-0" aria-label={`Milestones of ${project.title}`}>
             {steps.map((s, i) => (<React.Fragment key={s.id}>
                 {i === todayAt ? <TodayRow today={today}/> : null}
-                <StepRow step={s} next={s.id === nextId} last={i === steps.length - 1 && todayAt !== steps.length}/>
+                <StepRow step={s} index={i} next={s.id === nextId} last={i === steps.length - 1 && todayAt !== steps.length}/>
               </React.Fragment>))}
             {todayAt === steps.length ? <TodayRow today={today} last/> : null}
           </motion.ol>)}
@@ -85,23 +86,30 @@ export function ProjectTimeline({ data, tasks, today }: {
     </OverviewCard>);
 }
 
-/** One milestone: a state icon on the line, its name and how it stands, and its tasks accepted. */
-function StepRow({ step: s, next, last }: { step: Step; next: boolean; last: boolean }) {
-    const st = STATE[s.state], Icon = next ? CircleDot : st.icon;
-    return (<li className="relative grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 pb-4 last:pb-0 sm:grid-cols-[1.75rem_minmax(0,1fr)_15rem] sm:items-center">
-      {!last ? <span className="absolute top-7 bottom-0 left-[0.8125rem] w-px bg-line-strong" aria-hidden/> : null}
-      <span className={cn("relative grid size-7 place-items-center rounded-full bg-surface", next ? "text-copper" : st.tone)} aria-hidden><Icon className="size-[18px]" strokeWidth={2.2}/></span>
+/**
+ * One milestone: a state icon on the line, then a band in the milestone's own
+ * colour (the same one the Timeline tab gives it) with its number, name, how
+ * it stands and its tasks accepted.
+ */
+function StepRow({ step: s, index, next, last }: { step: Step; index: number; next: boolean; last: boolean }) {
+    const st = STATE[s.state], Icon = next ? CircleDot : st.icon, color = milestoneColor(index);
+    return (<li className="relative grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 pb-2.5 last:pb-0">
+      {!last ? <span className="absolute top-9 bottom-0 left-[0.8125rem] w-px bg-line-strong" aria-hidden/> : null}
+      <span className={cn("relative mt-2.5 grid size-7 place-items-center rounded-full bg-surface", next ? "text-copper" : st.tone)} aria-hidden><Icon className="size-[18px]" strokeWidth={2.2}/></span>
+      <div className="grid min-w-0 items-center gap-x-4 gap-y-2 rounded-2xl px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_15rem]" style={{ background: `color-mix(in srgb, ${color} 7%, var(--surface))`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color} 22%, transparent)` }}>
       <div className="min-w-0">
-        <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className={cn("font-semibold break-words", s.state === "missed" ? "text-danger" : "text-ink")}>{s.title}</span>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="grid h-5 min-w-5 place-items-center rounded-md px-1 text-[11px] font-bold text-white tabular" style={{ background: color }} aria-hidden>{index + 1}</span>
+          <span className={cn("font-semibold break-words", s.state === "missed" ? "text-danger" : "text-ink")}><span className="sr-only">Milestone {index + 1}: </span>{s.title}</span>
           {next ? <span className="rounded-full bg-brand-soft px-2 text-[11px] leading-5 font-semibold text-brand">Next</span> : null}
         </p>
         <p className={cn("text-[13px]", s.state === "missed" ? "font-medium text-danger" : s.state === "late" ? "text-warning" : "text-ink-tertiary")}>
           <span className="sr-only">{st.word}. </span>{stepPhrase(s)}
         </p>
       </div>
-      <div className="col-start-2 mt-2 sm:col-start-3 sm:mt-0">
-        {s.tasks.of ? <Meter value={s.tasks} unit="tasks"/> : <span className="text-[12.5px] text-ink-tertiary">No tasks in this milestone</span>}
+      <div>
+        {s.tasks.of ? <Meter value={s.tasks} unit="tasks" color={color}/> : <span className="text-[12.5px] text-ink-tertiary">No tasks in this milestone</span>}
+      </div>
       </div>
     </li>);
 }

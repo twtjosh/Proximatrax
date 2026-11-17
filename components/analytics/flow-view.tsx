@@ -1,12 +1,13 @@
 "use client";
 import * as React from "react";
-import { ChartColumn, Table2 } from "lucide-react";
+import { ChartColumn, Minus, Table2, TrendingDown, TrendingUp } from "lucide-react";
 import { WeekColumns, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { ProjectTimeline } from "@/components/analytics/timeline/project-timeline";
 import { Face, focusRing, OverviewCard, OverviewHeader, stagger } from "@/components/dashboard/overview-kit";
 import { openLoad, toMoves, type Person } from "@/lib/analytics";
-import { addDays, isoDateIn } from "@/lib/dashboard";
+import { throughputFacts, type ThroughputFacts } from "@/lib/analytics-insights";
+import { addDays, isoDateIn, plural } from "@/lib/dashboard";
 import { daysPerTask, flowSummary, openNow, readiness, scopeFlow, type FlowPhase, type FlowTask } from "@/lib/flow";
 import type { TimelineData } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
     }
 
     const whose = viewer === "pm" ? "your" : "their";
+    const facts = throughputFacts(s.weekly.accepted, s.weekly.added);
 
     return (<div ref={root} className="relative scroll-mt-6">
       {before}
@@ -89,9 +91,7 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
       <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-2">
         {/* Throughput: one series, so no legend; added work is in the sentence, the tooltip and the table. */}
         <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks accepted each week · last 12 weeks" className="materialize flex flex-col" style={stagger(5)} aside={<button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}>{table ? <><ChartColumn className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>}>
-          <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-pretty text-ink-secondary sm:px-6">
-            {throughputSentence(s.now.added, s.now.accepted, viewer)}
-          </p>
+          <ThroughputReadout f={facts} weeks={s.weeks} counts={s.weekly.accepted} viewer={viewer}/>
           {/* The table scrolls inside the chart's space, so switching views never changes the card's height. */}
           <div className="relative flex min-h-60 flex-1 flex-col justify-end px-5 pt-4 pb-5 sm:px-6">
             {table ? (<div tabIndex={0} aria-label="Weekly throughput table" className={cn("absolute inset-x-5 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-6", focusRing)}>
@@ -99,7 +99,7 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
                   <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium">Week</th><th className="px-3 py-2 text-right font-medium">Added</th><th className="px-3 py-2 text-right font-medium">Accepted</th></tr></thead>
                   <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{weekRange(w)}</td><td className="px-3 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-3 py-1.5 text-right">{s.weekly.accepted[i]}</td></tr>)}</tbody>
                 </table>
-              </div>) : <WeekColumns accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks}/>}
+              </div>) : <WeekColumns accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks} average={facts.average}/>}
           </div>
         </OverviewCard>
 
@@ -176,15 +176,34 @@ function Tooltip({ root }: { root: React.RefObject<HTMLDivElement | null> }) {
     </div>);
 }
 
-/** What the weeks add up to, in one sentence. */
-function throughputSentence(added: number, accepted: number, viewer: Viewer): string {
-    if (added === 0 && accepted === 0)
-        return "No tasks were added or accepted in the last 12 weeks.";
-    const net = added - accepted;
-    const trend = net > 0 ? `so open work grew by ${net}: work is arriving faster than it is finished.`
-        : net < 0 ? `so open work shrank by ${-net}: work is being finished faster than it arrives.`
-            : "so open work held steady.";
-    return `${viewer === "pm" ? "You" : "They"} accepted ${accepted} ${accepted === 1 ? "task" : "tasks"} while ${added} ${added === 1 ? "was" : "were"} added, ${trend}`;
+/**
+ * Throughput in words, then three figures that back them: the average week,
+ * the last 4 weeks against the 4 before, and the busiest week.
+ */
+function ThroughputReadout({ f, weeks, counts, viewer }: { f: ThroughputFacts; weeks: string[]; counts: number[]; viewer: Viewer }) {
+    if (f.trend === "none")
+        return <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-ink-secondary sm:px-6">No tasks were accepted in the last 12 weeks{f.added ? `, while ${f.added} ${f.added === 1 ? "was" : "were"} added` : ""}.</p>;
+    const net = f.added - f.accepted;
+    const who = viewer === "pm" ? "You" : "They";
+    const balance = net > 0 ? `Open work grew by ${net}: tasks are arriving faster than they are accepted.`
+        : net < 0 ? `Open work shrank by ${-net}: tasks are being accepted faster than they arrive.`
+            : "Open work held steady: as many tasks were accepted as were added.";
+    const pace = f.trend === "faster" ? "Pace is picking up" : f.trend === "slower" ? "Pace has slowed" : "Pace is steady";
+    const cell = "grid gap-0.5 rounded-xl bg-surface-subtle px-3 py-2.5";
+    return (<div className="grid gap-3 px-5 pt-1 sm:px-6">
+      <p className="text-[13.5px] leading-relaxed text-pretty text-ink-secondary">
+        {who} accepted <b className="font-semibold text-ink tabular">{f.accepted}</b> {f.accepted === 1 ? "task" : "tasks"} and <b className="font-semibold text-ink tabular">{f.added}</b> {f.added === 1 ? "was" : "were"} added in 12 weeks. {balance} {pace}: <b className="font-semibold text-ink tabular">{f.recent.now}</b> accepted in the last 4 weeks against <b className="font-semibold text-ink tabular">{f.recent.before}</b> in the 4 before.{f.quiet ? ` Nothing was accepted in ${f.quiet} of the 12 weeks.` : ""}
+      </p>
+      <dl className="grid grid-cols-3 gap-2 text-[12px]">
+        <div className={cell}><dt className="text-ink-tertiary">Average week</dt><dd className="text-[17px] leading-tight font-semibold text-ink tabular">{f.average}<span className="text-[12px] font-medium text-ink-tertiary"> accepted</span></dd></div>
+        <div className={cell}><dt className="text-ink-tertiary">Last 4 weeks</dt><dd className="flex items-center gap-1 text-[17px] leading-tight font-semibold text-ink tabular">{f.recent.now}
+          <span className={cn("inline-flex items-center gap-0.5 text-[12px] font-medium", f.trend === "faster" ? "text-success" : f.trend === "slower" ? "text-warning" : "text-ink-tertiary")}>
+            {f.trend === "faster" ? <TrendingUp className="size-3.5" aria-hidden/> : f.trend === "slower" ? <TrendingDown className="size-3.5" aria-hidden/> : <Minus className="size-3.5" aria-hidden/>}
+            {f.trend === "steady" ? "same" : `${f.trend === "faster" ? "up" : "down"} from ${f.recent.before}`}
+          </span></dd></div>
+        <div className={cell}><dt className="text-ink-tertiary">Busiest week</dt><dd className="leading-tight font-semibold text-ink tabular">{f.busiest === null ? "–" : <>{weekRange(weeks[f.busiest])}<span className="block text-[12px] font-medium text-ink-tertiary">{plural(counts[f.busiest], "task")} accepted</span></>}</dd></div>
+      </dl>
+    </div>);
 }
 
 /** The workload table in one sentence. */

@@ -127,6 +127,14 @@
   --series-2: #4F6BED;
   --series-3: #0F9D8E;
   --series-4: #A14FC4;
+  /* Slots 5 to 8 colour a project's milestones (lib/milestone-colors.ts),
+     in this order, which keeps neighbours apart: validated 2026-11-18 with
+     the dataviz palette check (adjacent normal-vision ΔE ≥ 17.9, colour-blind
+     ≥ 10.6; tritan 6.2, so milestones always carry their name too). */
+  --series-5: #8A7A12;
+  --series-6: #D55181;
+  --series-7: #2A8FB8;
+  --series-8: #6250D6;
   --series-other: #9AA1B2;
   /* A task that has waited under three days, on an Analytics step. */
   --age-fresh: #A9B0BF;
