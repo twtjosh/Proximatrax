@@ -78,3 +78,40 @@ test("work already accepted before the start date means the project has started,
     assert.deepEqual(early.time, { n: 0, of: 6, pct: 0 });
     assert.equal(projectPace(project({ start_date: "2026-11-25" }), [task("in_progress"), task("to_do")], TODAY).state, "not_started");
 });
+
+test("milestoneSteps orders milestones by date and says how each stands", async () => {
+    const { milestoneSteps } = await import("../lib/analytics-insights.ts");
+    const ms = [
+        { id: "c", title: "Paint", due_date: "2026-11-25", completed_at: null },
+        { id: "a", title: "Survey", due_date: "2026-11-12", completed_at: "2026-11-12T05:00:00Z" },
+        { id: "b", title: "Demolish", due_date: "2026-11-15", completed_at: "2026-11-17T05:00:00Z" },
+        { id: "d", title: "Tile", due_date: "2026-11-18", completed_at: null },
+        { id: "e", title: "Today one", due_date: TODAY, completed_at: null },
+    ];
+    const tasks = [{ milestone_id: "c", stage: "done" }, { milestone_id: "c", stage: "to_do" }, { milestone_id: null, stage: "done" }];
+    const steps = milestoneSteps(ms, tasks, TODAY);
+    assert.deepEqual(steps.map((s) => [s.id, s.state, s.days]), [["a", "on_time", 0], ["b", "late", 2], ["d", "missed", 2], ["e", "due", 0], ["c", "due", 5]]);
+    assert.deepEqual(steps[4].tasks, { n: 1, of: 2, pct: 50 });
+});
+
+test("stepPhrase words each state plainly", async () => {
+    const { stepPhrase } = await import("../lib/analytics-insights.ts");
+    const s = (state, days, done = null) => ({ id: "x", title: "X", due: "2026-11-15", done, state, days, tasks: ratio(0, 0) });
+    assert.equal(stepPhrase(s("on_time", 0, "2026-11-14")), "Delivered Nov 14, on time");
+    assert.equal(stepPhrase(s("late", 2, "2026-11-17")), "Delivered Nov 17, 2 days late");
+    assert.equal(stepPhrase(s("missed", 3)), "Not delivered, 3 days overdue");
+    assert.equal(stepPhrase(s("due", 0)), "Due today");
+    assert.equal(stepPhrase(s("due", 1)), "Due tomorrow, Nov 15");
+    assert.equal(stepPhrase(s("due", 5)), "Due in 5 days, Nov 15");
+});
+
+test("timelineSentence says where the project is and what comes next", async () => {
+    const { milestoneSteps, timelineSentence } = await import("../lib/analytics-insights.ts");
+    const ms = [{ id: "a", title: "Survey", due_date: "2026-11-12", completed_at: "2026-11-12T05:00:00Z" }, { id: "b", title: "Tile", due_date: "2026-11-18", completed_at: null }, { id: "c", title: "Paint", due_date: "2026-11-25", completed_at: null }];
+    const steps = milestoneSteps(ms, [], TODAY);
+    assert.equal(timelineSentence({ start: "2026-11-11", end: "2026-11-30", completedAt: null }, steps, TODAY),
+        "Day 10 of 20. 1 of 3 milestones delivered, 1 missed. Next: Paint, due Nov 25.");
+    assert.equal(timelineSentence({ start: "2026-11-25", end: "2026-11-30", completedAt: null }, [], TODAY), "Starts in 5 days, on Nov 25. No milestones set yet.");
+    assert.equal(timelineSentence({ start: "2026-11-01", end: "2026-11-17", completedAt: null }, steps, TODAY), "3 days past its handover date. 1 of 3 milestones delivered, 1 missed. Next: Paint, due Nov 25.");
+    assert.equal(timelineSentence({ start: "2026-11-01", end: "2026-11-17", completedAt: "2026-11-17T03:00:00Z" }, [], TODAY), "Handed over Nov 17. No milestones set yet.");
+});

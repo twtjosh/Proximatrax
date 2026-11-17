@@ -129,3 +129,54 @@ export function headlines({ projects, review, crew, whose }: {
         lines.push(`${top.name} carries the most open work: ${plural(top.open, "task")}${top.late ? `, ${top.late} late` : ""}.`);
     return lines;
 }
+
+export type StepState = "on_time" | "late" | "missed" | "due";
+export type Step = {
+    id: string;
+    title: string;
+    due: string;
+    /** Delivery date, or null while open. */
+    done: string | null;
+    state: StepState;
+    /** Late: days after the due date it was delivered. Missed: days overdue. Due: days until due. */
+    days: number;
+    /** Its tasks accepted, of all its tasks. */
+    tasks: Ratio;
+};
+
+/** A project's milestones in date order, each with where it stands today and its tasks accepted. */
+export function milestoneSteps(milestones: { id: string; title: string; due_date: string; completed_at: string | null }[], tasks: { milestone_id: string | null; stage: string }[], today: string): Step[] {
+    return [...milestones].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.title.localeCompare(b.title)).map((m) => {
+        const done = m.completed_at ? isoDateIn(m.completed_at) : null;
+        const own = tasks.filter((t) => t.milestone_id === m.id);
+        const base = { id: m.id, title: m.title, due: m.due_date, done, tasks: ratio(own.filter((t) => t.stage === "done").length, own.length) };
+        if (done)
+            return done <= m.due_date ? { ...base, state: "on_time" as const, days: 0 } : { ...base, state: "late" as const, days: daysBetween(m.due_date, done) };
+        return m.due_date < today ? { ...base, state: "missed" as const, days: daysBetween(m.due_date, today) } : { ...base, state: "due" as const, days: daysBetween(today, m.due_date) };
+    });
+}
+
+const shortDate = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
+
+export function stepPhrase(s: Step): string {
+    switch (s.state) {
+        case "on_time": return `Delivered ${shortDate(s.done!)}, on time`;
+        case "late": return `Delivered ${shortDate(s.done!)}, ${plural(s.days, "day")} late`;
+        case "missed": return `Not delivered, ${plural(s.days, "day")} overdue`;
+        case "due": return s.days === 0 ? "Due today" : s.days === 1 ? `Due tomorrow, ${shortDate(s.due)}` : `Due in ${s.days} days, ${shortDate(s.due)}`;
+    }
+}
+
+/** Where one project is in its schedule and what comes next, in two short sentences. */
+export function timelineSentence(project: { start: string; end: string; completedAt: string | null }, steps: Step[], today: string): string {
+    const planned = daysBetween(project.start, project.end) + 1;
+    const where = project.completedAt ? `Handed over ${shortDate(isoDateIn(project.completedAt))}.`
+        : today < project.start ? `Starts in ${plural(daysBetween(today, project.start), "day")}, on ${shortDate(project.start)}.`
+            : today > project.end ? `${plural(daysBetween(project.end, today), "day")} past its handover date.`
+                : `Day ${daysBetween(project.start, today) + 1} of ${planned}.`;
+    if (steps.length === 0)
+        return `${where} No milestones set yet.`;
+    const delivered = steps.filter((s) => s.done).length, missed = steps.filter((s) => s.state === "missed").length;
+    const next = steps.find((s) => s.state === "due");
+    return `${where} ${delivered} of ${steps.length} milestones delivered${missed ? `, ${missed} missed` : ""}. ${next ? `Next: ${next.title}, due ${shortDate(next.due)}.` : delivered === steps.length ? "All milestones delivered." : ""}`.trim();
+}

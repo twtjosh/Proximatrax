@@ -206,7 +206,7 @@ export async function loadPmAnalytics(supabase: SupabaseClient, pm: { id: string
             crew: people.filter((p) => p.role !== "client" && tasks.some((t) => t.assigned_to === p.id)).sort((a, b) => a.full_name.localeCompare(b.full_name)).map(person),
             timeline: {
                 projects: projects.map((p) => ({ id: p.id, title: p.title, client: nameOf.get(p.client_id) ?? "Client", start: p.start_date, end: p.end_date, completedAt: p.completed_at, active: p.status !== "completed" })),
-                milestones: milestones.map(({ project_id, title, due_date, completed_at }) => ({ project_id, title, due_date, completed_at })),
+                milestones: milestones.map(({ id, project_id, title, due_date, completed_at }) => ({ id, project_id, title, due_date, completed_at })),
                 log,
                 people: Object.fromEntries(people.map((p) => [p.id, { name: p.full_name, role: personTitle(p), avatarUrl: p.avatar_url }])),
             },

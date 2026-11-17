@@ -1,14 +1,24 @@
 "use client";
 import * as React from "react";
-import { Download } from "lucide-react";
+import { motion } from "framer-motion";
+import { BadgeCheck, CalendarClock, Download, ListChecks, Megaphone, MessageSquare, Paperclip, Users, type LucideIcon } from "lucide-react";
 import { asMember } from "@/components/analytics/marks";
-import { KIND } from "@/components/analytics/timeline/timeline-parts";
-import { Segmented } from "@/components/analytics/timeline/project-timeline";
-import { Face, OverviewCard, softAction, stagger } from "@/components/dashboard/overview-kit";
+import { Face, focusRing, OverviewCard, softAction, stagger } from "@/components/dashboard/overview-kit";
 import { addDays, isoDateIn } from "@/lib/dashboard";
-import { LOG_KINDS, logDetail, logKind, logSentence } from "@/lib/project-log";
+import { LOG_KINDS, logDetail, logKind, logSentence, type LogKind } from "@/lib/project-log";
 import type { TimelineEntry, TimelinePerson } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
+
+/** Each kind of logged activity: its icon and name. */
+const KIND: Record<LogKind, { icon: LucideIcon; label: string }> = {
+    update: { icon: Megaphone, label: "Updates" },
+    review: { icon: BadgeCheck, label: "Reviews" },
+    task: { icon: ListChecks, label: "Tasks" },
+    schedule: { icon: CalendarClock, label: "Schedule" },
+    file: { icon: Paperclip, label: "Files" },
+    discussion: { icon: MessageSquare, label: "Discussion" },
+    team: { icon: Users, label: "Team" },
+};
 
 type Range = "7" | "30" | "all";
 const RANGES: { value: Range; label: string }[] = [{ value: "7", label: "7 days" }, { value: "30", label: "30 days" }, { value: "all", label: "All time" }];
@@ -90,4 +100,17 @@ function Bars({ title, rows }: { title: string; rows: { key: string; n: number; 
           </li>))}
       </ul>
     </section>);
+}
+
+/** A switch between a few options; the thumb slides to the chosen one. */
+function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+    return (<div role="radiogroup" aria-label={label} className="inline-flex rounded-xl bg-surface-sunken p-[3px]">
+      {options.map((o) => {
+            const on = o.value === value;
+            return (<button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)} className={cn("relative h-8 rounded-[9px] px-3.5 text-[13px] font-semibold transition-colors", on ? "text-ink" : "text-ink-tertiary hover:text-ink", focusRing)}>
+              {on ? <motion.span layoutId={`segmented-${label}`} className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
+              <span className="relative">{o.label}</span>
+            </button>);
+        })}
+    </div>);
 }

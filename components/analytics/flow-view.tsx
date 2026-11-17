@@ -67,7 +67,7 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
         return { team, rows, maxOpen, worst, total };
     }, [data.tasks, moves, data.crew, today]);
 
-    const timeline = <ProjectTimeline data={data.timeline} tasks={data.tasks} moves={moves} viewer={viewer} today={today}/>;
+    const timeline = <ProjectTimeline data={data.timeline} tasks={data.tasks} today={today}/>;
     if (data.tasks.length === 0) {
         return (<div ref={root}>
           {before}

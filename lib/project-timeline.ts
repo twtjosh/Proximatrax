@@ -11,7 +11,7 @@ import { HEALTH, isHealth, logKind, type Health, type LogKind, type LogRow } fro
 
 export type Unit = "day" | "week" | "month";
 export type TimelineProject = { id: string; title: string; client: string; start: string; end: string; completedAt: string | null; active: boolean };
-export type TimelineMilestone = { project_id: string; title: string; due_date: string; completed_at: string | null };
+export type TimelineMilestone = { id?: string; project_id: string; title: string; due_date: string; completed_at: string | null };
 export type TimelineTask = { id: string; project_id: string; title: string; stage: string; assigned_to: string | null; due_date: string | null; created_at: string };
 export type TimelineMove = { task_id: string; from: string; to: string; at: string };
 export type TimelineEntry = LogRow & { project_id: string };

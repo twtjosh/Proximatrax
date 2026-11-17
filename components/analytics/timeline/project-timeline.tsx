@@ -1,20 +1,19 @@
 "use client";
 import * as React from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck2, CalendarRange, ChevronLeft, ChevronRight, Flag, Hourglass, Play } from "lucide-react";
-import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
+import { AlertTriangle, CheckCircle2, Circle, CircleDot } from "lucide-react";
+import { Meter } from "@/components/analytics/meter";
+import { OverviewCard, stagger } from "@/components/dashboard/overview-kit";
+import { milestoneSteps, stepPhrase, timelineSentence, type Step, type StepState } from "@/lib/analytics-insights";
 import { daysBetween, formatDate, isoDateIn, plural } from "@/lib/dashboard";
-import { buildPeriods, groupMoves, periodMarks, periodOf, periodStats, phaseSummary, timelineSpan, type PeriodMarks, type PhaseState, type PhaseSummary, type TimelineData, type TimelineMove, type TimelineProject, type TimelineTask, type Unit } from "@/lib/project-timeline";
+import type { TimelineData, TimelineProject } from "@/lib/project-timeline";
 import { cn } from "@/lib/utils";
 import { ProjectPicker, type ProjectOption } from "./project-picker";
-import { Meter } from "@/components/analytics/meter";
-import { ratio } from "@/lib/analytics-insights";
-import { ActivityFilters, ActivityHistory, matches, NO_FILTERS, PeriodFlags, QuickStats, type Filters, type TimelineModel } from "./timeline-parts";
 
 const short = (iso: string) => formatDate(iso, { month: "short", day: "numeric" });
 const long = (iso: string) => formatDate(iso, { month: "short", day: "numeric", year: "numeric" });
 
-/** Where a project stands against its due date, in the words the Projects table uses. */
+/** Where a project stands against its due date, in the words the Projects list uses. */
 function standing(p: TimelineProject, today: string): ProjectOption["status"] {
     if (p.completedAt) {
         const late = daysBetween(p.end, isoDateIn(p.completedAt));
@@ -23,284 +22,95 @@ function standing(p: TimelineProject, today: string): ProjectOption["status"] {
     const over = daysBetween(p.end, today);
     return over > 0 ? { text: `${plural(over, "day")} past end date`, tone: "late" } : { text: `${plural(-over, "day")} left`, tone: "ok" };
 }
-const CHIP = { ok: "bg-info-soft text-info", late: "bg-danger-soft text-danger", done: "bg-success-soft text-success" } as const;
-const HEALTH_PILL = { on_track: "bg-success-soft text-success", at_risk: "bg-warning-soft text-warning", off_track: "bg-danger-soft text-danger" } as const;
-const DIAMOND = { delivered: "border-stage-done bg-stage-done", due: "border-ink-secondary", missed: "border-danger" } as const;
+
+const STATE: Record<StepState, { icon: typeof Circle; tone: string; word: string }> = {
+    on_time: { icon: CheckCircle2, tone: "text-success", word: "On time" },
+    late: { icon: CheckCircle2, tone: "text-warning", word: "Late" },
+    missed: { icon: AlertTriangle, tone: "text-danger", word: "Missed" },
+    due: { icon: Circle, tone: "text-ink-tertiary", word: "Due" },
+};
+
+type TimelineTaskRow = { id: string; project_id: string; milestone_id: string | null; stage: string };
 
 /**
- * The Analytics page's Project timeline: one project's life in days, weeks
- * or months, with the phases due, delivered or missed and the PM's status
- * update marked on each, and the full activity of the period chosen.
+ * One project's milestones in date order, with today marked where it falls
+ * and a sentence saying where the project is and what comes next. Each
+ * milestone says plainly how it stands and how many of its tasks are
+ * accepted. Activity lives in its own card below.
  */
-export function ProjectTimeline({ data, tasks, moves, viewer, today }: {
+export function ProjectTimeline({ data, tasks, today }: {
     data: TimelineData;
-    tasks: TimelineTask[];
-    moves: TimelineMove[];
-    viewer: "pm" | "owner";
+    tasks: TimelineTaskRow[];
     today: string;
 }) {
     // Active projects first, newest start first; then delivered, most recent first.
     const ordered = React.useMemo(() => [...data.projects].sort((a, b) => Number(b.active) - Number(a.active)
         || (a.active ? b.start.localeCompare(a.start) : (b.completedAt ?? b.end).localeCompare(a.completedAt ?? a.end))), [data.projects]);
     const [projectId, setProjectId] = React.useState(ordered[0]?.id ?? "");
-    const [unit, setUnit] = React.useState<Unit>("week");
-    const [chosen, setChosen] = React.useState<{ key: string; index: number } | null>(null);
-    const [filters, setFilters] = React.useState<Filters>(NO_FILTERS);
-
     const project = ordered.find((p) => p.id === projectId) ?? ordered[0];
     const options = React.useMemo<ProjectOption[]>(() => ordered.map((p) => {
         const own = tasks.filter((t) => t.project_id === p.id);
         return { id: p.id, title: p.title, client: p.client, dates: `${short(p.start)} – ${long(p.end)}`, accepted: own.filter((t) => t.stage === "done").length, total: own.length, status: standing(p, today) };
     }), [ordered, tasks, today]);
-    const base = React.useMemo(() => {
-        if (!project) return null;
-        const log = data.log.filter((e) => e.project_id === project.id);
-        const own = tasks.filter((t) => t.project_id === project.id), ids = new Set(own.map((t) => t.id));
-        const byTask = groupMoves(moves.filter((m) => ids.has(m.task_id)));
-        const span = timelineSpan(project, log, today);
-        const periods = buildPeriods(span, project.end, unit, today);
-        const byPeriod = periods.map(() => [] as typeof log);
-        for (const e of log) {
-            const i = periodOf(periods, isoDateIn(e.created_at));
-            if (i >= 0) byPeriod[i].push(e);
-        }
-        const phases = data.milestones.filter((m) => m.project_id === project.id);
-        return {
-            span, periods, byPeriod,
-            stats: periods.map((p) => periodStats(p, own, byTask, log, today)),
-            marks: periods.map((p, i) => periodMarks(p, phases, byPeriod[i], today)),
-            phases: phaseSummary(phases, today),
-        };
-    }, [data.log, data.milestones, project, tasks, moves, today, unit]);
+    const steps = React.useMemo(() => project
+        ? milestoneSteps(data.milestones.filter((m) => m.project_id === project.id).map((m) => ({ id: m.id ?? `${m.title}:${m.due_date}`, title: m.title, due_date: m.due_date, completed_at: m.completed_at })), tasks.filter((t) => t.project_id === project.id), today)
+        : [], [data.milestones, project, tasks, today]);
 
-    if (!project || !base) {
-        return (<OverviewCard id="timeline-heading" title="Project timeline" className="materialize mt-6" style={stagger(1)}>
-          <p className="px-5 pt-1 pb-6 text-sm text-ink-tertiary sm:px-6">No projects yet. Each project’s weeks fill in here as work happens.</p>
+    if (!project) {
+        return (<OverviewCard id="timeline-heading" title="Project timeline" className="materialize mt-4" style={stagger(4)}>
+          <p className="px-5 pt-1 pb-6 text-sm text-ink-tertiary sm:px-6">No projects yet. Each project’s milestones show here once it has some.</p>
         </OverviewCard>);
     }
 
-    const { periods } = base;
-    const key = `${project.id}:${unit}`;
-    const todayIndex = periodOf(periods, today);
-    const lastActive = base.stats.findLastIndex((s) => s.activities > 0);
-    const fallback = todayIndex >= 0 ? todayIndex : lastActive >= 0 ? lastActive : periods.length - 1;
-    const selected = chosen?.key === key ? Math.min(chosen.index, periods.length - 1) : fallback;
-    const select = (i: number) => setChosen({ key, index: Math.max(0, Math.min(i, periods.length - 1)) });
-    const switchUnit = (u: Unit) => {
-        if (u === unit) return;
-        // Keep looking at the same stretch of time: the new period holding the old one's start.
-        const anchor = periods[selected]?.from ?? today;
-        setUnit(u);
-        setChosen({ key: `${project.id}:${u}`, index: Math.max(0, periodOf(buildPeriods(base.span, project.end, u, today), anchor)) });
-    };
-    const switchProject = (id: string) => {
-        setProjectId(id);
-        setChosen(null);
-        setFilters(NO_FILTERS);
-    };
+    // Today sits after every milestone due before it, so the list reads past, today, ahead.
+    const todayAt = project.completedAt ? -1 : steps.filter((s) => s.due < today).length;
+    const nextId = steps.find((s) => s.state === "due")?.id;
 
-    const model: TimelineModel = {
-        project, unit, periods, stats: base.stats, byPeriod: base.byPeriod,
-        shown: base.byPeriod[selected].filter((e) => matches(e, filters)),
-        selected, select, dueIndex: periodOf(periods, project.end),
-        people: data.people, viewer, filters, setFilters,
-    };
-    const planned = Math.max(1, daysBetween(project.start, project.end) + 1);
-    const status = standing(project, today);
+    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="One project’s milestones in date order, with today marked." className="materialize mt-4" style={stagger(4)}>
+      <div className="grid gap-5 px-5 pt-2 pb-5 sm:px-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3">
+          <ProjectPicker projects={options} value={project.id} onChange={setProjectId}/>
+          <p className="max-w-xl min-w-60 flex-1 text-[14px] leading-relaxed text-pretty text-ink-secondary">{timelineSentence(project, steps, today)}</p>
+        </div>
 
-    return (<OverviewCard id="timeline-heading" title="Project timeline" sub="One project, period by period. Pick a week to see everything that happened in it." className="materialize mt-4" style={stagger(4)}>
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-5 pt-2 pb-5 sm:px-6">
-        <div className="grid min-w-0 gap-2.5">
-          <ProjectPicker projects={options} value={project.id} onChange={switchProject}/>
-          <dl className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-ink-secondary">
-            <Meta icon={CalendarRange} label="Start" value={long(project.start)}/>
-            <Meta icon={CalendarCheck2} label="Due" value={long(project.end)}/>
-            <Meta icon={Hourglass} label="Duration" value={`${plural(planned, "day")} · ${plural(Math.ceil(planned / 7), "week")}`}/>
-            <div><dt className="sr-only">Status</dt><dd className={cn("rounded-full px-2 text-xs leading-[22px] font-semibold", CHIP[status.tone])}>{status.text}</dd></div>
-          </dl>
-        </div>
-        <Segmented label="View by" value={unit} onChange={(v) => switchUnit(v as Unit)} options={[{ value: "day", label: "Daily" }, { value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]}/>
-      </div>
-      <Phases summary={base.phases} onOpen={(date) => select(periodOf(periods, date))} openable={(date) => periodOf(periods, date) >= 0}/>
-      <Strip model={model} marks={base.marks}/>
-      <div className="grid items-stretch gap-4 px-5 pt-3 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
-        <div className="relative min-w-0 lg:min-h-[26rem]"><ActivityHistory model={model} className="lg:absolute lg:inset-0"/></div>
-        <div className="grid content-start gap-4">
-          <ActivityFilters model={model}/>
-          <QuickStats model={model}/>
-        </div>
+        {steps.length === 0 ? <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-[13px] text-ink-tertiary">No milestones set for this project yet.</p> : (
+          <motion.ol key={project.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="relative grid min-w-0" aria-label={`Milestones of ${project.title}`}>
+            {steps.map((s, i) => (<React.Fragment key={s.id}>
+                {i === todayAt ? <TodayRow today={today}/> : null}
+                <StepRow step={s} next={s.id === nextId} last={i === steps.length - 1 && todayAt !== steps.length}/>
+              </React.Fragment>))}
+            {todayAt === steps.length ? <TodayRow today={today} last/> : null}
+          </motion.ol>)}
       </div>
     </OverviewCard>);
 }
 
-/**
- * The periods as a carousel: a title row with the count, a key for the
- * markers and arrows that page through; no scrollbar, and the edges fade only
- * where more periods are hidden. A marked period explains its markers on hover
- * through the page's tooltip (`data-tip`).
- */
-function Strip({ model, marks }: { model: TimelineModel; marks: PeriodMarks[] }) {
-    const ref = React.useRef<HTMLDivElement>(null);
-    const [edge, setEdge] = React.useState({ l: false, r: false });
-    const measure = React.useCallback(() => {
-        const el = ref.current;
-        if (!el) return;
-        const max = el.scrollWidth - el.clientWidth - 2;
-        setEdge((e) => (e.l === el.scrollLeft > 2 && e.r === el.scrollLeft < max ? e : { l: el.scrollLeft > 2, r: el.scrollLeft < max }));
-    }, []);
-    React.useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
-        measure();
-        const ro = new ResizeObserver(measure);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, [measure, model.periods]);
-    // Bring the selected period to the middle without scrolling the page.
-    React.useEffect(() => {
-        const el = ref.current, item = el?.querySelector<HTMLElement>(`[data-period="${model.selected}"]`)?.parentElement;
-        if (!el || !item) return;
-        el.scrollTo({ left: item.offsetLeft - el.clientWidth / 2 + item.offsetWidth / 2, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    }, [model.selected, model.unit, model.project.id]);
-    const page = (dir: number) => {
-        const el = ref.current;
-        el?.scrollBy({ left: dir * Math.max(160, el.clientWidth - 140), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    };
-    const mask = edge.l && edge.r ? "linear-gradient(to right, transparent, #000 72px, #000 calc(100% - 72px), transparent)"
-        : edge.r ? "linear-gradient(to right, #000 calc(100% - 72px), transparent)" : edge.l ? "linear-gradient(to right, transparent, #000 72px)" : undefined;
-    const { periods, stats } = model, units = `${model.unit}s`;
-    const max = Math.max(1, ...stats.map((s) => s.activities));
-    const startIndex = Math.max(0, periodOf(periods, model.project.start));
-    const arrow = cn("grid size-8 cursor-pointer place-items-center rounded-full bg-surface text-ink shadow-[0_0_0_1px_var(--line)] transition-[background-color,box-shadow,opacity,scale] duration-150 hover:not-disabled:bg-surface-subtle hover:not-disabled:shadow-[0_0_0_1px_var(--line-strong),0_6px_14px_-8px_rgb(14_18_34/0.35)] active:not-disabled:scale-95 disabled:cursor-default disabled:opacity-35", focusRing);
-
-    return (<>
-      <div className="flex items-center justify-between gap-3 px-5 sm:px-6">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1">
-          <p className="text-[13px] text-ink-tertiary"><b className="font-semibold text-ink tabular">{periods.length} {units}</b> · {short(periods[0].from)} – {long(periods[periods.length - 1].to)}</p>
-        </div>
-        <span className="flex shrink-0 gap-1.5">
-          <button type="button" disabled={!edge.l} onClick={() => page(-1)} aria-label={`Earlier ${units}`} className={arrow}><ChevronLeft className="size-4" aria-hidden/></button>
-          <button type="button" disabled={!edge.r} onClick={() => page(1)} aria-label={`Later ${units}`} className={arrow}><ChevronRight className="size-4" aria-hidden/></button>
-        </span>
+/** One milestone: a state icon on the line, its name and how it stands, and its tasks accepted. */
+function StepRow({ step: s, next, last }: { step: Step; next: boolean; last: boolean }) {
+    const st = STATE[s.state], Icon = next ? CircleDot : st.icon;
+    return (<li className="relative grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 pb-4 last:pb-0 sm:grid-cols-[1.75rem_minmax(0,1fr)_15rem] sm:items-center">
+      {!last ? <span className="absolute top-7 bottom-0 left-[0.8125rem] w-px bg-line-strong" aria-hidden/> : null}
+      <span className={cn("relative grid size-7 place-items-center rounded-full bg-surface", next ? "text-copper" : st.tone)} aria-hidden><Icon className="size-[18px]" strokeWidth={2.2}/></span>
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className={cn("font-semibold break-words", s.state === "missed" ? "text-danger" : "text-ink")}>{s.title}</span>
+          {next ? <span className="rounded-full bg-brand-soft px-2 text-[11px] leading-5 font-semibold text-brand">Next</span> : null}
+        </p>
+        <p className={cn("text-[13px]", s.state === "missed" ? "font-medium text-danger" : s.state === "late" ? "text-warning" : "text-ink-tertiary")}>
+          <span className="sr-only">{st.word}. </span>{stepPhrase(s)}
+        </p>
       </div>
-      <motion.div key={`${model.project.id}:${model.unit}`} ref={ref} onScroll={measure} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
-        className="flex snap-x snap-proximity gap-2.5 overflow-x-auto overscroll-x-contain px-5 pt-8 pb-3 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden" style={{ maskImage: mask, WebkitMaskImage: mask }}>
-        {periods.map((p, i) => {
-            const s = stats[i], on = model.selected === i, m = marks[i];
-            const lines = [...m.phases.map((ph) => ph.text), ...(m.health ? [`${m.health.label}${m.health.note ? `: “${m.health.note}”` : ""}`] : [])];
-            return (<div key={p.from} className="relative shrink-0 snap-center">
-              {/* Start and due in the same period share one marker, so the two never overlap. */}
-              {i === startIndex && i === model.dueIndex ? <Marker icon={Flag} text={`Start ${short(model.project.start)} · Due ${short(model.project.end)}`}/>
-                : i === startIndex ? <Marker icon={Play} text={`Start · ${short(model.project.start)}`}/>
-                    : i === model.dueIndex ? <Marker icon={Flag} text={`Due · ${short(model.project.end)}`} right/> : null}
-              <button type="button" data-period={i} aria-pressed={on} onClick={() => model.select(i)} data-tip={lines.length ? `${p.label} · ${p.range}\n${lines.join("\n")}` : undefined}
-                aria-label={`${p.label}, ${p.range}, ${s.activities} ${s.activities === 1 ? "activity" : "activities"}${lines.length ? `. ${lines.join(". ")}` : ""}`}
-                className={cn("flex w-[9.75rem] cursor-pointer flex-col gap-2 rounded-2xl px-3.5 py-3 text-left transition-[background-color,box-shadow,translate] duration-200 ease-out hover:-translate-y-0.5", focusRing,
-                    on ? "bg-brand-soft shadow-[0_0_0_2px_var(--copper)]"
-                        : p.beyond ? "bg-[color-mix(in_srgb,var(--danger-soft)_60%,var(--surface))] shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_var(--line-strong),0_12px_24px_-16px_rgb(14_18_34/0.35)]"
-                            : p.upcoming ? "bg-surface-subtle shadow-[inset_0_0_0_1px_var(--line)] hover:bg-surface"
-                                : "bg-surface shadow-[0_0_0_1px_var(--line)] hover:shadow-[0_0_0_1px_var(--line-strong),0_12px_24px_-16px_rgb(14_18_34/0.35)]")}>
-                <span className="flex items-start justify-between gap-1">
-                  <span className={cn("text-[13.5px] font-semibold", on ? "text-brand-hover" : "text-ink")}>{p.label}</span>
-                  <PeriodFlags period={{ ...p, upcoming: false, beyond: false }}/>
-                </span>
-                <span className="-mt-1.5 text-xs text-ink-tertiary tabular">{p.range}</span>
-                <span className="-mt-0.5 flex min-h-[18px] items-center gap-1.5" aria-hidden>
-                  {m.phases.map((ph, j) => <Diamond key={j} state={ph.state}/>)}
-                  {m.health ? <span className={cn("rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold whitespace-nowrap", HEALTH_PILL[m.health.health])}>{m.health.label}</span> : null}
-                </span>
-                <span className="h-1 overflow-hidden rounded-full bg-surface-sunken" aria-hidden>
-                  <span className={cn("block h-full rounded-full transition-[width] duration-500", on ? "bg-copper" : "bg-ink-tertiary/60")} style={{ width: `${(s.activities / max) * 100}%` }}/>
-                </span>
-                <span className={cn("text-xs tabular", s.activities ? "font-semibold text-ink-secondary" : "text-ink-tertiary")}>{p.upcoming ? (s.due ? `${s.due} due` : "Nothing yet") : `${s.activities} ${s.activities === 1 ? "activity" : "activities"}`}</span>
-              </button>
-            </div>);
-        })}
-      </motion.div>
-    </>);
-}
-
-const PHASE_DIAMOND: Record<PhaseState, keyof typeof DIAMOND> = { on_time: "delivered", late: "delivered", missed: "missed", due: "due" };
-const PHASE_NOTE: Record<PhaseState, string> = { on_time: "On time", late: "Delivered late", missed: "Missed", due: "Due" };
-
-/**
- * The project's phases as of today: delivered (and how many on time), still
- * due (and the next one), and missed (delivered late or past due and open),
- * then each phase in due order. A phase opens its period in the strip: the
- * one it was delivered in, else the one it is due in.
- */
-function Phases({ summary: s, onOpen, openable }: { summary: PhaseSummary; onOpen: (date: string) => void; openable: (date: string) => boolean }) {
-    const total = s.rows.length;
-    if (total === 0)
-        return <p className="mx-5 mb-5 rounded-2xl bg-surface-subtle px-4 py-3 text-[13px] text-ink-tertiary sm:mx-6">No phases set for this project yet.</p>;
-    const tile = "rounded-2xl bg-surface px-4 py-3 shadow-[0_0_0_1px_var(--line)]";
-    return (<section aria-label="Phases" className="mx-5 mb-5 grid gap-3 sm:mx-6">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h3 className="text-sm font-semibold text-ink">Milestones delivered</h3>
-        <Meter value={ratio(s.delivered, total)} unit="milestones" className="min-w-56 flex-1"/>
+      <div className="col-start-2 mt-2 sm:col-start-3 sm:mt-0">
+        {s.tasks.of ? <Meter value={s.tasks} unit="tasks"/> : <span className="text-[12.5px] text-ink-tertiary">No tasks in this milestone</span>}
       </div>
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="delivered"/>Delivered</dt>
-          <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.delivered}</dd>
-          <dd className="text-xs text-ink-tertiary">{s.delivered ? `${s.onTime} on time · ${s.delivered - s.onTime} late` : "None yet"}</dd>
-        </div>
-        <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="due"/>Still due</dt>
-          <dd className="mt-1 text-xl font-semibold text-ink tabular">{s.due}</dd>
-          <dd className="truncate text-xs text-ink-tertiary">{s.next ? `Next: ${s.next.title} · ${short(s.next.due)}` : "Nothing left to deliver"}</dd>
-        </div>
-        <div className={tile}>
-          <dt className="flex items-center gap-2 text-[13px] text-ink-secondary"><Diamond state="missed"/>Missed</dt>
-          <dd className={cn("mt-1 text-xl font-semibold tabular", s.missed ? "text-danger" : "text-ink")}>{s.missed}</dd>
-          <dd className="text-xs text-ink-tertiary">{s.missed ? `${s.missedOpen} still open · ${s.missed - s.missedOpen} delivered late` : "All on schedule"}</dd>
-        </div>
-      </dl>
-      <ol className="flex flex-wrap gap-2">
-        {s.rows.map((r, i) => {
-            const at = r.done ?? r.due, can = openable(at);
-            return (<li key={i}>
-              <button type="button" disabled={!can} onClick={() => onOpen(at)} className={cn("inline-flex h-8 items-center gap-2 rounded-full bg-surface px-3 text-[12.5px] shadow-[0_0_0_1px_var(--line)] transition-shadow enabled:cursor-pointer enabled:hover:shadow-[0_0_0_1px_var(--line-strong)]", focusRing)}
-                title={can ? "Open this period below" : undefined}>
-                <Diamond state={PHASE_DIAMOND[r.state]}/>
-                <span className="font-semibold text-ink">{r.title}</span>
-                <span className={cn("tabular", r.state === "missed" ? "text-danger" : r.state === "late" ? "text-warning" : "text-ink-tertiary")}>
-                  {PHASE_NOTE[r.state]} · {r.done ? short(r.done) : short(r.due)}
-                </span>
-              </button>
-            </li>);
-        })}
-      </ol>
-    </section>);
+    </li>);
 }
 
-function Diamond({ state }: { state: keyof typeof DIAMOND }) {
-    return <span className={cn("mx-px inline-block size-2.5 shrink-0 rotate-45 rounded-[2px] border-[1.5px]", DIAMOND[state])} aria-hidden/>;
-}
-
-function Marker({ icon: Icon, text, right }: { icon: typeof Flag; text: string; right?: boolean }) {
-    return (<span className={cn("absolute -top-6 flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap text-ink-secondary", right ? "right-1" : "left-1")}>
-      <Icon className="size-3 fill-current" aria-hidden/>{text}
-    </span>);
-}
-
-function Meta({ icon: Icon, label, value }: { icon: typeof Hourglass; label: string; value: string }) {
-    return (<div className="inline-flex items-center gap-1.5">
-      <Icon className="size-3.5 text-ink-tertiary" aria-hidden/>
-      <dt className="text-ink-tertiary">{label}</dt>
-      <dd className="font-medium text-ink tabular">{value}</dd>
-    </div>);
-}
-
-/** A switch between a few options; the thumb slides to the chosen one. */
-export function Segmented({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
-    return (<div role="radiogroup" aria-label={label} className="inline-flex rounded-xl bg-surface-sunken p-[3px]">
-      {options.map((o) => {
-            const on = o.value === value;
-            return (<button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.value)} className={cn("relative h-8 rounded-[9px] px-3.5 text-[13px] font-semibold transition-colors", on ? "text-ink" : "text-ink-tertiary hover:text-ink", focusRing)}>
-              {on ? <motion.span layoutId={`segmented-${label}`} className="absolute inset-0 rounded-[9px] bg-surface shadow-[0_1px_2px_rgb(14_18_34/0.08),0_0_0_1px_rgb(14_18_34/0.06)]" transition={{ type: "spring", stiffness: 500, damping: 38 }} aria-hidden/> : null}
-              <span className="relative">{o.label}</span>
-            </button>);
-        })}
-    </div>);
+/** Where today falls between the milestones. */
+function TodayRow({ today, last }: { today: string; last?: boolean }) {
+    return (<li className={cn("relative grid grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-x-3", last ? "" : "pb-4")}>
+      {!last ? <span className="absolute top-7 bottom-0 left-[0.8125rem] w-px bg-line-strong" aria-hidden/> : null}
+      <span className="relative grid size-7 place-items-center" aria-hidden><span className="size-3 rounded-full bg-copper ring-4 ring-brand-soft"/></span>
+      <span className="flex items-center gap-3 text-[12.5px] font-semibold text-brand">Today, {formatDate(today, { weekday: "short", month: "short", day: "numeric" })}<span className="h-px flex-1 bg-copper/40" aria-hidden/></span>
+    </li>);
 }
