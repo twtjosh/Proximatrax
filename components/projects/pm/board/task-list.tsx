@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronRight, Flag, Keyboard, ListChecks, Loader2, MessageSquare, Paperclip, RotateCcw, SquareCheck, Trash2, UserRound, X } from "lucide-react";
+import { ChevronRight, ChevronsUp, Keyboard, ListChecks, Loader2, MessageSquare, Paperclip, RotateCcw, SquareCheck, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/dashboard";
 import { SPRING } from "@/lib/motion";
 import { agendaCounts, agendaGroups, bucketNote, matchesAgendaFilter, relativeDue, type AgendaFilter, type AgendaKey } from "@/lib/task-agenda";
 import { cn } from "@/lib/utils";
+import { PriorityTag } from "./task-marks";
 import { deleteTask, updateTask, type TaskWithRelations, type UpdateTaskInput } from "@/services/task-service";
 import type { Milestone, Profile } from "@/types/database";
 import { COLUMNS, fixReason } from "./board-meta";
@@ -253,8 +254,8 @@ export function TaskList({ tasks, people, milestones, today, closed, planLocked 
 
                       <button type="button" tabIndex={-1} onClick={() => onOpen(t)} className="min-w-0 cursor-pointer text-left">
                         <span className="flex min-w-0 items-center gap-1.5">
-                          {t.priority === "high" ? <Flag className="size-3.5 shrink-0 fill-stage-late text-stage-late" aria-label="High priority"/> : null}
                           <span className={cn("truncate text-[14.5px] font-medium group-hover:underline", stage === "done" ? "text-ink-tertiary" : "text-ink")}>{t.title}</span>
+                          {t.priority === "high" ? <PriorityTag/> : null}
                           {fix ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-danger-soft px-2 py-px text-[11px] font-semibold text-danger"><RotateCcw className="size-3" aria-hidden/>Sent back</span> : null}
                         </span>
                         <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-ink-tertiary">
@@ -317,7 +318,7 @@ export function TaskList({ tasks, people, milestones, today, closed, planLocked 
                   <input type="date" disabled={busy} aria-label="Due date for the selected tasks" onChange={(e) => e.target.value && void bulk({ due_date: e.target.value }, { due_date: e.target.value }, `Due ${short(e.target.value)}`)} className="absolute inset-0 cursor-pointer opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:size-full"/>
                 </label>)}
                 <BulkMenu label="Priority" disabled={busy}>
-                  <DropdownMenuItem onClick={() => void bulk({ priority: "high" }, { priority: "high" }, "Marked high priority")}><Flag className="fill-stage-late text-stage-late" aria-hidden/>High</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void bulk({ priority: "high" }, { priority: "high" }, "Marked as priority")}><ChevronsUp aria-hidden/>Priority</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void bulk({ priority: "medium" }, { priority: "medium" }, "Normal priority")}>Normal</DropdownMenuItem>
                 </BulkMenu>
                 {planLocked ? null : <button type="button" disabled={busy} onClick={() => void removeTicked()} className={cn("inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-medium transition-colors duration-200", confirmDelete ? "bg-danger text-white" : "text-[#ff9c9c] hover:bg-white/10")}><Trash2 className="size-4" aria-hidden/>{confirmDelete ? `Delete ${ticked.length}?` : "Delete"}</button>}

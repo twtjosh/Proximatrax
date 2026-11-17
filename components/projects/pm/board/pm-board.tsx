@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandleProps, type DropResult } from "@hello-pangea/dnd";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CalendarDays, Columns3, Flag, List, Lock, MessageSquare, Paperclip, RotateCcw, Search, SquareCheck, X } from "lucide-react";
+import { AlarmClock, CalendarDays, Columns3, List, Lock, MessageSquare, Paperclip, RotateCcw, Search, SquareCheck, X } from "lucide-react";
 import { Face, focusRing } from "@/components/dashboard/overview-kit";
 import { checklistProgress, normalizeBoardStage, splitLate, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
 import { daysBetween, duePhrase } from "@/lib/dashboard";
@@ -13,6 +13,7 @@ import { publicTaskAttachmentUrl } from "@/services/task-attachment-service";
 import type { TaskWithRelations } from "@/services/task-service";
 import type { Milestone, Profile, TaskAttachment } from "@/types/database";
 import { COLUMNS, fixReason, isLate } from "./board-meta";
+import { LateTag, PriorityTag } from "./task-marks";
 import { TaskList } from "./task-list";
 import { TaskComposer } from "./task-composer";
 import { TaskSheet } from "./task-sheet";
@@ -163,7 +164,7 @@ export function PmBoard({ projectId, tasks, attachments, comments, milestones, p
                 <Droppable droppableId={col.stage} isDropDisabled={closed}>
                   {(drop, dropState) => (<ul ref={drop.innerRef} {...drop.droppableProps} className={cn("grid min-h-24 flex-1 content-start gap-2 rounded-2xl p-0.5 transition-colors duration-300", dropState.isDraggingOver && "bg-brand-soft/60")}>
                       {late.length > 0 ? (<li aria-hidden className="flex items-center gap-1.5 px-2 pt-1 text-[11px] font-semibold tracking-[0.06em] text-danger uppercase">
-                          <span className="size-1.5 rounded-full bg-stage-late"/>Running late · {late.length}
+                          <AlarmClock className="size-3.5" strokeWidth={2.4}/>Running late · {late.length}
                         </li>) : null}
                       {shown.map((t, i) => (<Draggable key={t.id} draggableId={t.id} index={i} isDragDisabled={closed || col.stage === "done"} disableInteractiveElementBlocking>
                           {(drag, dragState) => (<li ref={drag.innerRef} {...drag.draggableProps} style={drag.draggableProps.style} className={cn(i < late.length && "rounded-[18px] bg-danger-soft p-1", i === late.length && late.length > 0 && "mt-2 border-t border-dashed border-line pt-3")}>
@@ -221,16 +222,16 @@ function Card({ handle, task, comments, today, files, blocked, dragging, fresh, 
           {/* eslint-disable-next-line @next/next/no-img-element -- submitted site photo */}
           <img src={publicTaskAttachmentUrl(photo.storage_path)} alt="" draggable={false} className="h-24 w-full object-cover transition-transform duration-500 ease-spring group-hover:scale-[1.03]"/>
         </span>) : null}
-      {task.milestone ? <span className="truncate text-[11px] text-ink-tertiary">{task.milestone.title}</span> : null}
-      <span className="flex items-start gap-1.5 text-[14px] leading-snug font-medium text-pretty text-ink">
-        {task.priority === "high" ? <Flag className="mt-0.5 size-3.5 shrink-0 fill-stage-late text-stage-late" aria-label="High priority"/> : null}
-        {task.title}
-      </span>
+      {task.milestone || task.priority === "high" ? (<span className="flex min-w-0 items-center justify-between gap-2">
+          <span className="truncate text-[11px] text-ink-tertiary">{task.milestone?.title}</span>
+          {task.priority === "high" ? <PriorityTag/> : null}
+        </span>) : null}
+      <span className="text-[14px] leading-snug font-medium text-pretty text-ink">{task.title}</span>
       {fix ? (<span className="flex items-start gap-1.5 rounded-lg bg-danger-soft px-2 py-1.5 text-xs text-danger"><RotateCcw className="mt-px size-3 shrink-0" aria-hidden/><span className="line-clamp-2">Fix: {fix}</span></span>) : null}
       {blocked && blocked !== "Needs owner" ? (<span className="flex items-center gap-1.5 text-xs text-ink-tertiary"><Lock className="size-3" aria-hidden/>{blocked}</span>) : null}
       <span className="flex items-center gap-2.5 text-xs text-ink-tertiary">
         {task.assignee ? <Face person={{ id: task.assignee.id, name: task.assignee.full_name, avatarUrl: task.assignee.avatar_url, role: "" }} size={22}/> : <span className="grid size-[22px] place-items-center rounded-full border border-dashed border-line-strong" title="No one yet" aria-label="No one yet"/>}
-        {task.due_date && stage !== "done" ? (<span className={cn("inline-flex items-center gap-1 tabular", late && "font-medium text-danger")}><CalendarDays className="size-3" aria-hidden/>{late ? `${daysBetween(task.due_date, today)}d late` : duePhrase(task.due_date, today)}</span>) : null}
+        {task.due_date && stage !== "done" ? (late ? <LateTag days={daysBetween(task.due_date, today)}/> : <span className="inline-flex items-center gap-1 tabular"><CalendarDays className="size-3" aria-hidden/>{duePhrase(task.due_date, today)}</span>) : null}
         <span className="ml-auto flex items-center gap-2.5">
           {steps.total > 0 ? <span className={cn("inline-flex items-center gap-1 tabular", steps.done === steps.total && "text-success")}><SquareCheck className="size-3" aria-hidden/>{steps.done}/{steps.total}</span> : null}
           {comments > 0 ? <span className="inline-flex items-center gap-1 tabular"><MessageSquare className="size-3" aria-hidden/>{comments}</span> : null}

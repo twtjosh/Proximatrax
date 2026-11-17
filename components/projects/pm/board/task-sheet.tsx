@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Camera, Check, CheckCircle2, FileText, Flag, Loader2, Lock, Play, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, ChevronsUp, FileText, Loader2, Lock, Play, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { PhotoViewer } from "@/components/projects/shared/photo-viewer";
@@ -226,8 +226,8 @@ function Body({ task, projectId, viewerId, commentCount, onCommentCount, attachm
             <input type="date" disabled={planLocked} value={task.due_date ?? ""} onChange={(e) => void save({ due_date: e.target.value || null }, { due_date: e.target.value || null }, true)} className={cn(field, "tabular", isLate(task, today) && "border-danger/40 text-danger")}/>
           </label>
           <div className="col-span-2 grid gap-1.5 text-xs font-medium text-ink-secondary">Priority
-            <button type="button" role="switch" aria-checked={task.priority === "high"} onClick={() => void save({ priority: task.priority === "high" ? "medium" : "high" })} className={cn("press flex h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm transition-colors duration-300", task.priority === "high" ? "border-stage-late/40 bg-danger-soft font-semibold text-danger" : "border-line bg-surface text-ink-secondary hover:text-ink", focusRing)}>
-              <Flag className={cn("size-4", task.priority === "high" && "fill-current")} aria-hidden/>High priority
+            <button type="button" role="switch" aria-checked={task.priority === "high"} onClick={() => void save({ priority: task.priority === "high" ? "medium" : "high" })} className={cn("press flex h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm transition-colors duration-300", task.priority === "high" ? "border-ink bg-ink font-semibold text-canvas" : "border-line bg-surface text-ink-secondary hover:text-ink", focusRing)}>
+              <ChevronsUp className="size-4" strokeWidth={2.4} aria-hidden/>{task.priority === "high" ? "Priority task" : "Mark as priority"}
             </button>
           </div>
         </fieldset>

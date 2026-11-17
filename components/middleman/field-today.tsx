@@ -3,7 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, RotateCcw } from "lucide-react";
+import { ArrowUpRight, ChevronsUp, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, OverviewCard, stagger } from "@/components/dashboard/overview-kit";
 import { TaskWorkbench } from "@/components/middleman/task-workbench";
@@ -175,7 +175,7 @@ function FocusCard({ task, today, viewerId, attachments, sentBackAt, busy, onAdv
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip task={task} sentBackAt={sentBackAt} today={today}/>
           <DueChip due={task.due_date} today={today}/>
-          {task.priority === "high" ? <span className="inline-flex h-7 items-center rounded-full bg-danger-soft px-3 text-xs font-medium text-danger">High priority</span> : null}
+          {task.priority === "high" ? <span className="inline-flex h-7 items-center gap-1 rounded-full bg-ink pr-3 pl-2 text-xs font-semibold text-canvas"><ChevronsUp className="size-3.5" strokeWidth={2.6} aria-hidden/>Priority</span> : null}
         </div>
         <p className="mt-5 text-xs font-medium text-ink-tertiary">{task.project.title}</p>
         <h2 id="focus-title" className="mt-1 text-[1.5rem] leading-tight font-semibold tracking-[-0.025em] text-balance text-ink sm:text-[1.75rem]">{task.title}</h2>
