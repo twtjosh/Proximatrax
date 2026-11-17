@@ -13,6 +13,7 @@ import { ROUTES } from "@/lib/constants";
 import { formatDate, plural } from "@/lib/dashboard";
 import { endDateError, spanPhrase } from "@/lib/new-project";
 import { BUSY_MESSAGE } from "@/lib/gemini";
+import { placeResults, placeSearchUrl } from "@/lib/place-search";
 import { asIntake, emptyIntake, intakeCalendar, intakeMissing, MAX_REPORT_UPLOAD_BYTES, REPORT_UPLOAD_TYPES, type Intake } from "@/lib/project-intake";
 import { cn, getErrorMessage } from "@/lib/utils";
 
@@ -21,7 +22,7 @@ const WEEKDAYS = [["S", "Sunday"], ["M", "Monday"], ["T", "Tuesday"], ["W", "Wed
 const READ_MARK = "rounded-lg bg-brand-soft/60 ring-4 ring-brand-soft/60 print:bg-transparent print:ring-0";
 const LABEL = "text-[11px] font-semibold tracking-[0.08em] text-ink-tertiary uppercase";
 /** What the field names mean to a PM, for the "read from your file" summary. */
-const FIELD_NAMES: Partial<Record<keyof Intake, string>> = { title: "title", clientId: "client", startDate: "start date", endDate: "handover date", areas: "scope of work", weekdays: "working days", offDates: "days off", notes: "notes" };
+const FIELD_NAMES: Partial<Record<keyof Intake, string>> = { title: "title", clientId: "client", siteAddress: "site address", site: "map pin", startDate: "start date", endDate: "handover date", areas: "scope of work", weekdays: "working days", offDates: "days off", notes: "notes" };
 const DRAFT_STEPS = ["Reading the scope of work", "Breaking it into milestones and tasks", "Placing every date on a working day", "Giving each task to the right person"];
 
 function loadDraft(today: string): Intake {
@@ -63,6 +64,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
     const [error, setError] = React.useState<string | null>(null);
     const [plan, setPlan] = React.useState<PlannedMilestone[] | null>(null);
     const [siteOpen, setSiteOpen] = React.useState(false);
+    const [finding, setFinding] = React.useState<"idle" | "busy" | "none">("idle");
     const [offDate, setOffDate] = React.useState("");
     const [dragging, setDragging] = React.useState(false);
     const dragDepth = React.useRef(0);
@@ -124,6 +126,9 @@ export function ReportForm({ today, pmName, clients, crew }: {
             const read = data.intake, keys = data.filled ?? [];
             setIntake((i) => ({ ...i, ...Object.fromEntries(keys.map((k) => [k, read[k]])) }));
             setFilled(new Set(keys));
+            // The document named the place: drop the pin there too, unless one is already set.
+            if (read.siteAddress && !intake.site && (await findOnMap(read.siteAddress)))
+                setFilled((f) => new Set([...f, "site" as const]));
             if (keys.length === 0) {
                 setReadFrom(null);
                 setError("Nothing about the project could be read from that file. Check it is the right document and clearly photographed.");
@@ -135,6 +140,26 @@ export function ReportForm({ today, pmName, clients, crew }: {
         }
         finally {
             setBusy(null);
+        }
+    }
+
+    /** Looks the address up on OpenStreetMap and pins the best match; false when nothing matched. */
+    async function findOnMap(address: string): Promise<boolean> {
+        setFinding("busy");
+        try {
+            const res = await fetch(placeSearchUrl(address), { headers: { Accept: "application/json" } });
+            const [best] = placeResults(await res.json());
+            if (!best) {
+                setFinding("none");
+                return false;
+            }
+            set("site", { lat: best.lat, lng: best.lng });
+            setFinding("idle");
+            return true;
+        }
+        catch {
+            setFinding("none");
+            return false;
         }
     }
 
@@ -241,14 +266,21 @@ export function ReportForm({ today, pmName, clients, crew }: {
                   <div className={mark("clientId")}>
                     <PersonPicker id="client" label="Client" noun="client" people={clients} value={intake.clientId} onChange={(id) => set("clientId", id)} help="Sees the milestones and photos you approve."/>
                   </div>
-                  <div>
-                    <span className="text-[13px] font-medium text-ink">Site</span>
-                    <button type="button" onClick={() => setSiteOpen(true)} className={cn("mt-1.5 flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-xl border border-line-strong bg-surface px-3.5 py-2 text-left transition-colors hover:border-ink-tertiary/50 print:border-0 print:border-b print:border-dashed print:px-0", focusRing)}>
-                      <MapPin className="size-4 shrink-0 text-copper" aria-hidden/>
-                      <span className={cn("min-w-0 truncate text-[14px]", intake.site ? "text-ink tabular" : "text-ink-tertiary")}>{intake.site ? `${intake.site.lat.toFixed(5)}, ${intake.site.lng.toFixed(5)}` : "Pick the site on the map"}</span>
-                      {!intake.site ? <span className="ml-auto shrink-0 text-xs text-ink-tertiary" data-print-hide>Optional</span> : null}
-                    </button>
-                    <p className="mt-1.5 text-xs text-ink-tertiary" data-print-hide>Site photos are checked against this pin.</p>
+                  <div className="grid gap-2">
+                    <label className={cn("block", mark("siteAddress"))}>
+                      <span className="text-[13px] font-medium text-ink">Site address</span>
+                      <input value={intake.siteAddress} onChange={(e) => { set("siteAddress", e.target.value); setFinding("idle"); }} placeholder="Unit, building, street, city" maxLength={200} className={cn(LINE, "mt-1.5 text-[15px]")}/>
+                    </label>
+                    <div className={cn("flex flex-wrap items-center gap-2", mark("site"))} data-print-hide>
+                      <button type="button" onClick={() => setSiteOpen(true)} className={cn("inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-line-strong bg-surface px-3.5 text-[13px] transition-colors hover:border-copper", focusRing)}>
+                        <MapPin className="size-4 shrink-0 text-copper" aria-hidden/>
+                        <span className={cn("truncate", intake.site ? "text-ink tabular" : "text-ink-secondary")}>{intake.site ? `Pinned ${intake.site.lat.toFixed(4)}, ${intake.site.lng.toFixed(4)}` : "Pin on the map"}</span>
+                      </button>
+                      {!intake.site && intake.siteAddress.trim().length > 3 ? (<button type="button" disabled={finding === "busy"} onClick={() => void findOnMap(intake.siteAddress)} className={cn(softAction, "h-9 disabled:opacity-60")}>
+                          {finding === "busy" ? <Loader2 className="animate-spin" aria-hidden/> : null}Find this address
+                        </button>) : null}
+                    </div>
+                    <p className="text-xs text-ink-tertiary" data-print-hide>{finding === "none" ? "That address wasn't found on the map. Pin it by hand, or add the city." : "Site photos are checked against the pin."}</p>
                   </div>
                 </div>
               </Part>

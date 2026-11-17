@@ -131,3 +131,24 @@ test("a blank printed area label is not read as an area", () => {
     assert.deepEqual(intake.areas.map((a) => a.name), ["AREA 2"]);
     assert.deepEqual(got, ["areas"]);
 });
+
+test("the site's place is read from a document into its own field", () => {
+    const { intake, filled: got } = matchReadIntake({ siteAddress: "  Unit 12B, Rockwell, Makati City " }, [], "2026-11-17");
+    assert.equal(intake.siteAddress, "Unit 12B, Rockwell, Makati City");
+    assert.ok(got.includes("siteAddress"));
+    assert.ok(READ_SCHEMA.properties.siteAddress && READ_SCHEMA.required.includes("siteAddress"));
+});
+
+test("emptyIntake has no address; asIntake keeps one and accepts older drafts without it", async () => {
+    const { asIntake } = await import("../lib/project-intake.ts");
+    assert.equal(emptyIntake("2026-12-01").siteAddress, "");
+    assert.equal(asIntake({ ...filled(), siteAddress: "Makati" }).siteAddress, "Makati");
+    const old = { ...filled() };
+    delete old.siteAddress;
+    assert.equal(asIntake(old).siteAddress, "");
+    assert.equal(asIntake({ ...filled(), siteAddress: 5 }), null);
+});
+
+test("planPrompt names the site's place", () => {
+    assert.match(planPrompt({ ...filled(), siteAddress: "Rockwell, Makati" }, []), /Rockwell, Makati/);
+});

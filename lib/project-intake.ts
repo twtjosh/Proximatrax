@@ -15,6 +15,8 @@ export type ScopeArea = { name: string; work: string[]; sqm: number | null; note
 export type Intake = {
     title: string;
     clientId: string;
+    /** Where the job is, in words, as the client gave it. */
+    siteAddress: string;
     site: { lat: number; lng: number } | null;
     startDate: string;
     endDate: string;
@@ -30,7 +32,7 @@ export type Intake = {
 export const emptyArea = (): ScopeArea => ({ name: "", work: [], sqm: null, notes: "" });
 
 export function emptyIntake(today: string): Intake {
-    return { title: "", clientId: "", site: null, startDate: today, endDate: "", team: [], areas: [emptyArea()], weekdays: [1, 2, 3, 4, 5, 6], offDates: [], notes: "" };
+    return { title: "", clientId: "", siteAddress: "", site: null, startDate: today, endDate: "", team: [], areas: [emptyArea()], weekdays: [1, 2, 3, 4, 5, 6], offDates: [], notes: "" };
 }
 
 /** Projects run at most about three years; it also bounds the day-by-day scheduling. */
@@ -74,6 +76,7 @@ export function planPrompt(i: Intake, team: { name: string; role: CrewRole | nul
         "Break the job below into milestones and tasks for the site crew.",
         "",
         `Project: ${i.title.trim()}`,
+        i.siteAddress.trim() ? `Site: ${i.siteAddress.trim()}` : "",
         `Runs from ${i.startDate} to ${i.endDate}. Working days: ${[...i.weekdays].sort().map((d) => DAY_NAMES[d]).join(", ")}.${i.offDates.length ? ` No work on: ${i.offDates.join(", ")}.` : ""}`,
         "Scope of work by area:",
         ...areas,
@@ -101,11 +104,12 @@ export function readPrompt(today: string): string {
         "Interpret everything in it that describes the job, and fill in the fields:",
         "- title: a short name for the project (client and place, or what is being done).",
         "- clientName: the client's name, as written.",
+        "- siteAddress: where the work happens (unit, building, street, city), as written. Leave it empty if no place is given.",
         "- startDate and endDate: as YYYY-MM-DD, whatever format the document uses (\"Jan 5, 2027\", \"5/1/27\", \"first week of December\" as its first day). If only a duration is given (\"8 weeks\"), compute endDate from startDate. If no year is given, use the next such date after today. Leave a date empty only if the document gives no way to tell it.",
         `- areas: one entry per room or area of work. For each, the kinds of work it needs, mapped to these names exactly: ${WORK_TYPES.join(", ")}. Map loosely ("cabinets" or "kitchen units" is Cabinetry, "repaint" is Painting, "drapes" is Curtains & blinds, "hacking" or "tear out" is Demolition). sqm when a size is given; notes for the details (finishes, colours, materials named, measurements).`,
         "- workingDays: the weekdays work may happen, as day names, only if the document says; otherwise leave it empty.",
         "- offDates: specific dates with no work, as YYYY-MM-DD.",
-        "- notes: everything else useful for planning the work: site access, working hours, the client's preferences and restrictions, deadlines inside the project, the site address. Plain sentences.",
+        "- notes: everything else useful for planning the work: site access, working hours, the client's preferences and restrictions, deadlines inside the project. Plain sentences.",
         "Do not read the team, crew or workers: the project manager picks the team. Printed labels and empty boxes on a form are not answers. Do not invent anything the document does not say.",
     ].join("\n");
 }
@@ -152,6 +156,7 @@ export const READ_SCHEMA = {
     properties: {
         title: str,
         clientName: str,
+        siteAddress: str,
         startDate: str,
         endDate: str,
         areas: {
@@ -166,7 +171,7 @@ export const READ_SCHEMA = {
         offDates: dates,
         notes: str,
     },
-    required: ["title", "clientName", "startDate", "endDate", "areas", "workingDays", "offDates", "notes"],
+    required: ["title", "clientName", "siteAddress", "startDate", "endDate", "areas", "workingDays", "offDates", "notes"],
 };
 
 const norm = (s: unknown) => (typeof s === "string" ? s.trim().replace(/\s+/g, " ").toLowerCase() : "");
@@ -193,6 +198,8 @@ export function matchReadIntake(read: unknown, clients: { id: string; name: stri
     };
     const title = typeof r.title === "string" ? r.title.trim().replace(/\s+/g, " ") : "";
     set("title", title, Boolean(title));
+    const place = typeof r.siteAddress === "string" ? r.siteAddress.trim().replace(/\s+/g, " ").slice(0, 200) : "";
+    set("siteAddress", place, Boolean(place));
     const client = clients.find((c) => norm(c.name) === norm(r.clientName));
     set("clientId", client?.id ?? "", Boolean(client));
     set("startDate", isoDate(r.startDate), Boolean(isoDate(r.startDate)));
@@ -228,6 +235,9 @@ export function asIntake(raw: unknown): Intake | null {
     const site = r.site as { lat?: unknown; lng?: unknown } | null;
     const siteOk = site === null || (site && typeof site === "object" && typeof site.lat === "number" && typeof site.lng === "number" && Math.abs(site.lat) <= 90 && Math.abs(site.lng) <= 180);
     const areasOk = Array.isArray(r.areas) && r.areas.length <= 30 && r.areas.every((a) => a && typeof a === "object" && isStr(a.name) && Array.isArray(a.work) && a.work.every(isStr) && (a.sqm === null || typeof a.sqm === "number") && isStr(a.notes));
+    // Drafts saved before the address existed have none; anything else must be text.
+    if (r.siteAddress !== undefined && !isStr(r.siteAddress))
+        return null;
     if (!isStr(r.title) || !isStr(r.clientId) || !siteOk || !dateOrBlank(r.startDate) || !dateOrBlank(r.endDate)
         || !Array.isArray(r.team) || !r.team.every(isStr) || !areasOk
         || !Array.isArray(r.weekdays) || !r.weekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
@@ -236,6 +246,7 @@ export function asIntake(raw: unknown): Intake | null {
     return {
         title: r.title.slice(0, 160),
         clientId: r.clientId,
+        siteAddress: isStr(r.siteAddress) ? r.siteAddress.slice(0, 200) : "",
         site: site ? { lat: site.lat as number, lng: site.lng as number } : null,
         startDate: r.startDate as string,
         endDate: r.endDate as string,
