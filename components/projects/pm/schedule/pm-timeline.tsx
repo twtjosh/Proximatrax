@@ -3,7 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronRight, Lock, Plus, UserRound } from "lucide-react";
+import { Check, ChevronRight, Lock, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Face, focusRing, primaryAction } from "@/components/dashboard/overview-kit";
 import { normalizeBoardStage, taskBlockedReason, type BoardColumnStage } from "@/lib/board-workflow";
@@ -100,6 +100,9 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     const sorted = [...ms].sort((a, b) => a.due_date.localeCompare(b.due_date) || a.title.localeCompare(b.title));
     // Each milestone keeps one colour (by date order) on its row, its bar and its tasks, so the groups read apart.
     const colorOf = new Map(sorted.map((m, i) => [m.id, milestoneColor(i)]));
+    // Finished milestones step back: no colour, a check, "Done" and the day, so what's still ahead stands out.
+    const doneIds = new Set(ms.filter((m) => m.completed).map((m) => m.id));
+    const rowColor = (id: string | null | undefined) => (id && !doneIds.has(id) ? colorOf.get(id) : undefined);
     const tint = (c: string | undefined, pct: number) => (c ? `color-mix(in srgb, ${c} ${pct}%, var(--surface))` : undefined);
     const scheduled = items.filter(onTimeline);
     const range = React.useMemo(() => timelineRange(start, end, [...ms, ...scheduled.map((t) => ({ due_date: t.due_date! })), ...scheduled.filter((t) => t.start_date).map((t) => ({ due_date: t.start_date! }))]),
@@ -254,7 +257,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
     return (<div className="grid gap-4 pt-2">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-ink-secondary">
-          <b className="font-semibold text-ink">{plural(ms.length, "milestone")}</b> · {plural(scheduled.length, "task")} on the timeline
+          <b className="font-semibold text-ink">{plural(ms.length, "milestone")}</b>{doneIds.size ? <> (<span className="font-medium text-success">{doneIds.size} done</span>)</> : null} · {plural(scheduled.length, "task")} on the timeline
           {unowned.length ? (<>{" · "}<Link href={`${projectPath(projectId)}#no-owner`} className={cn("rounded-sm font-medium text-warning underline-offset-4 hover:underline", focusRing)}>{unowned.length} not assigned</Link></>) : null}
           {" · "}handover {short(end)}
         </p>
@@ -287,6 +290,8 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             {/* Grid: day lines, weekends, the project window, today. */}
             <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: "var(--label-w)", width }}>
               <span className="absolute inset-y-0 bg-brand/[0.035]" style={{ left: x(start), width: x(end) - x(start) + px }}/>
+              {/* The past, greyed up to today, so finished work reads as behind us. */}
+              {today > range.from ? <span className="absolute inset-y-0 left-0 bg-ink/4.5" style={{ width: todayX ?? width }}/> : null}
               {zoom === "week" ? Array.from({ length: days }, (_, i) => addDays(range.from, i)).filter((d) => weekday(d) === 0 || weekday(d) === 6).map((d) => <span key={d} className="absolute inset-y-0 bg-surface-sunken/70" style={{ left: x(d), width: px }}/>) : null}
               <span className="absolute inset-0" style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${px * (zoom === "week" ? 1 : 7) - 1}px, var(--line) ${px * (zoom === "week" ? 1 : 7) - 1}px ${px * (zoom === "week" ? 1 : 7)}px)`, backgroundPositionX: zoom === "week" ? 0 : `${((8 - weekday(range.from)) % 7) * px}px`, opacity: 0.6 }}/>
               {todayX !== null ? <span className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-brand" style={{ left: todayX }}/> : null}
@@ -306,9 +311,9 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
             </div>
 
             <ol>
-              {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H, background: tint(colorOf.get(r.id), 7) }}>
-                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)", background: tint(colorOf.get(r.id), 9) }}>
-                      {colorOf.get(r.id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: colorOf.get(r.id) }} aria-hidden/> : null}
+              {rows.map((r) => r.type === "group" ? (<li key={`g-${r.id}`} className="relative flex border-b border-line bg-surface-subtle/80" style={{ height: ROW_H, background: tint(rowColor(r.id), 7) }}>
+                    <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1 border-r border-line bg-surface-subtle px-2" style={{ width: "var(--label-w)", background: tint(rowColor(r.id), 9) }}>
+                      {colorOf.get(r.id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: rowColor(r.id) ?? "var(--line-strong)" }} aria-hidden/> : null}
                       <button type="button" onClick={() => setExpanded((c) => {
                         const n = new Set(c);
                         if (n.has(r.id))
@@ -320,8 +325,13 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                         <ChevronRight className={cn("size-4 transition-transform duration-300 ease-spring", expanded.has(r.id) && "rotate-90")} aria-hidden/>
                       </button>
                       <button type="button" disabled={!r.milestone} onClick={() => r.milestone && setQuery({ milestone: r.milestone.id })} className={cn("min-w-0 flex-1 cursor-pointer rounded-lg px-1.5 py-1 text-left hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent", focusRing)}>
-                        <span className="flex min-w-0 items-center gap-1.5"><span className="size-2.5 shrink-0 rotate-45 rounded-[2px]" style={{ background: colorOf.get(r.id) ?? "var(--series-other)" }} aria-hidden/><span className="truncate text-[13px] font-semibold text-ink">{r.label}</span></span>
-                        <span className="block truncate text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}{r.milestone?.completed ? <b className="font-semibold text-success"> · delivered</b> : r.milestone && msDue(r.milestone) < today ? <b className="font-semibold text-danger"> · overdue</b> : null}</span>
+                        {r.milestone?.completed ? (<>
+                            <span className="flex min-w-0 items-center gap-1.5"><span className="grid size-4 shrink-0 place-items-center rounded-full bg-success text-white" aria-hidden><Check className="size-2.5" strokeWidth={3.5}/></span><span className="truncate text-[13px] font-medium text-ink-secondary">{r.label}</span></span>
+                            <span className="block truncate text-[11px] text-ink-tertiary tabular"><b className="font-semibold text-success">Done{r.milestone.completed_at ? ` ${short(r.milestone.completed_at.slice(0, 10))}` : ""}</b> · {r.count ? `${r.done} of ${plural(r.count, "task")}` : "No dated tasks"}</span>
+                          </>) : (<>
+                            <span className="flex min-w-0 items-center gap-1.5"><span className="size-2.5 shrink-0 rotate-45 rounded-[2px]" style={{ background: colorOf.get(r.id) ?? "var(--series-other)" }} aria-hidden/><span className="truncate text-[13px] font-semibold text-ink">{r.label}</span></span>
+                            <span className="block truncate text-[11px] text-ink-tertiary tabular">{r.count ? `${r.done} of ${plural(r.count, "task")} accepted` : "No dated tasks"}{r.milestone ? ` · due ${short(msDue(r.milestone))}` : ""}{r.milestone && msDue(r.milestone) < today ? <b className="font-semibold text-danger"> · overdue</b> : null}</span>
+                          </>)}
                       </button>
                     </div>
                     {r.milestone ? (() => {
@@ -331,12 +341,14 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                     const share = m.completed ? 1 : r.count ? r.done / r.count : 0;
                     const dragging = drag?.kind === "milestone" && drag.id === m.id;
                     return (<div className="relative" style={{ width }}>
-                        <span className="absolute top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full" style={{ left: x(span.start), width: Math.max(x(span.end) - x(span.start) + px, px), background: tint(colorOf.get(m.id), 25) }}>
-                          <motion.span className="absolute inset-y-0 left-0 rounded-full" style={{ background: colorOf.get(m.id) }} initial={reduce ? false : { width: 0 }} animate={{ width: `${share * 100}%` }} transition={SPRING}/>
+                        <span className="absolute top-1/2 h-2 -translate-y-1/2 overflow-hidden rounded-full" style={{ left: x(span.start), width: Math.max(x(span.end) - x(span.start) + px, px), background: m.completed ? "var(--line)" : tint(colorOf.get(m.id), 25) }}>
+                          <motion.span className="absolute inset-y-0 left-0 rounded-full" style={{ background: m.completed ? "var(--line-strong)" : colorOf.get(m.id) }} initial={reduce ? false : { width: 0 }} animate={{ width: `${share * 100}%` }} transition={SPRING}/>
                         </span>
-                        <button type="button" aria-label={`${m.title}, due ${short(msDue(m))}.${planLocked ? "" : " Drag to move."}`} disabled={closed || m.completed} onPointerDown={(e) => begin(e, { kind: "milestone", id: m.id, mode: "move", start: null, due: m.due_date })} onClick={() => !moved.current && setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none", !closed && !planLocked && !m.completed && "cursor-ew-resize", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
+                        {m.completed ? (<button type="button" aria-label={`${m.title}, done${m.completed_at ? ` ${short(m.completed_at.slice(0, 10))}` : ""}.`} onClick={() => setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
+                            <span className="grid size-5 place-items-center rounded-full bg-success text-white ring-[3px] ring-surface shadow-[0_1px_4px_rgb(14_18_34/0.3)]"><Check className="size-3" strokeWidth={3.5} aria-hidden/></span>
+                          </button>) : <button type="button" aria-label={`${m.title}, due ${short(msDue(m))}.${planLocked ? "" : " Drag to move."}`} disabled={closed || m.completed} onPointerDown={(e) => begin(e, { kind: "milestone", id: m.id, mode: "move", start: null, due: m.due_date })} onClick={() => !moved.current && setQuery({ milestone: m.id })} className={cn("absolute top-1/2 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center touch-none", !closed && !planLocked && !m.completed && "cursor-ew-resize", focusRing)} style={{ left: x(msDue(m)) + px / 2 }}>
                           <span className={cn("size-3.5 rotate-45 rounded-[3px] ring-[3px] ring-surface shadow-[0_1px_4px_rgb(14_18_34/0.3)] transition-transform duration-200", late ? "ring-danger" : "", dragging && "scale-125")} style={{ background: colorOf.get(m.id) }}/>
-                        </button>
+                        </button>}
                         {dragging && drag.delta ? <DragLabel x={x(msDue(m)) + px} text={short(msDue(m))} shift={shiftLabel(m.due_date, msDue(m))}/> : null}
                       </div>);
                 })() : <div style={{ width }}/>}
@@ -354,7 +366,7 @@ export function PmTimeline({ projectId, start, end, milestones, tasks, attachmen
                 const owner =t.assignee ? <Face person={{ id: t.assignee.id, name: t.assignee.full_name, avatarUrl: t.assignee.avatar_url, role: "" }} size={22}/> : (<span className="grid size-5.5 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-tertiary"><UserRound className="size-3" aria-hidden/></span>);
                 return (<li key={t.id} className="group relative flex border-b border-line/70 last:border-b-0" style={{ height: ROW_H }}>
                       <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r border-line bg-surface py-1 pr-2 pl-4 sm:pl-10 group-hover:bg-surface-subtle" style={{ width: "var(--label-w)" }}>
-                        {t.milestone_id && colorOf.get(t.milestone_id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: colorOf.get(t.milestone_id) }} aria-hidden/> : null}
+                        {t.milestone_id && colorOf.get(t.milestone_id) ? <span className="absolute inset-y-0 left-0 w-1" style={{ background: rowColor(t.milestone_id) ?? "var(--line-strong)" }} aria-hidden/> : null}
                         <button type="button" onClick={() => show(t)} className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md py-1 text-left text-[13px] text-ink", focusRing)}>{t.title}</button>
                         {/* Choosing No one takes the task off the timeline, onto the Overview's No one assigned card. */}
                         {movable ? (<AssignMenu task={t} owner={t.assignee?.full_name ?? null} people={people} onAssign={(p) => void assign(t, p)} className="grid shrink-0 cursor-pointer place-items-center rounded-full p-0.5 hover:bg-surface-sunken data-popup-open:bg-surface-sunken">
