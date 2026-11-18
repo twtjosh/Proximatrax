@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertCircle, Check, ChevronLeft, FileText, FileUp, Loader2, MapPin, Plus, Printer, Sparkles, X } from "lucide-react";
+import { AlertCircle, Check, ChevronLeft, FileText, FileUp, Loader2, MapPin, Plus, Printer, RotateCcw, Sparkles, X } from "lucide-react";
+import { toast } from "sonner";
 import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { PersonPicker, type PersonOption } from "@/components/projects/new/person-picker";
 import { PlanReview } from "@/components/projects/new/plan-review";
@@ -91,6 +92,21 @@ export function ReportForm({ today, pmName, clients, crew }: {
     }, [intake]);
 
     const set = <K extends keyof Intake>(key: K, value: Intake[K]) => setIntake((i) => ({ ...i, [key]: value }));
+    /** Anything typed or read in yet: only then is there a draft to clear. */
+    const started = JSON.stringify(intake) !== JSON.stringify(emptyIntake(today));
+    /** Clears the drafted report, here and in this browser's saved draft; Undo puts it back. */
+    function startOver() {
+        const before = intake;
+        setIntake(emptyIntake(today));
+        setFilled(new Set());
+        setReadFrom(null);
+        setError(null);
+        setOffDate("");
+        clearDraft();
+        document.getElementById("report-top")?.scrollIntoView({ block: "start" });
+        toast("The report was cleared", { action: { label: "Undo", onClick: () => setIntake(before) } });
+    }
+    const startOverButton = (className: string) => (started ? <button type="button" onClick={startOver} disabled={busy !== null} className={cn("inline-flex cursor-pointer items-center gap-1.5 rounded-full font-medium text-ink-secondary hover:text-danger disabled:cursor-not-allowed disabled:opacity-45", focusRing, className)}><RotateCcw className="size-3.5" aria-hidden/>Start over</button> : null);
     const mark = (key: keyof Intake) => (filled.has(key) ? READ_MARK : "");
     const missing = intakeMissing(intake);
     const span = spanPhrase(intake.startDate, intake.endDate);
@@ -232,7 +248,10 @@ export function ReportForm({ today, pmName, clients, crew }: {
           <ChevronLeft className="size-4" aria-hidden/>Projects
         </Link>
         <header className="materialize mt-2.5">
-          <h1 className="text-[2rem] leading-[1.05] font-semibold tracking-[-0.035em] text-ink sm:text-[2.5rem]">New project</h1>
+          <div className="flex items-end justify-between gap-3">
+            <h1 className="text-[2rem] leading-[1.05] font-semibold tracking-[-0.035em] text-ink sm:text-[2.5rem]">New project</h1>
+            {startOverButton("h-9 shrink-0 bg-surface-sunken px-3.5 text-[13px] lg:hidden")}
+          </div>
           <p className="mt-2 max-w-2xl text-[15px] text-pretty text-ink-tertiary">Fill in the project report from the client interview, or start from a document you already have. The milestones, tasks, deadlines and who does what are drafted for you to check before anything is created.</p>
         </header>
       </div>
@@ -389,6 +408,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
               {save}
               <p className="mt-2.5 text-center text-[12.5px] leading-snug text-ink-tertiary">{missing ?? "Nothing is created yet. You check the plan first."}</p>
               <button type="button" onClick={() => window.print()} className={cn("mx-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}><Printer className="size-3.5" aria-hidden/>Print a blank copy for interviews</button>
+              {startOverButton("mx-auto mt-0.5 flex px-2 py-1 text-[12.5px]")}
             </div>
           </section>
         </aside>
