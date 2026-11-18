@@ -32,7 +32,7 @@ export function WeekColumns({ accepted, added, weeks, average }: { accepted: num
       <div className="relative flex h-48 items-end gap-2 border-b border-line-strong" role="img" aria-label={`Each week, oldest first, new tasks and finished tasks: ${weeks.map((_, i) => `${added[i]} new, ${accepted[i]} finished`).join("; ")}.`}>
         {/* The usual week, as a reference line labelled with its value: orange bars above it beat a usual week. */}
         {average ? (<span className="pointer-events-none absolute inset-x-0 border-t border-dashed border-ink-tertiary/70" style={{ bottom: h(average) }} aria-hidden>
-            <span className="absolute -top-1 right-0 -translate-y-full rounded bg-surface px-1 text-[11px] font-medium text-ink-tertiary tabular">Usual week: {average} finished</span>
+            <span className="absolute -top-1 left-0 -translate-y-full rounded bg-surface/90 px-1 text-[11px] font-medium text-ink-tertiary tabular">Usual week: about {Math.max(1, Math.round(average))} finished</span>
           </span>) : null}
         {accepted.map((done, i) => {
             const fresh = added[i], cut = fresh > max, now = i === last;

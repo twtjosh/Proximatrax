@@ -121,7 +121,7 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
                 </thead>
                 <tbody>
                   {workload.rows.map((r) => {
-                    const [a, b, c] = r.open, open = a + b + c, slow = r.pace !== null && workload.team !== null && r.pace > workload.team + 0.5;
+                    const [a, b, c] = r.open, open = a + b + c, slow = r.pace !== null && workload.team !== null && Math.round(r.pace) > Math.round(workload.team);
                     return (<tr key={r.person.id} className="border-t border-line text-right hover:bg-surface-subtle">
                       <td className="px-3 py-2.5 text-left">
                         <span className="flex min-w-0 items-center gap-2.5">
@@ -137,12 +137,12 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
                       <td className="px-2 max-sm:hidden">{c}</td>
                       <td className={cn("px-2", r.late ? "font-semibold text-danger" : "text-ink-tertiary")}>{r.late}</td>
                       <td className="px-2 font-semibold text-ink">{open}</td>
-                      <td className={cn("px-3", slow ? "font-semibold text-danger" : "text-ink-secondary")}>{r.pace === null ? "–" : `${r.pace} d`}</td>
+                      <td className={cn("px-3", slow ? "font-semibold text-danger" : "text-ink-secondary")}>{r.pace === null ? "–" : plural(Math.max(1, Math.round(r.pace)), "day")}</td>
                     </tr>);
                   })}
                 </tbody>
               </table>
-              <p className="px-3 pt-2.5 text-xs leading-snug text-ink-tertiary">Late counts open work past its due date. Days per task is how long accepted tasks took from start to acceptance{workload.team !== null ? `; the team's figure is ${workload.team} days, and red means slower than that` : ""}.</p>
+              <p className="px-3 pt-2.5 text-xs leading-snug text-ink-tertiary">Late counts open work past its due date. Days per task is how long accepted tasks took from start to acceptance{workload.team !== null ? `; the team's is about ${plural(Math.max(1, Math.round(workload.team)), "day")}, and red means slower than that` : ""}.</p>
             </div>)}
         </OverviewCard>
       </div>
@@ -189,10 +189,10 @@ function ThroughputReadout({ f, weeks, counts, viewer }: { f: ThroughputFacts; w
     const net = f.added - f.accepted;
     const you = viewer === "pm" ? "you" : "they";
     const verdict = net > 0
-        ? { icon: AlertTriangle, tone: "bg-warning-soft text-warning", label: "Work is piling up", why: `${f.added} new tasks came in and ${f.accepted} were finished, so ${net} more are waiting than 12 weeks ago.` }
+        ? { icon: AlertTriangle, tone: "bg-warning-soft text-warning", label: "Work is piling up", why: `${f.added} new tasks came in and ${f.accepted} were finished, so ${net} more came in than were finished.` }
         : net < 0
-            ? { icon: CheckCircle2, tone: "bg-success-soft text-success", label: "Catching up", why: `${f.accepted} tasks were finished and only ${f.added} new ones came in, so ${-net} fewer are waiting than 12 weeks ago.` }
-            : { icon: Scale, tone: "bg-surface-sunken text-ink-secondary", label: "Keeping pace", why: `${f.accepted} tasks were finished and ${f.added} new ones came in, so open work is where it was 12 weeks ago.` };
+            ? { icon: CheckCircle2, tone: "bg-success-soft text-success", label: "Catching up", why: `${f.accepted} tasks were finished and only ${f.added} new ones came in, so ${-net} more were finished than came in.` }
+            : { icon: Scale, tone: "bg-surface-sunken text-ink-secondary", label: "Keeping pace", why: `${f.accepted} tasks were finished and ${f.added} new ones came in, so finishing kept up with new work exactly.` };
     const pace = f.trend === "faster" ? `Lately ${you} are finishing more: ${f.recent.now} in the last 4 weeks, up from ${f.recent.before} in the 4 weeks before.`
         : f.trend === "slower" ? `Lately ${you} are finishing less: ${f.recent.now} in the last 4 weeks, down from ${f.recent.before} in the 4 weeks before.`
             : `Lately the pace is the same: ${f.recent.now} finished in the last 4 weeks and in the 4 weeks before.`;
@@ -204,7 +204,7 @@ function ThroughputReadout({ f, weeks, counts, viewer }: { f: ThroughputFacts; w
         <p className="text-[13.5px] leading-relaxed text-pretty text-ink-secondary">{verdict.why} {pace}</p>
       </div>
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
-        <div className={cell}><dt className="text-ink-tertiary">A usual week</dt><dd className="text-[17px] leading-tight font-semibold text-ink tabular">{f.average}<span className="text-[12px] font-medium text-ink-tertiary"> finished</span></dd></div>
+        <div className={cell}><dt className="text-ink-tertiary">A usual week</dt><dd className="text-[17px] leading-tight font-semibold text-ink tabular"><span className="text-[12px] font-medium text-ink-tertiary">about </span>{Math.max(1, Math.round(f.average))}<span className="text-[12px] font-medium text-ink-tertiary"> finished</span></dd></div>
         <div className={cell}><dt className="text-ink-tertiary">Last 4 weeks</dt><dd className="flex flex-wrap items-center gap-x-1 text-[17px] leading-tight font-semibold text-ink tabular">{f.recent.now}
           <span className={cn("inline-flex items-center gap-0.5 text-[12px] font-medium", f.trend === "faster" ? "text-success" : f.trend === "slower" ? "text-warning" : "text-ink-tertiary")}>
             {f.trend === "faster" ? <TrendingUp className="size-3.5" aria-hidden/> : f.trend === "slower" ? <TrendingDown className="size-3.5" aria-hidden/> : <Minus className="size-3.5" aria-hidden/>}
