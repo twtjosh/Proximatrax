@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ChartColumn, Minus, Table2, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ChartColumn, CheckCircle2, Minus, Scale, Table2, TrendingDown, TrendingUp } from "lucide-react";
 import { WeekColumns, weekRange } from "@/components/analytics/flow-charts";
 import { asMember } from "@/components/analytics/marks";
 import { ProjectTimeline } from "@/components/analytics/timeline/project-timeline";
@@ -89,15 +89,15 @@ export function FlowView({ data, viewer, today, title, sub, before, lead }: {
       {timeline}
 
       <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-2">
-        {/* Throughput: one series, so no legend; added work is in the sentence, the tooltip and the table. */}
-        <OverviewCard id="throughput-heading" title="Throughput" sub="Tasks accepted each week · last 12 weeks" className="materialize flex flex-col" style={stagger(5)} aside={<button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}>{table ? <><ChartColumn className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>}>
+        {/* Throughput, in plain words: new work against finished work, week by week. */}
+        <OverviewCard id="throughput-heading" title="Finished vs new work" sub="Throughput · tasks in and tasks done each week, last 12 weeks" className="materialize flex flex-col" style={stagger(5)} aside={<button type="button" aria-pressed={table} onClick={() => setTable((v) => !v)} className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-full bg-surface-sunken px-3 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}>{table ? <><ChartColumn className="size-3.5" aria-hidden/>Chart</> : <><Table2 className="size-3.5" aria-hidden/>Table</>}</button>}>
           <ThroughputReadout f={facts} weeks={s.weeks} counts={s.weekly.accepted} viewer={viewer}/>
           {/* The table scrolls inside the chart's space, so switching views never changes the card's height. */}
           <div className="relative flex min-h-60 flex-1 flex-col justify-end px-5 pt-4 pb-5 sm:px-6">
             {table ? (<div tabIndex={0} aria-label="Weekly throughput table" className={cn("absolute inset-x-5 top-4 bottom-5 overflow-y-auto overscroll-contain rounded-xl shadow-[inset_0_0_0_1px_var(--line)] [scrollbar-width:thin] sm:inset-x-6", focusRing)}>
                 <table className="w-full text-[13px] tabular">
-                  <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium">Week</th><th className="px-3 py-2 text-right font-medium">Added</th><th className="px-3 py-2 text-right font-medium">Accepted</th></tr></thead>
-                  <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{weekRange(w)}</td><td className="px-3 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-3 py-1.5 text-right">{s.weekly.accepted[i]}</td></tr>)}</tbody>
+                  <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[inset_0_-1px_0_var(--line)]"><tr className="text-left text-ink-tertiary"><th className="px-3 py-2 font-medium">Week</th><th className="px-3 py-2 text-right font-medium">New</th><th className="px-3 py-2 text-right font-medium">Finished</th><th className="px-3 py-2 text-right font-medium">Open work</th></tr></thead>
+                  <tbody>{s.weeks.map((w, i) => <tr key={w} className="border-t border-line first:border-t-0 hover:bg-surface-subtle"><td className="px-3 py-1.5">{weekRange(w)}</td><td className="px-3 py-1.5 text-right">{s.weekly.added[i]}</td><td className="px-3 py-1.5 text-right">{s.weekly.accepted[i]}</td><td className="px-3 py-1.5 text-right text-ink-secondary">{signed(s.weekly.added[i] - s.weekly.accepted[i])}</td></tr>)}</tbody>
                 </table>
               </div>) : <WeekColumns accepted={s.weekly.accepted} added={s.weekly.added} weeks={s.weeks} average={facts.average}/>}
           </div>
@@ -176,32 +176,41 @@ function Tooltip({ root }: { root: React.RefObject<HTMLDivElement | null> }) {
     </div>);
 }
 
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+
 /**
- * Throughput in words, then three figures that back them: the average week,
- * the last 4 weeks against the 4 before, and the busiest week.
+ * Throughput for someone who has never heard the word: a verdict first
+ * (piling up, catching up, keeping pace), one sentence on why, one on the
+ * recent pace, then three figures that back them.
  */
 function ThroughputReadout({ f, weeks, counts, viewer }: { f: ThroughputFacts; weeks: string[]; counts: number[]; viewer: Viewer }) {
     if (f.trend === "none")
-        return <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-ink-secondary sm:px-6">No tasks were accepted in the last 12 weeks{f.added ? `, while ${f.added} ${f.added === 1 ? "was" : "were"} added` : ""}.</p>;
+        return <p className="px-5 pt-1 text-[13.5px] leading-relaxed text-ink-secondary sm:px-6">No tasks were finished in the last 12 weeks{f.added ? `, while ${f.added} new ${f.added === 1 ? "one" : "ones"} came in` : ""}.</p>;
     const net = f.added - f.accepted;
-    const who = viewer === "pm" ? "You" : "They";
-    const balance = net > 0 ? `Open work grew by ${net}: tasks are arriving faster than they are accepted.`
-        : net < 0 ? `Open work shrank by ${-net}: tasks are being accepted faster than they arrive.`
-            : "Open work held steady: as many tasks were accepted as were added.";
-    const pace = f.trend === "faster" ? "Pace is picking up" : f.trend === "slower" ? "Pace has slowed" : "Pace is steady";
+    const you = viewer === "pm" ? "you" : "they";
+    const verdict = net > 0
+        ? { icon: AlertTriangle, tone: "bg-warning-soft text-warning", label: "Work is piling up", why: `${f.added} new tasks came in and ${f.accepted} were finished, so ${net} more are waiting than 12 weeks ago.` }
+        : net < 0
+            ? { icon: CheckCircle2, tone: "bg-success-soft text-success", label: "Catching up", why: `${f.accepted} tasks were finished and only ${f.added} new ones came in, so ${-net} fewer are waiting than 12 weeks ago.` }
+            : { icon: Scale, tone: "bg-surface-sunken text-ink-secondary", label: "Keeping pace", why: `${f.accepted} tasks were finished and ${f.added} new ones came in, so open work is where it was 12 weeks ago.` };
+    const pace = f.trend === "faster" ? `Lately ${you} are finishing more: ${f.recent.now} in the last 4 weeks, up from ${f.recent.before} in the 4 weeks before.`
+        : f.trend === "slower" ? `Lately ${you} are finishing less: ${f.recent.now} in the last 4 weeks, down from ${f.recent.before} in the 4 weeks before.`
+            : `Lately the pace is the same: ${f.recent.now} finished in the last 4 weeks and in the 4 weeks before.`;
+    const Icon = verdict.icon;
     const cell = "grid gap-0.5 rounded-xl bg-surface-subtle px-3 py-2.5";
     return (<div className="grid gap-3 px-5 pt-1 sm:px-6">
-      <p className="text-[13.5px] leading-relaxed text-pretty text-ink-secondary">
-        {who} accepted <b className="font-semibold text-ink tabular">{f.accepted}</b> {f.accepted === 1 ? "task" : "tasks"} and <b className="font-semibold text-ink tabular">{f.added}</b> {f.added === 1 ? "was" : "were"} added in 12 weeks. {balance} {pace}: <b className="font-semibold text-ink tabular">{f.recent.now}</b> accepted in the last 4 weeks against <b className="font-semibold text-ink tabular">{f.recent.before}</b> in the 4 before.{f.quiet ? ` Nothing was accepted in ${f.quiet} of the 12 weeks.` : ""}
-      </p>
+      <div className="grid gap-1.5">
+        <span className={cn("inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold", verdict.tone)}><Icon className="size-4" aria-hidden/>{verdict.label}</span>
+        <p className="text-[13.5px] leading-relaxed text-pretty text-ink-secondary">{verdict.why} {pace}</p>
+      </div>
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
-        <div className={cell}><dt className="text-ink-tertiary">Average week</dt><dd className="text-[17px] leading-tight font-semibold text-ink tabular">{f.average}<span className="text-[12px] font-medium text-ink-tertiary"> accepted</span></dd></div>
-        <div className={cell}><dt className="text-ink-tertiary">Last 4 weeks</dt><dd className="flex items-center gap-1 text-[17px] leading-tight font-semibold text-ink tabular">{f.recent.now}
+        <div className={cell}><dt className="text-ink-tertiary">A usual week</dt><dd className="text-[17px] leading-tight font-semibold text-ink tabular">{f.average}<span className="text-[12px] font-medium text-ink-tertiary"> finished</span></dd></div>
+        <div className={cell}><dt className="text-ink-tertiary">Last 4 weeks</dt><dd className="flex flex-wrap items-center gap-x-1 text-[17px] leading-tight font-semibold text-ink tabular">{f.recent.now}
           <span className={cn("inline-flex items-center gap-0.5 text-[12px] font-medium", f.trend === "faster" ? "text-success" : f.trend === "slower" ? "text-warning" : "text-ink-tertiary")}>
             {f.trend === "faster" ? <TrendingUp className="size-3.5" aria-hidden/> : f.trend === "slower" ? <TrendingDown className="size-3.5" aria-hidden/> : <Minus className="size-3.5" aria-hidden/>}
-            {f.trend === "steady" ? "same" : `${f.trend === "faster" ? "up" : "down"} from ${f.recent.before}`}
+            {f.trend === "steady" ? "same as before" : `${f.trend === "faster" ? "up" : "down"} from ${f.recent.before}`}
           </span></dd></div>
-        <div className={cell}><dt className="text-ink-tertiary">Busiest week</dt><dd className="leading-tight font-semibold text-ink tabular">{f.busiest === null ? "–" : <>{weekRange(weeks[f.busiest])}<span className="block text-[12px] font-medium text-ink-tertiary">{plural(counts[f.busiest], "task")} accepted</span></>}</dd></div>
+        <div className={cell}><dt className="text-ink-tertiary">Best week</dt><dd className="leading-tight font-semibold text-ink tabular">{f.busiest === null ? "–" : <>{weekRange(weeks[f.busiest])}<span className="block text-[12px] font-medium text-ink-tertiary">{plural(counts[f.busiest], "task")} finished</span></>}</dd></div>
       </dl>
     </div>);
 }
