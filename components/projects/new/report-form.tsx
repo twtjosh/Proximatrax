@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertCircle, Check, ChevronLeft, FileText, FileUp, Loader2, MapPin, Plus, Printer, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertCircle, Check, ChevronLeft, FileText, FileUp, Loader2, MapPin, Plus, FileSpreadsheet, RotateCcw, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { focusRing, primaryAction, softAction } from "@/components/dashboard/overview-kit";
 import { PersonPicker, type PersonOption } from "@/components/projects/new/person-picker";
@@ -16,6 +16,7 @@ import { endDateError, spanPhrase } from "@/lib/new-project";
 import { BUSY_MESSAGE } from "@/lib/gemini";
 import { placeResults, placeSearchUrl } from "@/lib/place-search";
 import { asIntake, emptyIntake, intakeCalendar, intakeMissing, MAX_REPORT_UPLOAD_BYTES, REPORT_UPLOAD_TYPES, type Intake } from "@/lib/project-intake";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { cn, getErrorMessage } from "@/lib/utils";
 
 const DRAFT_KEY = "intake-draft";
@@ -123,22 +124,33 @@ export function ReportForm({ today, pmName, clients, crew }: {
         { id: "report-scope", label: "Scope of work", done: scoped.length > 0, value: scoped.length ? `${plural(scoped.length, "area")} · ${plural(scoped.reduce((n, a) => n + a.work.length, 0), "kind")} of work` : "Rooms and the work they need" },
     ];
 
-    async function upload(file: File) {
+    async function upload(picked: File) {
         setError(null);
+        // Windows with Excel calls a .csv "application/vnd.ms-excel" (or nothing): go by the name.
+        const file = /\.csv$/i.test(picked.name) ? new File([picked], picked.name, { type: "text/csv" }) : picked;
         if (!REPORT_UPLOAD_TYPES.includes(file.type))
-            return setError("Use a PDF, JPG or PNG of the report.");
+            return setError("Use a PDF, JPG, PNG or the CSV template of the report.");
         if (file.size > MAX_REPORT_UPLOAD_BYTES)
-            return setError("That file is over 4 MB. Save it smaller, or take the photo again at a lower size.");
+            return setError(`That file is over ${MAX_REPORT_UPLOAD_BYTES / 1024 / 1024} MB. Save it smaller, or take the photo again at a lower size.`);
         setBusy("read");
         setReadFrom(file.name);
         try {
-            const body = new FormData();
-            body.append("file", file);
-            const res = await fetch("/api/project-report/read", { method: "POST", body });
-            // A timed-out function answers with an HTML page, not JSON.
-            const data = (await res.json().catch(() => ({ error: BUSY_MESSAGE }))) as { error?: string; intake?: Intake; filled?: (keyof Intake)[] };
-            if (!res.ok || !data.intake)
-                throw new Error(data.error ?? "The document could not be read.");
+            // Too big for a request body: the file goes straight to storage, then the server reads it from there.
+            const post = async (payload: Record<string, unknown>) => {
+                const res = await fetch("/api/project-report/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                // A timed-out function answers with an HTML page, not JSON.
+                const data = (await res.json().catch(() => ({ error: BUSY_MESSAGE }))) as { error?: string; path?: string; token?: string; intake?: Intake; filled?: (keyof Intake)[] };
+                if (!res.ok)
+                    throw new Error(data.error ?? "The document could not be read.");
+                return data;
+            };
+            const { path, token } = await post({ step: "start", type: file.type, size: file.size });
+            const { error: sent } = await createBrowserClient().storage.from("project-tasks").uploadToSignedUrl(path!, token!, file, { contentType: file.type });
+            if (sent)
+                throw new Error("The file didn't upload. Check your connection and try again.");
+            const data = await post({ step: "read", path });
+            if (!data.intake)
+                throw new Error("The document could not be read.");
             const read = data.intake, keys = data.filled ?? [];
             setIntake((i) => ({ ...i, ...Object.fromEntries(keys.map((k) => [k, read[k]])) }));
             setFilled(new Set(keys));
@@ -241,7 +253,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
 
     // `relative` keeps the screen-reader-only labels inside this screen; without it they size the page itself.
     return (<div id="report-top" className="relative mx-auto w-full max-w-[78rem] pb-10" {...dropProps}>
-      <input ref={fileRef} type="file" accept={REPORT_UPLOAD_TYPES.join(",")} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }}/>
+      <input ref={fileRef} type="file" accept={[...REPORT_UPLOAD_TYPES, ".csv"].join(",")} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }}/>
 
       <div data-print-hide>
         <Link href={ROUTES.PROJECTS} className={cn("inline-flex items-center gap-1 text-[13px] font-medium text-ink-tertiary hover:text-ink", focusRing)}>
@@ -385,7 +397,7 @@ export function ReportForm({ today, pmName, clients, crew }: {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink">Start from a document</span>
-                <span className="block text-[12.5px] leading-snug text-ink-tertiary">Your own report, a proposal or notes. PDF or photo, under 4 MB. Drop it anywhere here.</span>
+                <span className="block text-[12.5px] leading-snug text-ink-tertiary">The filled template, your own report or notes. PDF, photo or CSV, up to {MAX_REPORT_UPLOAD_BYTES / 1024 / 1024} MB. Drop it anywhere here.</span>
               </span>
             </button>
           </section>
@@ -407,8 +419,17 @@ export function ReportForm({ today, pmName, clients, crew }: {
             <div className="border-t border-line px-4 pt-3.5 pb-4">
               {save}
               <p className="mt-2.5 text-center text-[12.5px] leading-snug text-ink-tertiary">{missing ?? "Nothing is created yet. You check the plan first."}</p>
-              <button type="button" onClick={() => window.print()} className={cn("mx-auto mt-2 flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-[12.5px] font-medium text-ink-secondary hover:text-ink", focusRing)}><Printer className="size-3.5" aria-hidden/>Print a blank copy for interviews</button>
-              {startOverButton("mx-auto mt-0.5 flex px-2 py-1 text-[12.5px]")}
+              {startOverButton("mx-auto mt-2 flex px-2 py-1 text-[12.5px]")}
+            </div>
+          </section>
+
+          {/* The blank report for interviews: fill it on paper or in Excel, then upload it above. */}
+          <section aria-labelledby="template-title" className="materialize material rounded-[20px] p-4" style={{ "--i": 4 } as React.CSSProperties}>
+            <h2 id="template-title" className="text-sm font-semibold text-ink">Blank report template</h2>
+            <p className="mt-0.5 text-[12.5px] leading-snug text-ink-tertiary">For the client interview. Fill it in, then upload it here to start the project.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <a href="/templates/AEG-Project-Report.pdf" download="AEG Project Report.pdf" className={cn(softAction, "h-10 justify-center")}><FileText aria-hidden/>PDF</a>
+              <a href="/templates/AEG-Project-Report.csv" download="AEG Project Report.csv" className={cn(softAction, "h-10 justify-center")}><FileSpreadsheet aria-hidden/>CSV</a>
             </div>
           </section>
         </aside>

@@ -100,7 +100,7 @@ export function planPrompt(i: Intake, team: { name: string; role: CrewRole | nul
  */
 export function readPrompt(today: string): string {
     return [
-        `Today is ${today}. Read this project document from an interior design and fit-out company. It may be any format: their printed project report form, their own written report, a proposal, interview notes, or a photo of handwriting.`,
+        `Today is ${today}. Read this project document from an interior design and fit-out company. It may be any format: their printed project report form, their own written report, a proposal, interview notes, or a photo of handwriting, or a CSV of their report template (read only the Answer column; the "How to fill it in" column holds examples, not answers).`,
         "Interpret everything in it that describes the job, and fill in the fields:",
         "- title: a short name for the project (client and place, or what is being done).",
         "- clientName: the client's name, as written.",
@@ -220,9 +220,13 @@ export function matchReadIntake(read: unknown, clients: { id: string; name: stri
     return { intake, filled };
 }
 
-/** Vercel refuses request bodies over 4.5 MB, so uploads stop at 4 MB. */
-export const MAX_REPORT_UPLOAD_BYTES = 4 * 1024 * 1024;
-export const REPORT_UPLOAD_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+/**
+ * Uploads go straight to Storage, past Vercel's 4.5 MB body limit.
+ * ponytail: 50 MB is both the Supabase Free plan's per-file cap and Gemini's PDF limit; images could go higher on a paid plan.
+ */
+export const MAX_REPORT_UPLOAD_BYTES = 50 * 1024 * 1024;
+/** CSV is the downloadable report template, filled in Excel. */
+export const REPORT_UPLOAD_TYPES = ["application/pdf", "image/jpeg", "image/png", "text/csv"];
 
 const isStr = (v: unknown): v is string => typeof v === "string";
 const dateOrBlank = (v: unknown) => isStr(v) && (v === "" || isoDate(v) === v);

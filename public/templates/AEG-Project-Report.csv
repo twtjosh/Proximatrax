@@ -1,0 +1,17 @@
+﻿Section,Field,Answer,How to fill it in
+01 Report details,Interview date,,e.g. 2026-11-18
+01 Report details,Prepared by,,Project manager's name
+02 Project snapshot,Project name,,e.g. Santos Townhouse Kitchen
+02 Project snapshot,Client,,"Client's full name, as in ProximaTrax"
+02 Project snapshot,Site / address,,"Unit, building, street, city"
+03 Project timeline,Start date,,e.g. 2026-12-01
+03 Project timeline,Target turnover,,e.g. 2027-01-25
+03 Project timeline,Working days,,"e.g. Monday to Saturday, 8 AM to 5 PM"
+03 Project timeline,Non-working days,,"e.g. 2026-12-25, 2027-01-01"
+04 Scope of work,Area 01 name and approximate size,,"e.g. Kitchen, about 14 sqm"
+04 Scope of work,Area 01 work and details,,"Materials, finishes, changes, installations, special requirements"
+04 Scope of work,Area 02 name and approximate size,,"e.g. Kitchen, about 14 sqm"
+04 Scope of work,Area 02 work and details,,"Materials, finishes, changes, installations, special requirements"
+04 Scope of work,Area 03 name and approximate size,,"e.g. Kitchen, about 14 sqm"
+04 Scope of work,Area 03 work and details,,"Materials, finishes, changes, installations, special requirements"
+05 Notes & site requirements,Notes,,"Client preferences, access rules, delivery restrictions, dependencies"
