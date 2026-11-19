@@ -86,6 +86,17 @@ test("sanitizeDraft returns null for junk or fewer than 2 usable milestones", ()
     assert.equal(sanitizeDraft({ milestones: [{ title: "Only", tasks: [{ title: "a", workingDays: 1, role: "foreman" }] }] }), null);
 });
 
+test("schedule overlaps different people's tasks in a milestone, one at a time per person", () => {
+    const c = cal("2026-12-01", "2026-12-12"); // 11 working days
+    const owned = (title, who, days = 2) => ({ ...task(title, days), planned_to: who });
+    const [m] = schedule([ms("A", owned("a1", "p"), owned("a2", "p"), owned("b1", "q"), owned("b2", "q")), ms("B", owned("z", "p"))], c);
+    const [a1, a2, b1, b2] = m.tasks;
+    assert.equal(a1.start_date, b1.start_date, "both people start together");
+    assert.ok(b1.start_date <= a1.due_date && a1.start_date <= b1.due_date, "their tasks overlap");
+    assert.ok(a1.due_date < a2.start_date && b1.due_date < b2.start_date, "each person's own tasks follow in order");
+    assert.equal(m.tasks.map((t) => t.planned_to).join(), "p,p,q,q");
+});
+
 test("assign balances work across people with the task's role", () => {
     const plan = schedule([ms("A", task("1", 2), task("2", 2)), ms("B", task("3", 2), task("4", 2))], cal("2026-12-01", "2026-12-12"));
     const out = assign(plan, [{ id: "f1", name: "F1", role: "foreman" }, { id: "f2", name: "F2", role: "foreman" }, { id: "s", name: "S", role: "site_manager" }]);

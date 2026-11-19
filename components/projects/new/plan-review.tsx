@@ -50,16 +50,15 @@ export function PlanReview({ intake, plan, crew, clientName, onBack, onRegenerat
     const team = React.useMemo(() => crew.filter((p) => intake.team.includes(p.id)), [crew, intake.team]);
     const result = React.useMemo(() => {
         const draft = groups.map((g) => ({ title: g.title, tasks: g.tasks.map(({ title, description, workingDays, role }) => ({ title, description, workingDays, role })) }));
-        const timed = schedule(draft, intakeCalendar(intake));
-        if ("error" in timed)
-            return timed;
-        return assign(timed, team.map((p) => ({ id: p.id, name: p.name, role: p.role }))).map((m, mi) => ({
+        // Who first (the PM's picks win), then when: each person's tasks get their own lane, so dates follow a reassignment.
+        const owned = assign(draft, team.map((p) => ({ id: p.id, name: p.name, role: p.role }))).map((m, mi) => ({
             ...m,
             tasks: m.tasks.map((t, ti) => {
                 const pick = groups[mi].tasks[ti].pick;
                 return pick === undefined ? t : { ...t, planned_to: pick };
             }),
         }));
+        return schedule(owned, intakeCalendar(intake));
     }, [groups, intake, team]);
     const planned = "error" in result ? null : result;
     const total = groups.reduce((n, g) => n + g.tasks.length, 0);

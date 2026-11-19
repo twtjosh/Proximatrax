@@ -2,7 +2,8 @@
  * Turns the work breakdown Gemini drafts into a schedule the database can
  * trust: every date on a working day inside the project, milestones in
  * order with strictly increasing due dates, and each task planned for the
- * least-loaded crew member with the right role. AI decides what; these rules
+ * least-loaded crew member with the right role. Different people's tasks in
+ * a milestone overlap. AI decides what; these rules
  * decide when and who. No imports, so `node --test` can run it.
  */
 
@@ -89,43 +90,58 @@ function shares(weights: number[], total: number): number[] {
     return out;
 }
 
+/** Tasks one after another across `slice`, longer ones given more days; squeezed onto shared days when they outnumber it. */
+function inSequence(tasks: DraftTask[], slice: string[]): { start_date: string; due_date: string }[] {
+    if (slice.length < tasks.length)
+        return tasks.map((_, ti) => {
+            const day = slice[Math.floor((ti * slice.length) / tasks.length)];
+            return { start_date: day, due_date: day };
+        });
+    const perTask = shares(tasks.map((t) => t.workingDays), slice.length);
+    let at = 0;
+    return tasks.map((_, ti) => {
+        const start = slice[at];
+        at += perTask[ti];
+        return { start_date: start, due_date: slice[at - 1] };
+    });
+}
+
+type Owned = DraftTask & { planned_to?: string | null };
+
 /**
- * Milestones and their tasks run one after another, stretched so the last
- * task ends on the last working day.
- * ponytail: sequential tasks only; parallel tracks if crews must overlap.
+ * Milestones run one after another, stretched so the last one ends on the
+ * last working day. Inside a milestone each person works through their own
+ * tasks in order, and different people work at the same time, so tasks
+ * overlap. Unplanned tasks share one lane. A milestone lasts as long as its
+ * busiest person's work.
  */
-export function schedule(draft: DraftMilestone[], cal: Calendar): PlannedMilestone[] | { error: "too_short" } {
+export function schedule(draft: { title: string; tasks: Owned[] }[], cal: Calendar): PlannedMilestone[] | { error: "too_short" } {
     const days = workingDays(cal);
     if (draft.length === 0 || days.length < draft.length)
         return { error: "too_short" };
-    const perMilestone = shares(draft.map((m) => m.tasks.reduce((a, t) => a + t.workingDays, 0)), days.length);
+    const lanesOf = (m: { tasks: Owned[] }) => {
+        const lanes = new Map<string | null, number[]>();
+        m.tasks.forEach((t, ti) => lanes.set(t.planned_to ?? null, [...(lanes.get(t.planned_to ?? null) ?? []), ti]));
+        return [...lanes.values()].map((idx) => ({ idx, length: idx.reduce((a, i) => a + m.tasks[i].workingDays, 0) }));
+    };
+    const perMilestone = shares(draft.map((m) => Math.max(...lanesOf(m).map((l) => l.length))), days.length);
     let cursor = 0;
     return draft.map((m, mi) => {
         const slice = days.slice(cursor, cursor + perMilestone[mi]);
         cursor += perMilestone[mi];
-        const n = m.tasks.length;
-        let tasks: PlannedTask[];
-        if (slice.length >= n) {
-            const perTask = shares(m.tasks.map((t) => t.workingDays), slice.length);
-            let at = 0;
-            tasks = m.tasks.map((t, ti) => {
-                const start = slice[at];
-                at += perTask[ti];
-                return { ...t, start_date: start, due_date: slice[at - 1], planned_to: null };
-            });
+        const lanes = lanesOf(m), longest = Math.max(...lanes.map((l) => l.length));
+        const dates: { start_date: string; due_date: string }[] = [];
+        for (const lane of lanes) {
+            // A lighter lane finishes early instead of being stretched to the milestone's end.
+            const span = Math.min(slice.length, Math.max(lane.idx.length, Math.round((slice.length * lane.length) / longest)));
+            inSequence(lane.idx.map((i) => m.tasks[i]), slice.slice(0, span)).forEach((d, k) => (dates[lane.idx[k]] = d));
         }
-        else {
-            tasks = m.tasks.map((t, ti) => {
-                const day = slice[Math.floor((ti * slice.length) / n)];
-                return { ...t, start_date: day, due_date: day, planned_to: null };
-            });
-        }
-        return { title: m.title, due_date: slice.at(-1)!, tasks };
+        return { title: m.title, due_date: slice.at(-1)!, tasks: m.tasks.map((t, ti) => ({ ...t, ...dates[ti], planned_to: t.planned_to ?? null })) };
     });
 }
 
 /** Each task goes to the least-loaded member with its role, or the least-loaded member when nobody has it. */
-export function assign(plan: PlannedMilestone[], team: TeamMember[]): PlannedMilestone[] {
+export function assign<M extends { tasks: DraftTask[] }>(plan: M[], team: TeamMember[]): (M & { tasks: (M["tasks"][number] & { planned_to: string | null })[] })[] {
     const load = new Map(team.map((p) => [p.id, 0]));
     return plan.map((m) => ({
         ...m,
@@ -188,6 +204,6 @@ export function buildPlan(raw: unknown, cal: Calendar, team: TeamMember[]): Plan
     const draft = sanitizeDraft(raw);
     if (!draft)
         return { error: "invalid" };
-    const planned = schedule(draft, cal);
-    return "error" in planned ? planned : assign(planned, team);
+    // Who first, then when: each person's tasks run in their own lane.
+    return schedule(assign(draft, team), cal);
 }
